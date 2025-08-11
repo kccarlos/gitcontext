@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="./web/public/gitcontext.svg" width="50">
+  <img src="./src/web/public/gitcontext.svg" width="50">
   <span>GitContext</span>
 </h1>
 
@@ -63,13 +63,13 @@ Passing only relevant context to an LLM significantly improves accuracy — espe
 ## Installation
 
 ```bash
-cd web && npm install
-cd web && npm run dev
+npm install
+npm run dev
 ```
 
 To build the production version, run:
 
 ```bash
-cd web && npm run build
-npm run preview
+npm --workspace src/web run build
+npm --workspace src/web run preview
 ```
