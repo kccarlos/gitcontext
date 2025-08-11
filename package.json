@@ -1,11 +1,14 @@
 {
   "name": "gitcontext",
-  "private": true,
+  "private": false,
+  "author": "kccarlos",
+  "license": "MIT",
+  "description": "GitContext helps you package local file diffs and code into a single, clean prompt, ensuring your AI chatbot has the precise information it needs — all without your code ever leaving your machine.",
   "workspaces": [
     "src/web",
     "src/electron"
   ],
-  "version": "0.0.1",
+  "version": "1.0.0",
   "packageManager": "npm@10.8.2",
   "type": "module",
   "scripts": {
