@@ -7,7 +7,7 @@ on:
     branches: [ main, dev ]
 
 jobs:
-  build:
+  web-build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -23,5 +23,40 @@ jobs:
         run: npm -ws run lint --if-present
       - name: Build web
         run: npm --workspace src/web run build
-      - name: Verify lockfile and audit
-        run: npm ci --audit --omit=dev
+      - name: Upload web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: src/web/dist
+          retention-days: 7
+
+  desktop-build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Build renderer and electron bundles
+        run: ELECTRON=1 npm --workspace src/web run build
+      - name: Package desktop app
+        run: npx electron-builder --config electron-builder.yml --publish=never
+      - name: Upload desktop artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.os }}
+          path: |
+            dist/*.dmg
+            dist/*.exe
+            dist/*.AppImage
+          retention-days: 7

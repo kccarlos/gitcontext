@@ -1,0 +1,20 @@
+appId: xyz.gitcontext.app
+productName: GitContext
+files:
+  - package.json
+  - from: src/web/dist
+    to: dist
+  - from: src/web/dist-electron
+    to: dist-electron
+mac:
+  target:
+    - dmg
+  category: public.app-category.developer-tools
+win:
+  target:
+    - nsis
+linux:
+  target:
+    - AppImage
+extraMetadata:
+  main: dist-electron/main.js

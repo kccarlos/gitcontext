@@ -60,16 +60,35 @@ Passing only relevant context to an LLM significantly improves accuracy — espe
 
 ---
 
-## Installation
+## Getting Started
+
+### Web App
 
 ```bash
 npm install
-npm run dev
+npm run web:dev
 ```
 
 To build the production version, run:
 
 ```bash
-npm --workspace src/web run build
-npm --workspace src/web run preview
+npm run web:build
+npm run web:preview
 ```
+
+
+### Electron App
+
+```bash
+npm install
+npm run electron:dev
+```
+
+To build the production version, run:
+
+```bash
+npm install
+ELECTRON=1 npm --workspace src/web run build
+npm run electron:npx electron-builder --config electron-builder.yml --publish=never
+```
+
