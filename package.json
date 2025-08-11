@@ -1,6 +1,6 @@
 {
   "name": "gitcontext",
-  "private": false,
+  "private": true,
   "author": "kccarlos",
   "license": "MIT",
   "description": "GitContext helps you package local file diffs and code into a single, clean prompt, ensuring your AI chatbot has the precise information it needs — all without your code ever leaving your machine.",
@@ -48,7 +48,11 @@
       "@semantic-release/release-notes-generator",
       ["@semantic-release/github", {
         "assets": [
-          "dist-all/**/*.{dmg,exe,AppImage,yml,blockmap}",
+          "dist-all/**/*.dmg",
+          "dist-all/**/*.exe",
+          "dist-all/**/*.AppImage",
+          "dist-all/**/*.blockmap",
+          "dist-all/**/*latest*.yml",
           "!dist-all/**/builder-debug.yml"
         ]
       }],
