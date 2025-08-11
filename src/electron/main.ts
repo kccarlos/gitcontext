@@ -1,7 +1,9 @@
 import { app, BrowserWindow } from 'electron'
-import { join } from 'node:path'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const isDev = process.env.VITE_DEV_SERVER_URL !== undefined
+const __dirnameSafe = dirname(fileURLToPath(import.meta.url))
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -10,7 +12,7 @@ function createWindow() {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
-      preload: join(__dirname, 'preload.js')
+      preload: join(__dirnameSafe, 'preload.js'),
     }
   })
 
@@ -18,7 +20,7 @@ function createWindow() {
     win.loadURL(process.env.VITE_DEV_SERVER_URL)
     win.webContents.openDevTools({ mode: 'detach' })
   } else {
-    win.loadFile(join(__dirname, '../web/index.html'))
+    win.loadFile(join(__dirnameSafe, '../web/index.html'))
   }
 }
 
