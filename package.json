@@ -14,38 +14,30 @@
     "lint": "npm -ws run lint",
     "test": "echo 'no tests yet'",
     "ci": "npm ci --audit --omit=dev",
-    "prepare": "husky"
+    "prepare": "husky || true",
+    "electron:dev": "concurrently -k \"npm --workspace src/web run dev\" \"wait-on tcp:5173 && electron ./dist-electron/main.js\""
   },
   "devDependencies": {
     "@commitlint/cli": "19.5.0",
     "@commitlint/config-conventional": "19.5.0",
+    "@semantic-release/changelog": "6.0.3",
+    "@semantic-release/git": "10.0.1",
+    "concurrently": "^9.1.0",
+    "electron": "^30.0.0",
     "husky": "9.1.6",
     "semantic-release": "24.2.0",
-    "@semantic-release/changelog": "6.0.3",
-    "@semantic-release/git": "10.0.1"
+    "vite": "^7.1.0",
+    "vite-plugin-electron": "^0.28.7",
+    "vite-plugin-electron-renderer": "^0.18.0",
+    "wait-on": "^8.0.1"
   },
   "release": {
-    "branches": [
-      "main"
-    ],
+    "branches": ["main"],
     "plugins": [
       "@semantic-release/commit-analyzer",
       "@semantic-release/release-notes-generator",
-      [
-        "@semantic-release/changelog",
-        {
-          "changelogFile": "CHANGELOG.md"
-        }
-      ],
-      [
-        "@semantic-release/git",
-        {
-          "assets": [
-            "CHANGELOG.md",
-            "package.json"
-          ]
-        }
-      ]
+      ["@semantic-release/changelog", {"changelogFile": "CHANGELOG.md"}],
+      ["@semantic-release/git", {"assets": ["CHANGELOG.md", "package.json"]}]
     ]
   }
 }

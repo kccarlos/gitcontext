@@ -12,12 +12,18 @@ export default defineConfig({
     react(),
     wasm(),
     topLevelAwait(),
-    electron({
-      entry: 'src/electron/main.ts',
-      vite: {
-        build: { sourcemap: true }
-      }
-    }),
+    // Configure Electron main and preload builds relative to the renderer project root (src/web)
+    electron([
+      {
+        entry: '../electron/main.ts',
+        vite: { build: { sourcemap: true } },
+        onstart({ startup }) { startup() },
+      },
+      {
+        entry: '../electron/preload.ts',
+        onstart({ reload }) { reload() },
+      },
+    ]),
     renderer(),
   ],
   build: {
