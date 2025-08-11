@@ -1,0 +1,1007 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import './App.css'
+import { Folder, ChevronsDown, ChevronsUp, CheckSquare, Square, Copy, Sun, Moon, ArrowLeftRight, MessageCircleMore, FolderGit2, ListChecks } from 'lucide-react'
+import BrowserSupportGate from './components/BrowserSupportGate'
+import { HeaderControls } from './components/HeaderControls'
+import { ProjectPanel } from './components/ProjectPanel'
+import { FileTreeView } from './components/FileTreeView'
+import PreviewModal from './components/PreviewModal'
+import { useWorkspaces } from './hooks/useWorkspaces'
+import { useGitRepository } from './hooks/useGitRepository'
+import { useFileTree, type FileDiffStatus } from './hooks/useFileTree'
+import { SelectedFilesPanel } from './components/SelectedFilesPanel'
+import { StatusBar } from './components/StatusBar'
+import TokenUsage from './components/TokenUsage'
+import GitHubStarIconButton from './components/GitHubStarIconButton'
+import BugIconButton from './components/BugIconButton'
+import { getModels } from './utils/models'
+import type { ModelInfo } from './types/models'
+import type { AppStatus } from './types/appStatus'
+import { buildUnifiedDiffForStatus } from './utils/diff'
+import { countTokens } from './utils/tokenizer'
+import { useTokenCounts } from './hooks/useTokenCounts'
+import { logError } from './utils/logger'
+import { debounce } from './utils/debounce'
+
+function App() {
+  const [appStatus, setAppStatus] = useState<AppStatus>({ state: 'IDLE' })
+
+  const [currentDir, setCurrentDir] = useState<FileSystemDirectoryHandle | null>(null)
+  const { 
+    currentDir: repoDir,
+    repoStatus,
+    gitClient,
+    branches,
+    baseBranch,
+    setBaseBranch,
+    compareBranch,
+    setCompareBranch,
+    loadRepoFromHandle,
+    selectNewRepo,
+    refreshRepo,
+    resetRepo,
+  } = useGitRepository(setAppStatus)
+  const [notif, setNotif] = useState<string | null>(null)
+  const [copyFlash, setCopyFlash] = useState<string | null>(null)
+  const [hideStatus, setHideStatus] = useState<boolean>(false)
+  const [previewPath, setPreviewPath] = useState<string | null>(null)
+  const [previewStatus, setPreviewStatus] = useState<FileDiffStatus>('unchanged')
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewData, setPreviewData] = useState<{
+    base?: { binary: boolean; text: string | null; notFound?: boolean }
+    compare?: { binary: boolean; text: string | null; notFound?: boolean }
+  } | null>(null)
+
+  const [theme, setTheme] = useState<'light' | 'dark' | null>(() => {
+    try {
+      const saved = localStorage.getItem('gc.theme')
+      return saved === 'light' || saved === 'dark' ? saved : null
+    } catch (e) {
+      logError('themeLoad', e)
+      return null
+    }
+  })
+  const [systemDark, setSystemDark] = useState(window.matchMedia('(prefers-color-scheme: dark)').matches)
+  useEffect(() => {
+    const mql = window.matchMedia('(prefers-color-scheme: dark)')
+    const handler = (e: MediaQueryListEvent) => setSystemDark(e.matches)
+    mql.addEventListener('change', handler)
+    return () => mql.removeEventListener('change', handler)
+  }, [])
+  const effectiveTheme = theme ?? (systemDark ? 'dark' : 'light')
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', effectiveTheme)
+  }, [effectiveTheme])
+  useEffect(() => {
+    try {
+      if (theme) localStorage.setItem('gc.theme', theme)
+      else localStorage.removeItem('gc.theme')
+    } catch (e) {
+      logError('themePersistence', e)
+      setNotif('Your browser blocked saving theme preference.')
+    }
+  }, [theme])
+  const toggleTheme = () => setTheme(effectiveTheme === 'dark' ? 'light' : 'dark')
+
+  // Landing example preview state and loader
+  const [exampleOpen, setExampleOpen] = useState<boolean>(false)
+  const [exampleText, setExampleText] = useState<string | null>(null)
+  const [exampleLoading, setExampleLoading] = useState<boolean>(false)
+  const [exampleError, setExampleError] = useState<string | null>(null)
+  async function loadExampleIfNeeded(): Promise<void> {
+    if (exampleText || exampleLoading) return
+    setExampleLoading(true)
+    setExampleError(null)
+    try {
+      const url = `${import.meta.env.BASE_URL}example-output.txt`
+      const res = await fetch(url)
+      if (!res.ok) throw new Error(`Failed to load example (${res.status})`)
+      const txt = await res.text()
+      setExampleText(txt)
+    } catch (e) {
+      const err = e instanceof Error ? e.message : String(e)
+      setExampleError(err)
+    } finally {
+      setExampleLoading(false)
+    }
+  }
+  async function openExample(): Promise<void> {
+    setExampleOpen(true)
+    void loadExampleIfNeeded()
+  }
+
+  // Prefetch example content while landing is visible so the preview is visible under the overlay
+  useEffect(() => {
+    const shouldPrefetch = currentDir === null && !exampleText && !exampleLoading
+    if (shouldPrefetch) void loadExampleIfNeeded()
+  }, [currentDir])
+
+  // --- Column resizer state & handlers ---
+  const uiHasResizer = currentDir !== null
+  useEffect(() => {
+    if (!uiHasResizer) return
+    const appEl = document.getElementById('gc-app')
+    if (!appEl) return
+
+    // Initialize from storage on mount/change
+    try {
+      const saved = Number(localStorage.getItem('gc.leftCol') || '')
+      if (!Number.isNaN(saved) && saved > 0) appEl.style.setProperty('--left-col', `${saved}px`)
+    } catch (e) {
+      logError('leftColLoad', e)
+    }
+
+    const handle = document.getElementById('gc-col-resizer')
+    if (!handle) return
+
+    const minLeft = 240 // px
+    const maxLeft = Math.max(480, Math.floor((appEl.clientWidth - 100) * 0.85))
+    let dragging = false
+
+    const onPointerDown = (e: PointerEvent) => {
+      dragging = true
+      appEl.classList.add('resizing')
+      ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+      e.preventDefault()
+    }
+    const onPointerMove = (e: PointerEvent) => {
+      if (!dragging) return
+      const rect = appEl.getBoundingClientRect()
+      const x = e.clientX - rect.left
+      const clamped = Math.min(Math.max(x - 12, minLeft), maxLeft)
+      appEl.style.setProperty('--left-col', `${clamped}px`)
+      try {
+        localStorage.setItem('gc.leftCol', String(clamped))
+      } catch (e) {
+        logError('leftColSave', e)
+      }
+    }
+    const onPointerUp = (e: PointerEvent) => {
+      dragging = false
+      appEl.classList.remove('resizing')
+      ;(e.target as HTMLElement).releasePointerCapture?.(e.pointerId)
+    }
+
+    handle.addEventListener('pointerdown', onPointerDown)
+    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerup', onPointerUp)
+    return () => {
+      handle.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', onPointerUp)
+    }
+  }, [uiHasResizer])
+
+  // User instructions: persisted in localStorage and token-counted for budgeting
+  const [userInstructions, setUserInstructions] = useState<string>('')
+  const [userInstructionsTokens, setUserInstructionsTokens] = useState<number>(0)
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('gc.userInstructions')
+      if (typeof saved === 'string') setUserInstructions(saved)
+    } catch (e) {
+      logError('instructionsLoad', e)
+      setNotif('Unable to load saved instructions (storage disabled?).')
+    }
+  }, [])
+  useEffect(() => {
+    try { localStorage.setItem('gc.userInstructions', userInstructions) } catch (e) { logError('instructionsSave', e) }
+    let cancelled = false
+    ;(async () => {
+      const n = await countTokens(userInstructions || '')
+      if (!cancelled) setUserInstructionsTokens(n)
+    })()
+    return () => { cancelled = true }
+  }, [userInstructions])
+
+  const PROMPT_TEMPLATES = [
+    {
+      id: 'branch-summary',
+      label: 'Summarize branch diff',
+      content:
+        'You are an expert engineer. Summarize the changes between the selected branches and explain the impact of the modifications.',
+    },
+    {
+      id: 'wd-review',
+      label: 'Review working directory changes',
+      content:
+        'You are a code reviewer. Review the current working directory diff for potential issues, bugs, or improvements.',
+    },
+    {
+      id: 'test-plan',
+      label: 'Suggest tests for diff',
+      content:
+        'You are a QA engineer. Based on the provided diff, propose relevant unit or integration tests to cover the changes.',
+    },
+    {
+      id: 'release-notes',
+      label: 'Draft release notes',
+      content:
+        'You are a technical writer. Craft concise release notes that describe the user-facing effects of the diff.',
+    },
+  ]
+  const [templateId, setTemplateId] = useState<string>('')
+
+  // Model selection: fetched dynamically; derive token limit from the selected model
+  const [models, setModels] = useState<ModelInfo[]>([])
+  const [modelId, setModelId] = useState<string>(() => {
+    const saved = localStorage.getItem('gc.modelId')
+    return saved || ''
+  })
+  const [modelFilter, setModelFilter] = useState<string>('')
+  const selectedModel: ModelInfo | undefined = useMemo(
+    () => models.find((m) => m.id === modelId) ?? models[0],
+    [models, modelId]
+  )
+  const filteredModels = useMemo(() => {
+    const q = modelFilter.trim().toLowerCase()
+    if (!q) return models
+    return models.filter((m) =>
+      (m.name || '').toLowerCase().includes(q) ||
+      m.id.toLowerCase().includes(q)
+    )
+  }, [models, modelFilter])
+  const tokenLimit = selectedModel?.context_length ?? 0
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const fetched = await getModels()
+      if (cancelled) return
+      if (Array.isArray(fetched) && fetched.length > 0) {
+        setModels(fetched)
+        // Initialize selection if not set or missing
+        setModelId((prev) => {
+          const stillExists = fetched.some((m) => m.id === prev)
+          return stillExists && prev ? prev : fetched[0].id
+        })
+      } else {
+        setModels([])
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+  useEffect(() => {
+    try {
+      if (modelId) localStorage.setItem('gc.modelId', modelId)
+    } catch (e) {
+      logError('modelIdSave', e)
+    }
+  }, [modelId])
+
+  // Output settings: toggles controlling included sections and UI behavior
+  const [includeFileTree, setIncludeFileTree] = useState<boolean>(true)
+  const [includeBinaryAsPaths, setIncludeBinaryAsPaths] = useState<boolean>(true)
+  const [diffContextLines, setDiffContextLines] = useState<number>(3)
+  const MAX_CONTEXT = 999
+  const debouncedSetDiffContextLines = useMemo(() => debounce(setDiffContextLines, 250), [])
+  // Collapsible User Instructions
+  const [instructionsOpen, setInstructionsOpen] = useState<boolean>(true)
+
+  // Selected files token counts come from hook; compute extras for file tree and assemble total
+  const [fileTreeTokens, setFileTreeTokens] = useState<number>(0)
+  const [treeFilter, setTreeFilter] = useState<string>('')
+
+  function generateSelectedTreeString(paths: string[]): string {
+    // Build a minimal tree of selected files only
+    type Node = { name: string; children?: Map<string, Node>; isFile?: boolean }
+    const root: Node = { name: '' }
+    for (const p of paths.sort()) {
+      const parts = p.split('/')
+      let curr = root
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i]
+        curr.children ||= new Map()
+        if (!curr.children.has(part)) curr.children.set(part, { name: part })
+        const next = curr.children.get(part) as Node
+        if (i === parts.length - 1) next.isFile = true
+        curr = next
+      }
+    }
+    function walk(n: Node, indent: string): string[] {
+      const out: string[] = []
+      if (!n.children) return out
+      const entries = Array.from(n.children.values())
+      entries.sort((a, b) => {
+        const aDir = a.children && !a.isFile
+        const bDir = b.children && !b.isFile
+        if (aDir !== bDir) return aDir ? -1 : 1
+        return a.name.localeCompare(b.name)
+      })
+      entries.forEach((child, idx) => {
+        const isLast = idx === entries.length - 1
+        const prefix = indent + (isLast ? '└── ' : '├── ')
+        out.push(prefix + child.name)
+        const nextIndent = indent + (isLast ? '    ' : '│   ')
+        out.push(...walk(child, nextIndent))
+      })
+      return out
+    }
+    const body = walk(root, '')
+    return body.join('\n') + (body.length ? '\n' : '')
+  }
+
+  // Recompute file tree tokens when selection or toggle changes
+  // Defer this effect until after file tree state is available
+  const [pendingTreeTokenCalc, setPendingTreeTokenCalc] = useState(0)
+  const {
+    isComputing,
+    fileTree,
+    showChangedOnly,
+    setShowChangedOnly,
+    expandedPaths,
+    selectedPaths,
+    computeDiffAndTree,
+    toggleExpand,
+    toggleSelect,
+    expandAll,
+    collapseAll,
+    selectAll,
+    deselectAll,
+  } = useFileTree(setAppStatus)
+
+  useEffect(() => {
+    setPendingTreeTokenCalc((x) => x + 1)
+  }, [selectedPaths, includeFileTree])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      if (!includeFileTree) {
+        setFileTreeTokens(0)
+        return
+      }
+      const list = Array.from(selectedPaths)
+      const treeStr = generateSelectedTreeString(list)
+      const n = await countTokens(treeStr)
+      if (!cancelled) setFileTreeTokens(n)
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingTreeTokenCalc])
+
+  const [progress, setProgress] = useState<{ message: string; percent: number } | null>(null)
+
+  const { workspaces, selectedWorkspaceId, handleSelect, saveWorkspaceFromHandle, removeSelected, setSelectedWorkspaceId } = useWorkspaces(loadRepoFromHandle)
+
+  // Wrap folder picker so UI reflects an unsaved workspace after selection
+  const selectNewRepoAndReset = async () => {
+    const loaded = await selectNewRepo()
+    if (loaded) {
+      // Mark as unsaved in the unified selector until user saves
+      setSelectedWorkspaceId('')
+    }
+  }
+
+  async function computeDiff(): Promise<void> {
+    try {
+      await computeDiffAndTree(gitClient, baseBranch, compareBranch, setProgress)
+    } catch (e) {
+      const err = e instanceof Error ? e : new Error(String(e))
+      setNotif(`Failed to compute diff: ${err.message}`)
+      setProgress(null)
+      setAppStatus({ state: 'ERROR', message: err.message })
+    }
+  }
+
+  // Automatically recompute diff when branches change
+  useEffect(() => {
+    const key = `${baseBranch}→${compareBranch}`
+    // Avoid firing while the worker is initializing or repo not ready
+    if (
+      repoStatus.state === 'ready' &&
+      gitClient &&
+      baseBranch &&
+      compareBranch &&
+      baseBranch !== compareBranch &&
+      !isComputing &&
+      lastDiffKeyRef.current !== key
+    ) {
+      lastDiffKeyRef.current = key
+      setProgress({ message: `Preparing diff: ${baseBranch} → ${compareBranch}`, percent: 10 })
+      setAppStatus({ state: 'LOADING', task: 'diff', message: `Preparing diff: ${baseBranch} → ${compareBranch}` , progress: 10 })
+      try { console.info('[app-status]', { state: 'LOADING', task: 'diff', message: `Preparing diff: ${baseBranch} → ${compareBranch}`, progress: 10 }) } catch { /* noop */ }
+      void computeDiff()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseBranch, compareBranch, gitClient, repoStatus.state, isComputing])
+
+  // Track last computed pair to prevent effect loops and double runs
+  const lastDiffKeyRef = useRef<string>('')
+
+  useEffect(() => {
+    // Keep a local mirror of currentDir for legacy display
+    setCurrentDir(repoDir)
+  }, [repoDir])
+  
+
+  // Keep the main UI visible during refresh; only hide when no project selected
+  const projectLoaded = currentDir !== null
+
+  // Auto-hide READY status messages after 5 seconds
+  useEffect(() => {
+    if (appStatus.state === 'READY') {
+      setHideStatus(false)
+      const t = window.setTimeout(() => setHideStatus(true), 5000)
+      return () => window.clearTimeout(t)
+    }
+    setHideStatus(false)
+  }, [appStatus])
+
+  // Build a path -> status map from current file tree (unconditional to satisfy Rules of Hooks)
+  const statusByPath = useMemo<Map<string, FileDiffStatus>>(() => {
+    const m = new Map<string, FileDiffStatus>()
+    const walk = (n: unknown) => {
+      if (!n) return
+      const node = n as { type: 'dir' | 'file'; path: string; status?: FileDiffStatus; children?: unknown[] }
+      if (node.type === 'file') m.set(node.path, node.status ?? 'unchanged')
+      ;(node.children as unknown[] | undefined)?.forEach(walk)
+    }
+    if (fileTree) walk(fileTree)
+    return m
+  }, [fileTree])
+
+  // Total tokens for selected files (same hook used in SelectedFilesPanel)
+  const { total: selectedFilesTokensTotal } = useTokenCounts({
+    gitClient,
+    baseRef: baseBranch,
+    compareRef: compareBranch,
+    selectedPaths,
+    statusByPath,
+    diffContextLines,
+  })
+  const headerRight = (
+    <HeaderControls
+      workspaces={workspaces}
+      selectedWorkspaceId={selectedWorkspaceId}
+      onSelectWorkspace={handleSelect}
+      onSaveWorkspace={() => saveWorkspaceFromHandle(currentDir)}
+      onRemoveWorkspace={removeSelected}
+      onSelectNewRepo={selectNewRepoAndReset}
+      projectLoaded={projectLoaded}
+      currentDir={currentDir}
+    />
+  )
+
+  // file tree handled by useFileTree + FileTreeView (inline where used)
+
+  async function previewFile(path: string, status: FileDiffStatus): Promise<void> {
+    if (!gitClient) return
+    try {
+      const toFetchBase = status !== 'add'
+      const toFetchCompare = status !== 'remove'
+
+      const [baseRes, compareRes] = await Promise.all([
+        toFetchBase && baseBranch ? gitClient.readFile(baseBranch, path) : Promise.resolve(undefined),
+        toFetchCompare && compareBranch ? gitClient.readFile(compareBranch, path) : Promise.resolve(undefined),
+      ])
+
+      setPreviewPath(path)
+      setPreviewStatus(status)
+      setPreviewData({
+        base: baseRes as unknown as { binary: boolean; text: string | null; notFound?: boolean },
+        compare: compareRes as unknown as { binary: boolean; text: string | null; notFound?: boolean },
+      })
+      setPreviewOpen(true)
+    } catch (e) {
+      const err = e instanceof Error ? e : new Error(String(e))
+      setNotif(`Failed to read file content: ${err.message}`)
+    }
+  }
+
+  function renderPreview(): JSX.Element | null {
+    if (!previewOpen || !previewPath) return null
+    return (
+      <PreviewModal
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        path={previewPath}
+        status={previewStatus}
+        baseLabel={baseBranch || '(unset)'}
+        compareLabel={compareBranch || '(unset)'}
+        base={previewData?.base}
+        compare={previewData?.compare}
+      />
+    )
+  }
+
+  // Assemble final context content for the clipboard
+  async function copyAllSelected() {
+    if (!gitClient || !baseBranch || !compareBranch) return
+    try {
+      const selected = Array.from(selectedPaths)
+      // Resolve refs for display; handle WORKDIR sentinel specially
+      const WORKDIR = '__WORKDIR__'
+      const baseDisp = baseBranch === WORKDIR
+        ? 'WORKDIR'
+        : (await gitClient.resolveRef(baseBranch)).oid.slice(0, 7)
+      const compareDisp = compareBranch === WORKDIR
+        ? 'WORKDIR'
+        : (await gitClient.resolveRef(compareBranch)).oid.slice(0, 7)
+
+      // Git Context section
+      const contextLines = [
+        '## Select branches',
+        `- Base: ${baseBranch} (commit: ${baseDisp})`,
+        `- Compare: ${compareBranch} (commit: ${compareDisp})`,
+        '',
+      ]
+
+      // Optional File Tree section
+      const treeStr = includeFileTree ? generateSelectedTreeString(selected) : ''
+      const treeSection = includeFileTree && treeStr
+        ? '## File Tree\n\n' + '```\n' + treeStr + '```\n\n'
+        : ''
+
+      // User Instructions section
+      const instrSection = userInstructions?.trim()
+        ? `## User Instructions\n\n${userInstructions}\n\n`
+        : ''
+
+      // File sections
+      const fileSections: string[] = []
+      const fileReadPromises = selected.map((path) => {
+        const status = statusByPath.get(path) ?? 'unchanged'
+        const needBase = status !== 'add'
+        const needCompare = status !== 'remove'
+        return Promise.all([
+          needBase ? gitClient.readFile(baseBranch, path) : Promise.resolve(undefined),
+          needCompare ? gitClient.readFile(compareBranch, path) : Promise.resolve(undefined),
+        ]).then(([baseRes, compareRes]) => ({ path, status, baseRes, compareRes }))
+      })
+      const fileContents = await Promise.all(fileReadPromises)
+      for (const { path, status, baseRes, compareRes } of fileContents) {
+        const isBinary = (baseRes as { binary?: boolean } | undefined)?.binary || (compareRes as { binary?: boolean } | undefined)?.binary
+        const header = `## FILE: ${path} (${status.toUpperCase()})\n\n`
+        if (isBinary) {
+          if (!includeBinaryAsPaths) continue
+          fileSections.push(header + '_Binary file; included as path only._\n\n')
+          continue
+        }
+
+        const ctx = diffContextLines >= MAX_CONTEXT ? Number.MAX_SAFE_INTEGER : diffContextLines
+
+        if (status === 'modify' || status === 'add' || status === 'remove') {
+          if (status === 'add' && ctx === Number.MAX_SAFE_INTEGER) {
+            // Whole file view for newly added files when slider is at ∞
+            const newText = (compareRes as { text?: string } | undefined)?.text ?? ''
+            const lang = inferLangFromPath(path)
+            fileSections.push(header + '```' + lang + '\n' + newText + '\n```\n\n')
+          } else {
+            const diffText = buildUnifiedDiffForStatus(
+              status,
+              path,
+              baseRes as { binary: boolean; text: string | null; notFound?: boolean } | undefined,
+              compareRes as { binary: boolean; text: string | null; notFound?: boolean } | undefined,
+              { context: ctx },
+            )
+            if (diffText) {
+              fileSections.push(header + '```diff\n' + diffText + '```\n\n')
+            } else {
+              // Fallback: no text
+              fileSections.push(header + '_No textual content available._\n\n')
+            }
+          }
+        } else {
+          // unchanged: include full base content
+          const text = (baseRes as { text?: string } | undefined)?.text ?? ''
+          const lang = inferLangFromPath(path)
+          fileSections.push(header + '```' + lang + '\n' + (text || '') + '\n```\n\n')
+        }
+      }
+
+      const final = [
+        instrSection,
+        contextLines.join('\n'),
+        treeSection,
+        ...fileSections,
+      ].filter(Boolean).join('\n')
+
+      await navigator.clipboard.writeText(final)
+      setCopyFlash('✅ Copied!')
+      setTimeout(() => setCopyFlash(null), 2000)
+    } catch (e) {
+      const err = e instanceof Error ? e : new Error(String(e))
+      setCopyFlash('Copy failed. See console.')
+      setTimeout(() => setCopyFlash(null), 3000)
+      console.error('[copy]', err)
+    }
+  }
+
+  function inferLangFromPath(p: string): string {
+    const lower = p.toLowerCase()
+    if (lower.endsWith('.ts')) return 'ts'
+    if (lower.endsWith('.tsx')) return 'tsx'
+    if (lower.endsWith('.js')) return 'js'
+    if (lower.endsWith('.jsx')) return 'jsx'
+    if (lower.endsWith('.json')) return 'json'
+    if (lower.endsWith('.md')) return 'markdown'
+    if (lower.endsWith('.css')) return 'css'
+    if (lower.endsWith('.html') || lower.endsWith('.htm')) return 'html'
+    return ''
+  }
+
+  return (
+    <BrowserSupportGate>
+      <div className={`app-container${!projectLoaded ? ' landing-full' : ''}`} id="gc-app">
+        <header className="header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button type="button" onClick={() => resetRepo()} title="Go to landing" aria-label="Go to landing" style={{ background: 'transparent', border: 'none', padding: 0, margin: 0, cursor: 'pointer' }}>
+              <img
+                src={`${import.meta.env.BASE_URL}${effectiveTheme === 'dark' ? 'gitcontext-full-dark.svg' : 'gitcontext-full.svg'}`}
+                alt="GitContext"
+                height={56}
+                style={{ display: 'inline-block' }}
+              />
+            </button>
+            <GitHubStarIconButton repoUrl="https://github.com/kccarlos/gitcontext" />
+            <BugIconButton url="https://github.com/kccarlos/gitcontext/issues" size={16} />
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="icon-only"
+              aria-label="Toggle color scheme"
+              title="Toggle color scheme"
+            >
+              {effectiveTheme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+          </div>
+          {headerRight}
+        </header>
+
+        
+
+        {!projectLoaded ? (
+          <section className="panel" style={{ gridColumn: '1 / -1' }}>
+            <div className="landing-grid">
+              <div>
+                <h2 style={{ fontSize: '1.35rem' }}>Build Perfect Context of Your Codebase for Your AI Chatbot</h2>
+                <p>
+                  GitContext helps you package local file diffs and code into a single, clean prompt,
+                  ensuring your AI chatbot has the precise information it needs — all without your code ever
+                  leaving your machine.
+                </p>
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <button type="button" onClick={() => void selectNewRepo()}>
+                    <Folder size={16} /> Select Project Folder
+                  </button>
+                </div>
+                <p className="hint" style={{ marginTop: 8 }}>
+                  Requires a Chromium-based browser (Chrome/Edge). Your data stays local.
+                </p>
+
+                <h3 style={{ marginTop: '1rem', marginBottom: 6, fontSize: '1rem' }}>How it works</h3>
+                <ul className="how-list">
+                  <li className="how-item">
+                    <span><FolderGit2 size={18} /></span>
+                    <span><strong>Open your local Git repo.</strong> Choose any project on your computer. Files are never uploaded.</span>
+                  </li>
+                  <li className="how-item">
+                    <span><ArrowLeftRight size={18} /></span>
+                    <span><strong>Select branches.</strong> Pick a branch or your current working directory to see what changed.</span>
+                  </li>
+                  <li className="how-item">
+                    <span><ListChecks size={18} /></span>
+                    <span><strong>Select files to include.</strong> Both changed and unchanged files could be included.</span>
+                  </li>
+                  <li className="how-item">
+                    <span><MessageCircleMore size={18} /></span>
+                    <span><strong>Add prompt to tell your AI what to do.</strong> Choose from a template or type in your own.</span>
+                  </li>
+                  <li className="how-item">
+                    <span><Copy size={18} /></span>
+                    <span><strong>Copy to clipboard.</strong> Generate a token‑efficient context ready for your favorite AI Chatbot.</span>
+                  </li>
+                </ul>
+
+                <div style={{ marginTop: '1.25rem' }}>
+                  <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <GitHubStarIconButton repoUrl="https://github.com/kccarlos/gitcontext" />
+                    <a href="https://github.com/kccarlos/gitcontext" target="_blank" rel="noreferrer" className="hint">
+                      Star this project on GitHub
+                    </a>
+                  </div>
+                  <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <BugIconButton url="https://github.com/kccarlos/gitcontext/issues" size={16} />
+                    <a href="https://github.com/kccarlos/gitcontext/issues" target="_blank" rel="noreferrer" className="hint">
+                      Report a problem
+                    </a>
+                  </div>
+                  <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <button
+                      type="button"
+                      onClick={toggleTheme}
+                      className="icon-only"
+                      aria-label="Toggle color scheme"
+                      title="Toggle color scheme"
+                    >
+                      {effectiveTheme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={toggleTheme}
+                      className="hint"
+                      style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
+                    >
+                      {effectiveTheme === 'dark' ? 'Turn on the light' : 'Turn off the light'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div className="landing-visual landing-visual-stack">
+                {/* Underlay: example content always present under overlay */}
+                <div className="example-output" role="region" aria-label="Example output">
+                  {exampleLoading && <div className="hint">Loading example…</div>}
+                  {exampleError && <div className="hint" style={{ color: 'crimson' }}>{exampleError}</div>}
+                  {!exampleLoading && !exampleError && (
+                    <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+                      {exampleText}
+                    </pre>
+                  )}
+                </div>
+
+                {/* Overlay: clickable svg that hides on click */}
+                {!exampleOpen && (
+                  <button type="button" className="landing-visual-button landing-visual-overlay" onClick={() => void openExample()} aria-label="Show me an example" title="Show me an example">
+                    <img src={`${import.meta.env.BASE_URL}landing-placeholder.svg`} alt="GitContext demo – Show me an example" style={{ width: '100%', display: 'block', borderRadius: 8 }} />
+                  </button>
+                )}
+              </div>
+            </div>
+          </section>
+        ) : (
+          <>
+            <div className="left-panel">
+              <div className="panel-section">
+                <h2>Select branches to diff</h2>
+                <ProjectPanel
+                  branches={branches}
+                  baseBranch={baseBranch}
+                  setBaseBranch={setBaseBranch}
+                  compareBranch={compareBranch}
+                  setCompareBranch={setCompareBranch}
+                  isComputing={!!progress}
+                  onRefresh={async () => {
+                    setProgress({ message: 'Refreshing repository…', percent: 0 })
+                    await refreshRepo()
+                    // Do not manually compute diff here; let the effect run with the fresh client
+                    setProgress(null)
+                  }}
+                />
+                {appStatus.state === 'LOADING' && appStatus.task === 'diff' && (
+                  <StatusBar
+                    message={appStatus.message}
+                    percent={typeof appStatus.progress === 'number' ? appStatus.progress : 0}
+                    indeterminate={appStatus.progress === 'indeterminate'}
+                  />
+                )}
+              </div>
+
+              <div className="panel-section">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                  <h2 style={{ margin: 0 }}>File Tree</h2>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      placeholder="Filter files…"
+                      value={treeFilter}
+                      onChange={(e) => setTreeFilter(e.target.value)}
+                      style={{ padding: '0.3rem 0.5rem', borderRadius: 6, border: '1px solid color-mix(in hsl, currentColor 20%, transparent)' }}
+                    />
+                    <button type="button" onClick={expandAll} disabled={!fileTree} title="Expand all" className="icon-only"><ChevronsDown size={18} /></button>
+                    <button type="button" onClick={collapseAll} disabled={!fileTree} title="Collapse all" className="icon-only"><ChevronsUp size={18} /></button>
+                    <button type="button" onClick={selectAll} disabled={!fileTree} title="Select all" className="icon-only"><CheckSquare size={16} /></button>
+                    <button type="button" onClick={deselectAll} disabled={!fileTree} title="Deselect all" className="icon-only"><Square size={16} /></button>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <input
+                        type="checkbox"
+                        checked={showChangedOnly}
+                        onChange={(e) => setShowChangedOnly(e.target.checked)}
+                      />
+                      Filter Changed Files
+                    </label>
+                  </div>
+                </div>
+                <FileTreeView
+                  key={`${baseBranch}→${compareBranch}`}
+                  tree={fileTree}
+                  expandedPaths={expandedPaths}
+                  selectedPaths={selectedPaths}
+                  showChangedOnly={showChangedOnly}
+                  filterText={treeFilter}
+                  onToggleExpand={toggleExpand}
+                  onToggleSelect={toggleSelect}
+                  onPreviewFile={(path, status) => previewFile(path, status)}
+                />
+              </div>
+            </div>
+
+            {/* Resizer handle between columns */}
+            <div className="column-resizer" id="gc-col-resizer" />
+
+            <div className="right-panel">
+              <div className="panel-section">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <h2 style={{ margin: 0 }}>User Instructions</h2>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span className="hint">{userInstructionsTokens.toLocaleString()} tokens</span>
+                    <button
+                      type="button"
+                      onClick={() => setInstructionsOpen((v) => !v)}
+                      aria-expanded={instructionsOpen}
+                      title={instructionsOpen ? 'Collapse' : 'Expand'}
+                    >
+                      {instructionsOpen ? '▾' : '▸'}
+                    </button>
+                  </div>
+                </div>
+                {instructionsOpen && (
+                  <>
+                    <textarea
+                      className="instructions-textarea"
+                      placeholder="You are an expert engineer. Analyze the following..."
+                      value={userInstructions}
+                      onChange={(e) => setUserInstructions(e.target.value)}
+                      style={{ minHeight: 56, height: 56 }}
+                      rows={3}
+                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                      <select
+                        value={templateId}
+                        onChange={(e) => {
+                          const id = e.target.value
+                          setTemplateId(id)
+                          const tmpl = PROMPT_TEMPLATES.find((t) => t.id === id)
+                          if (tmpl) setUserInstructions(tmpl.content)
+                        }}
+                        style={{ flexGrow: 1, padding: '0.25rem 0.4rem' }}
+                      >
+                        <option value="">Choose template…</option>
+                        {PROMPT_TEMPLATES.map((t) => (
+                          <option key={t.id} value={t.id}>{t.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="panel-section">
+                <h2>Output Settings</h2>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                    <span>Model:</span>
+                    <select
+                      value={modelId}
+                      onChange={(e) => setModelId(e.target.value)}
+                      disabled={models.length === 0}
+                      style={{ padding: '0.25rem 0.4rem', minWidth: 260 }}
+                    >
+                      {models.length === 0 ? (
+                        <option value="">Loading models…</option>
+                      ) : filteredModels.length === 0 ? (
+                        <option value="" disabled>No matches</option>
+                      ) : (
+                        filteredModels.map((m) => (
+                          <option key={m.id} value={m.id}>{m.name}</option>
+                        ))
+                      )}
+                    </select>
+                    <input
+                      type="text"
+                      placeholder="Filter models…"
+                      aria-label="Filter models"
+                      value={modelFilter}
+                      onChange={(e) => setModelFilter(e.target.value)}
+                      disabled={models.length === 0}
+                      style={{ flex: 1, padding: '0.3rem 0.5rem', borderRadius: 6, border: '1px solid color-mix(in hsl, currentColor 20%, transparent)' }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input type="checkbox" checked={includeFileTree} onChange={(e) => setIncludeFileTree(e.target.checked)} />
+                      Include File Tree
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input type="checkbox" checked={includeBinaryAsPaths} onChange={(e) => setIncludeBinaryAsPaths(e.target.checked)} />
+                      Include Binary as Paths
+                    </label>
+                    <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+                      <button type="button" onClick={() => copyAllSelected()} disabled={selectedPaths.size === 0 || !gitClient}>
+                        {copyFlash ? copyFlash : (<><Copy size={16} /> COPY ALL SELECTED</>)}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                    <label style={{display:'flex',alignItems:'center',gap:8, width: '100%'}}>
+                      <span style={{whiteSpace:'nowrap'}}>Context&nbsp;lines:</span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={MAX_CONTEXT}
+                        step={1}
+                        value={diffContextLines}
+                        onChange={(e) => debouncedSetDiffContextLines(Number(e.target.value))}
+                        style={{flex:1, minWidth: '120px'}}
+                        title="Number of context lines to include around diffs"
+                      />
+                      <span style={{width:36,textAlign:'right'}}>
+                        {diffContextLines >= MAX_CONTEXT ? '∞' : diffContextLines}
+                      </span>
+                    </label>
+                  </div>
+
+                  {/* Token usage summary */}
+                  <TokenUsage
+                    fileTokensTotalSource={() => selectedFilesTokensTotal}
+                    filesCount={selectedPaths.size}
+                    instructionsTokens={userInstructionsTokens}
+                    fileTreeTokens={includeFileTree ? fileTreeTokens : 0}
+                    limit={tokenLimit}
+                  />
+
+                  
+                </div>
+              </div>
+
+              <div className="panel-section">
+                <SelectedFilesPanel
+                  key={`sel-${selectedPaths.size}`}
+                  gitClient={gitClient}
+                  baseRef={baseBranch}
+                  compareRef={compareBranch}
+                  selectedPaths={selectedPaths}
+                  statusByPath={statusByPath}
+                  diffContextLines={diffContextLines}
+                  onUnselect={(path) => toggleSelect(path)}
+                  onPreview={(path, status) => previewFile(path, status)}
+                  refreshing={repoStatus.state === 'loading'}
+                  filterText={treeFilter}
+                />
+              </div>
+
+              {renderPreview()}
+            </div>
+          </>
+        )}
+      </div>
+
+      <div style={{ padding: '0 2rem 2rem 2rem' }}>
+        {repoStatus.state === 'error' && (
+          <div className="hint" style={{ color: 'crimson' }}>{repoStatus.error}</div>
+        )}
+        {notif && <div className="hint" style={{ color: 'green' }}>{notif}</div>}
+
+        {!copyFlash && (
+          <div
+            className="status-footer-fixed"
+            style={{ display: hideStatus && appStatus.state === 'READY' ? 'none' : undefined }}
+          >
+            <StatusBar
+              message={
+                appStatus.state === 'LOADING' ||
+                appStatus.state === 'READY' ||
+                appStatus.state === 'ERROR'
+                  ? appStatus.message
+                  : 'Idle. Select a repository to begin.'
+              }
+              percent={
+                appStatus.state === 'LOADING'
+                  ? (typeof appStatus.progress === 'number' ? appStatus.progress : 0)
+                  : appStatus.state === 'READY'
+                  ? 100
+                  : 0
+              }
+              indeterminate={
+                appStatus.state === 'LOADING' && appStatus.progress === 'indeterminate'
+              }
+            />
+          </div>
+        )}
+      </div>
+    </BrowserSupportGate>
+  )
+}
+
+export default App

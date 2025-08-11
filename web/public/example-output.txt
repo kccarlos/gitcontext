@@ -1,0 +1,124 @@
+## User Instructions
+
+You are an expert engineer. Summarize the changes between the selected branches and explain the impact of the modifications.
+
+
+## Select branches
+- Base: main (commit: 3d23352)
+- Compare: __WORKDIR__ (commit: WORKDIR)
+
+## File Tree
+
+```
+├── .github
+│   └── workflows
+│       └── pages.yml
+└── web
+    ├── index.html
+    └── vite.config.ts
+```
+
+
+## FILE: .github/workflows/pages.yml (MODIFY)
+
+```diff
+===================================================================
+--- a/.github/workflows/pages.yml
++++ b/.github/workflows/pages.yml
+@@ -1,7 +1,7 @@
+ name: Deploy to GitHub Pages
+ on:
+   push:
+-    branches: [main]
++    branches: [master]
+   workflow_dispatch:
+ 
+ permissions:
+```
+
+
+## FILE: web/index.html (UNCHANGED)
+
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/gitcontext/gitcontext.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GitContext</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script async defer src="https://buttons.github.io/buttons.js"></script>
+  </body>
+</html>
+
+```
+
+
+## FILE: web/vite.config.ts (UNCHANGED)
+
+```ts
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import wasm from 'vite-plugin-wasm'
+import topLevelAwait from 'vite-plugin-top-level-await'
+
+// https://vite.dev/config/
+export default defineConfig({
+  base: '/gitcontext/',
+  plugins: [react(), wasm(), topLevelAwait()],
+  build: {
+    target: 'esnext',
+  },
+  // Ensure module worker bundles use ESM format in production
+  worker: {
+    format: 'es',
+  },
+  // Prefer browser ESM entry points for dependencies like isomorphic-git
+  resolve: {
+    conditions: ['browser', 'development'],
+    alias: {
+      // Force ESM browser build; bypass package "exports" defaulting to CJS
+      // Map bare import "isomorphic-git" to its ESM entry explicitly
+      'isomorphic-git$': 'isomorphic-git/index.js',
+      // Polyfills for Node built-ins used transitively by isomorphic-git deps
+      stream: 'stream-browserify',
+      buffer: 'buffer',
+      util: 'util',
+      events: 'events',
+      path: 'path-browserify',
+      process: 'process/browser'
+    },
+  },
+  define: {
+    // Ensure global and process.env are defined in browser
+    global: 'globalThis',
+    'process.env': {}
+  },
+  optimizeDeps: {
+    // Avoid pre-bundling tiktoken so WASM handling stays with Vite plugins
+    exclude: ['@dqbd/tiktoken'],
+    // Explicitly pre-bundle git libs and polyfills so CJS gets transformed for the worker
+    include: [
+      'isomorphic-git',
+      '@isomorphic-git/lightning-fs',
+      'buffer',
+      'process',
+      'util',
+      'events',
+      'stream-browserify',
+      'path-browserify'
+    ],
+    esbuildOptions: {
+      // Prefer browser condition when resolving package exports
+      conditions: ['browser'],
+      platform: 'browser',
+    },
+  },
+})
+
+```
+

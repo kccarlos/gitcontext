@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 850 180" role="img" aria-label="GitContext logo (dark)">
+  <style>
+    .word { font: 700 156px Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; letter-spacing: 1px; }
+  </style>
+  <text class="word" x="140" y="170" fill="#f9fafb">itContext</text>
+  <text x="10" y="170" fill="#22c55e" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial" font-weight="700" font-size="172">G</text>
+  <g stroke="#22c55e" stroke-width="16" stroke-linecap="round" fill="none">
+    <path d="M105 70 L165 38"/>
+    <circle cx="178" cy="28" r="16" fill="#111827" stroke-width="14"/>
+  </g>
+</svg>

@@ -1,0 +1,424 @@
+#root {
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  grid-area: header;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  line-height: 1.25;
+}
+
+.tag {
+  font-size: 0.85rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid color-mix(in hsl, currentColor 20%, transparent);
+  opacity: 0.85;
+}
+
+.path-display {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.panel {
+  border: 1px solid color-mix(in hsl, currentColor 20%, transparent);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+}
+
+.panel h2 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.15rem;
+}
+
+.panel ul {
+  padding-left: 1.25rem;
+  margin: 0.25rem 0 0.75rem 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.hint {
+  margin: 0.25rem 0 0 0;
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+/* Ensure hint-styled links inherit the surrounding text color (dark in dark mode, light in light mode) */
+a.hint,
+a.hint:visited,
+a.hint:hover,
+a.hint:active {
+  color: inherit;
+}
+
+/* Landing page layout */
+.landing-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.landing-visual {
+  border: 1px solid color-mix(in hsl, currentColor 20%, transparent);
+  border-radius: 10px;
+  padding: 0.75rem;
+  background: color-mix(in oklab, Canvas 92%, transparent);
+}
+
+.landing-visual-stack {
+  position: relative;
+}
+
+.landing-visual-button {
+  display: block;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  width: 100%;
+  cursor: pointer;
+}
+
+.landing-visual-overlay {
+  position: absolute;
+  inset: 0.75rem; /* match the container padding so the border radius aligns */
+}
+
+.landing-visual-button:focus-visible {
+  outline: 2px solid #646cff;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+.example-output {
+  max-height: 360px;
+  overflow: auto;
+  border-radius: 8px;
+  border: 1px solid color-mix(in hsl, currentColor 20%, transparent);
+  background: Canvas;
+  color: CanvasText;
+  padding: 0.75rem;
+}
+
+.how-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0 0;
+  display: grid;
+  gap: 0.75rem; /* increase vertical spacing between rows */
+}
+
+.how-item {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 0.75rem; /* increase spacing between icon and text */
+  align-items: start;
+}
+
+@media (max-width: 920px) {
+  .landing-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Icon-friendly buttons */
+button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+button.icon-only {
+  padding: 0.6em;
+  gap: 0;
+}
+
+/* Unsupported browser overlay */
+.gc-overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background:
+    linear-gradient(
+      to bottom,
+      color-mix(in oklab, Canvas 70%, transparent),
+      color-mix(in oklab, Canvas 92%, transparent)
+    );
+  backdrop-filter: blur(3px);
+  z-index: 1000;
+}
+
+/* Two-panel grid layout and panel sections */
+.app-container {
+  display: grid;
+  grid-template-areas:
+    'header header header'
+    'left   resizer right';
+  grid-template-columns: var(--left-col, minmax(320px, 1fr)) 6px 1fr;
+  grid-template-rows: auto 1fr;
+  gap: 1.25rem;
+  height: 100vh;
+  padding: 2rem;
+  padding-bottom: 4.5rem; /* space for fixed status footer */
+  box-sizing: border-box;
+}
+
+/* Collapse to a single column for landing page */
+.app-container.landing-full {
+  grid-template-areas:
+    'header'
+    'left';
+  grid-template-columns: 1fr;
+}
+
+.left-panel,
+.right-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  /* Make columns themselves not scroll; inner lists handle overflow */
+  overflow: visible;
+  padding: 0.25rem;
+  min-height: 0;
+}
+
+/* Ensure the last panel in each column can stretch and align bottoms */
+.left-panel .panel-section:last-child,
+.right-panel .panel-section:last-child {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.left-panel { grid-area: left; }
+.right-panel { grid-area: right; }
+
+/* Draggable vertical resizer between columns */
+.column-resizer {
+  grid-area: resizer;
+  width: 6px;
+  cursor: col-resize;
+  align-self: stretch;
+  justify-self: center;
+  background:
+    linear-gradient(
+      to bottom,
+      transparent 0%,
+      color-mix(in hsl, currentColor 12%, transparent) 10%,
+      color-mix(in hsl, currentColor 18%, transparent) 50%,
+      color-mix(in hsl, currentColor 12%, transparent) 90%,
+      transparent 100%
+    );
+  border-radius: 3px;
+  /* Ensure the element can receive pointer events for dragging */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.column-resizer:hover {
+  background:
+    linear-gradient(
+      to bottom,
+      transparent 0%,
+      color-mix(in hsl, currentColor 20%, transparent) 10%,
+      color-mix(in hsl, currentColor 28%, transparent) 50%,
+      color-mix(in hsl, currentColor 20%, transparent) 90%,
+      transparent 100%
+    );
+}
+
+/* Reduce accidental selection while dragging */
+.app-container.resizing,
+.app-container.resizing * {
+  user-select: none !important;
+}
+
+.panel-section {
+  border: 1px solid color-mix(in hsl, currentColor 20%, transparent);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.panel-section h2 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  opacity: 0.9;
+  /* remove underline separator under section titles */
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 0.5rem;
+}
+
+.instructions-textarea {
+  width: 100%;
+  min-height: 100px;
+  resize: vertical;
+  background-color: transparent;
+  border: 1px solid color-mix(in hsl, currentColor 20%, transparent);
+  border-radius: 6px;
+  padding: 0.5rem;
+  font-family: inherit;
+  color: inherit;
+}
+
+.status-m { color: #e5c07b; }
+.status-a { color: #98c379; }
+.status-d { color: #e06c75; }
+
+@media (prefers-color-scheme: light) {
+  .status-m { color: #b58500; }
+  .status-a { color: #2e7d27; }
+  .status-d { color: #b82e1f; }
+}
+
+/* Tree view connector lines */
+.file-tree-view ul {
+  list-style: none;
+  padding-left: 20px;
+  position: relative;
+}
+
+.file-tree-view ul::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10px;
+  width: 1px;
+  height: 100%;
+  background-color: color-mix(in hsl, currentColor 30%, transparent);
+}
+
+.file-tree-view li {
+  position: relative;
+}
+
+.file-tree-view li::before {
+  content: '';
+  position: absolute;
+  top: 12px;
+  left: -10px;
+  width: 10px;
+  height: 1px;
+  background-color: color-mix(in hsl, currentColor 30%, transparent);
+}
+
+.file-tree-view li:last-child > ul::before {
+  height: 12px;
+}
+
+/* Status bar */
+.status-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.status-bar-text {
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+.status-bar-track {
+  width: 100%;
+  height: 8px;
+  background-color: color-mix(in hsl, currentColor 15%, transparent);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.status-bar-fill {
+  height: 100%;
+  background-color: #646cff;
+  border-radius: 4px;
+  transition: width 0.3s ease-in-out;
+}
+
+.status-bar-fill.indeterminate {
+  position: relative;
+  width: 40%;
+  animation: statusbar-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes statusbar-slide {
+  0% { transform: translateX(-40%); }
+  50% { transform: translateX(40%); }
+  100% { transform: translateX(120%); }
+}
+
+/* Footer progress bar container pinned to bottom padding area */
+.status-footer-fixed {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0.6rem 2rem 0.8rem 2rem;
+  background: linear-gradient(
+    to top,
+    color-mix(in oklab, Canvas 92%, transparent) 65%,
+    transparent
+  );
+  backdrop-filter: blur(3px);
+  border-top: 1px solid color-mix(in hsl, currentColor 20%, transparent);
+  z-index: 100;
+}
+
+.gc-overlay-card {
+  max-width: 680px;
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid color-mix(in hsl, currentColor 20%, transparent);
+  background: Canvas;
+  color: CanvasText;
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.08),
+    0 2px 10px rgba(0, 0, 0, 0.04);
+  padding: 1.25rem 1.5rem;
+}
+
+.gc-overlay-card h2 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.35rem;
+}
+
+.gc-overlay-card p {
+  margin: 0.25rem 0;
+}
+
+.gc-small {
+  font-size: 0.9rem;
+  opacity: 0.85;
+}
+
+.gc-overlay-card a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

@@ -1,0 +1,67 @@
+{
+  "name": "gitcontext-web",
+  "author": "kccarlos",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kccarlos/gitcontext.git"
+  },
+  "homepage": "https://gitcontext.xyz/",
+  "bugs": {
+    "url": "https://github.com/kccarlos/gitcontext/issues"
+  },
+  "keywords": [
+    "gitcontext",
+    "LLM",
+    "AI",
+    "Chatbot",
+    "Codebase",
+    "Context",
+    "Diff",
+    "File Tree"
+  ],
+  "private": false,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "start": "vite",
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@dqbd/tiktoken": "^1.0.22",
+    "@isomorphic-git/lightning-fs": "^4.6.2",
+    "buffer": "^6.0.3",
+    "diff": "^5.2.0",
+    "events": "^3.3.0",
+    "ignore": "^7.0.5",
+    "isomorphic-git": "^1.32.3",
+    "lucide-react": "^0.539.0",
+    "path-browserify": "^1.0.1",
+    "prismjs": "^1.30.0",
+    "process": "^0.11.10",
+    "react": "^18.3.1",
+    "react-diff-viewer-continued": "^3.4.0",
+    "react-dom": "^18.3.1",
+    "stream-browserify": "^3.0.0",
+    "util": "^0.12.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.32.0",
+    "@types/prismjs": "^1.26.5",
+    "@types/react": ">=18 <19",
+    "@types/react-dom": ">=18 <19",
+    "@vitejs/plugin-react": "^4.7.0",
+    "eslint": "^9.32.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "globals": "^16.3.0",
+    "typescript": "~5.8.3",
+    "typescript-eslint": "^8.39.0",
+    "vite": "^7.1.0",
+    "vite-plugin-top-level-await": "^1.6.0",
+    "vite-plugin-wasm": "^3.5.0"
+  }
+}
