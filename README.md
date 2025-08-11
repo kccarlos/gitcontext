@@ -8,9 +8,15 @@
   Fully local web app to package your codebase files and diffs into LLM-friendly format</em>
 </p>
 
+<p align="center">
+<a href="https://github.com/kccarlos/gitcontext/actions/workflows/release.yml"><img src="https://github.com/kccarlos/gitcontext/actions/workflows/release.yml/badge.svg" alt="Build Status"></a>
+<a href="https://github.com/kccarlos/gitcontext/releases/latest"><img src="https://img.shields.io/github/v/release/kccarlos/gitcontext" alt="Latest Release"></a>
+<a href="https://github.com/kccarlos/gitcontext/blob/main/LICENSE"><img src="https://img.shields.io/github/license/kccarlos/gitcontext" alt="License"></a>
+</p>
+
 ---
 
-**GitContext Web** lets you securely analyze and stage local Git repository diffs directly in your browser for quick copy-and-paste into AI Chatbots like ChatGPT, Claude, and others.
+**GitContext** lets you securely analyze and package local Git repository diffs directly on your machine for quick copy-and-paste into AI Chatbots like ChatGPT, Claude, and others. It runs as a desktop application for macOS, Windows, and Linux, or directly in your browser.
 
 Similar to Repomix or GitIngest, but with key differences:
 
@@ -19,11 +25,17 @@ Similar to Repomix or GitIngest, but with key differences:
 - Generate a **file tree** with your selected code/diffs for easy LLM ingestion.  
 - **One-click prompt templates** tailored for common coding scenarios.
 
+## Downloads & Installation
+
+You can download the latest version for your operating system from the [GitHub Releases](https://github.com/kccarlos/gitcontext/releases/latest) page.
+
+Alternatively, you can use the web version directly at [gitcontext.xyz](https://gitcontext.xyz).
+
 ---
 
-## What is GitContext Web?
+## What is GitContext?
 
-GitContext Web is a **privacy-first, browser-based** application for analyzing and staging Git repository diffs — all locally.  
+GitContext is a **privacy-first, browser-based** application for analyzing and staging Git repository diffs — all locally.  
 It uses modern browser APIs like **File System Access** and **IndexedDB** to ensure your code never leaves your machine.
 
 **Key features:**
@@ -49,14 +61,10 @@ Passing only relevant context to an LLM significantly improves accuracy — espe
 
 ## Tech Stack
 
-- React 18
-- isomorphic-git
-- LightningFS
-- tiktoken
-- lucide-react
-- react-diff-viewer-continued
-- vite
-- @dqbd/tiktoken
+- React 18 & Vite
+- Electron & electron-builder
+- isomorphic-git & LightningFS (for in-browser Git)
+tiktoken (for token counting)
 
 ---
 
@@ -64,12 +72,14 @@ Passing only relevant context to an LLM significantly improves accuracy — espe
 
 ### Web App
 
+To run the web app, run:
+
 ```bash
 npm install
 npm run web:dev
 ```
 
-To build the production version, run:
+To build the web app, run:
 
 ```bash
 npm run web:build
@@ -79,16 +89,16 @@ npm run web:preview
 
 ### Electron App
 
+To run the Electron app, run:
+
 ```bash
 npm install
 npm run electron:dev
 ```
 
-To build the production version, run:
+To build the Electron app, run:
 
 ```bash
-npm install
-ELECTRON=1 npm --workspace src/web run build
-npm run electron:npx electron-builder --config electron-builder.yml --publish=never
+npm run electron:build
 ```
 
