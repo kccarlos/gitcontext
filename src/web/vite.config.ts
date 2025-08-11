@@ -9,7 +9,7 @@ const isElectron = process.env.ELECTRON === '1'
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/',
+  base: isElectron ? './' : '/',
   plugins: [
     react(),
     wasm(),
@@ -22,7 +22,16 @@ export default defineConfig({
               entry: '../electron/main.ts',
               vite: { build: { sourcemap: true } },
             },
-            { entry: '../electron/preload.ts' },
+            {
+              entry: '../electron/preload.ts',
+              vite: {
+                build: {
+                  rollupOptions: {
+                    output: { format: 'cjs' },
+                  },
+                },
+              },
+            },
           ]),
           renderer(),
         ]

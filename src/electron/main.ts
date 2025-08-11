@@ -20,7 +20,8 @@ function createWindow() {
     win.loadURL(process.env.VITE_DEV_SERVER_URL)
     win.webContents.openDevTools({ mode: 'detach' })
   } else {
-    win.loadFile(join(__dirnameSafe, '../web/index.html'))
+    // In production, dist-electron/main.js sits next to ../dist/index.html
+    win.loadFile(join(__dirnameSafe, '../dist/index.html'))
   }
 }
 

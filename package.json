@@ -5,6 +5,7 @@
     "src/web",
     "src/electron"
   ],
+  "version": "0.0.1",
   "packageManager": "npm@10.8.2",
   "type": "module",
   "scripts": {
