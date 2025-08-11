@@ -153,3 +153,5 @@ src/web/*.local
 *.njsproj
 *.sln
 *.sw?
+
+src/web/dist-electron

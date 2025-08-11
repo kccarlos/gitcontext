@@ -17,11 +17,9 @@ export default defineConfig({
       {
         entry: '../electron/main.ts',
         vite: { build: { sourcemap: true } },
-        onstart({ startup }) { startup() },
       },
       {
         entry: '../electron/preload.ts',
-        onstart({ reload }) { reload() },
       },
     ]),
     renderer(),
