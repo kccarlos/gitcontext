@@ -2,11 +2,24 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import wasm from 'vite-plugin-wasm'
 import topLevelAwait from 'vite-plugin-top-level-await'
+import electron from 'vite-plugin-electron'
+import renderer from 'vite-plugin-electron-renderer'
 
 // https://vite.dev/config/
 export default defineConfig({
   base: '/',
-  plugins: [react(), wasm(), topLevelAwait()],
+  plugins: [
+    react(),
+    wasm(),
+    topLevelAwait(),
+    electron({
+      entry: 'src/electron/main.ts',
+      vite: {
+        build: { sourcemap: true }
+      }
+    }),
+    renderer(),
+  ],
   build: {
     target: 'esnext',
   },
