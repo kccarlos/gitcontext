@@ -1,0 +1,51 @@
+{
+  "name": "gitcontext",
+  "private": true,
+  "workspaces": [
+    "src/web",
+    "src/electron"
+  ],
+  "packageManager": "npm@10.8.2",
+  "type": "module",
+  "scripts": {
+    "build": "npm -ws run build",
+    "dev": "npm --workspace src/web run dev",
+    "start": "npm --workspace src/web run dev",
+    "lint": "npm -ws run lint",
+    "test": "echo 'no tests yet'",
+    "ci": "npm ci --audit --omit=dev",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "19.5.0",
+    "@commitlint/config-conventional": "19.5.0",
+    "husky": "9.1.6",
+    "semantic-release": "24.2.0",
+    "@semantic-release/changelog": "6.0.3",
+    "@semantic-release/git": "10.0.1"
+  },
+  "release": {
+    "branches": [
+      "main"
+    ],
+    "plugins": [
+      "@semantic-release/commit-analyzer",
+      "@semantic-release/release-notes-generator",
+      [
+        "@semantic-release/changelog",
+        {
+          "changelogFile": "CHANGELOG.md"
+        }
+      ],
+      [
+        "@semantic-release/git",
+        {
+          "assets": [
+            "CHANGELOG.md",
+            "package.json"
+          ]
+        }
+      ]
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "gitcontext-electron",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "main.ts",
+  "scripts": {
+    "build": "echo 'electron build placeholder'",
+    "lint": "echo 'electron lint placeholder'"
+  }
+}

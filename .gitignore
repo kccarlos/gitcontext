@@ -138,9 +138,9 @@ vite.config.ts.timestamp-*
 
 # Web
 */node_modules/*
-web/dist
-web/dist-ssr
-web/*.local
+src/web/dist
+src/web/dist-ssr
+src/web/*.local
 
 
 # Editor directories and files
