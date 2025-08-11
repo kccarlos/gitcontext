@@ -5,6 +5,8 @@ import topLevelAwait from 'vite-plugin-top-level-await'
 import electron from 'vite-plugin-electron'
 import renderer from 'vite-plugin-electron-renderer'
 
+const isElectron = process.env.ELECTRON === '1'
+
 // https://vite.dev/config/
 export default defineConfig({
   base: '/',
@@ -12,17 +14,19 @@ export default defineConfig({
     react(),
     wasm(),
     topLevelAwait(),
-    // Configure Electron main and preload builds relative to the renderer project root (src/web)
-    electron([
-      {
-        entry: '../electron/main.ts',
-        vite: { build: { sourcemap: true } },
-      },
-      {
-        entry: '../electron/preload.ts',
-      },
-    ]),
-    renderer(),
+    ...(isElectron
+      ? [
+          // Configure Electron main and preload builds relative to the renderer project root (src/web)
+          electron([
+            {
+              entry: '../electron/main.ts',
+              vite: { build: { sourcemap: true } },
+            },
+            { entry: '../electron/preload.ts' },
+          ]),
+          renderer(),
+        ]
+      : []),
   ],
   build: {
     target: 'esnext',
