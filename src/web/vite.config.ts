@@ -53,7 +53,7 @@ export default defineConfig({
       'isomorphic-git$': 'isomorphic-git/index.js',
       // Polyfills for Node built-ins used transitively by isomorphic-git deps
       stream: 'stream-browserify',
-      buffer: 'buffer',
+      buffer: 'buffer/index.js',
       util: 'util',
       events: 'events',
       path: 'path-browserify',

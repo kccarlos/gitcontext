@@ -10,44 +10,20 @@
 */
 
  // LightningFS will be loaded lazily (see getFS) to avoid import-time crashes
-// Polyfills loaded lazily (see ensureGlobals)
+// Polyfills: ensure Buffer and process exist in the worker context
 
 import LightningFS from '@isomorphic-git/lightning-fs'
+import * as BufferModule from 'buffer'
+import ProcessModule from 'process'
+import * as GIT from 'isomorphic-git'
 
-let GIT: any = null
-let polyfilled = false
-
-async function ensureGlobals() {
-  if (polyfilled) return
-  try {
-    const bufMod: any = await import('buffer')
-    ;(self as any).Buffer = (self as any).Buffer || bufMod.Buffer
-  } catch {}
-  try {
-    const procMod: any = await import('process')
-    ;(self as any).process = (self as any).process || procMod
-  } catch {}
-  polyfilled = true
-}
+;(self as any).Buffer = (self as any).Buffer || (BufferModule as any).Buffer
+;(self as any).process = (self as any).process || (ProcessModule as any)
 
 // Lazy-load isomorphic-git inside worker to avoid import-time crashes
 async function getGit() {
-  if (!GIT) {
-    await ensureGlobals()
-    try {
-      GIT = await import('isomorphic-git')
-    } catch (e: any) {
-      try {
-        ;(self as any).postMessage({
-          id: -1,
-          type: 'error',
-          error: `[worker import] isomorphic-git failed: ${e?.message ?? String(e)}`,
-        })
-      } catch {}
-      throw e
-    }
-  }
-  return GIT
+  // Globals are set above at module init; return statically imported ESM build
+  return GIT as any
 }
 
 
