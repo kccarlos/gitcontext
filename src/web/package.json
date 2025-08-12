@@ -28,7 +28,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@dqbd/tiktoken": "^1.0.22",
@@ -53,6 +54,7 @@
     "@types/prismjs": "^1.26.5",
     "@types/react": ">=18 <19",
     "@types/react-dom": ">=18 <19",
+    "@playwright/test": "^1.48.2",
     "@vitejs/plugin-react": "^4.7.0",
     "eslint": "^9.32.0",
     "eslint-plugin-react-hooks": "^5.2.0",
