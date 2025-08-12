@@ -1,8 +1,13 @@
 import { defineConfig, devices } from '@playwright/test'
+import { fileURLToPath } from 'node:url'
+import { dirname } from 'node:path'
 
 // Playwright E2E config for the web app
 // - Spins up Vite dev server on port 5173
 // - Runs tests in Chromium only (sufficient for File System Access API emulation)
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
 export default defineConfig({
   testDir: './tests/e2e',

@@ -102,3 +102,10 @@ To build the Electron app, run:
 npm run electron:build
 ```
 
+### Testing
+
+To run the tests, run:
+
+```bash
+npm --workspace src/web run test:e2e
+```
