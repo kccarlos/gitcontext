@@ -17,5 +17,14 @@
   "scripts": {
     "build": "echo 'electron build placeholder'",
     "lint": "echo 'electron lint placeholder'"
+  },
+  "dependencies": {
+    "fast-glob": "^3.3.2",
+    "fs-extra": "^11.2.0",
+    "lru-cache": "^10.2.0"
+  },
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.3"
   }
 }
