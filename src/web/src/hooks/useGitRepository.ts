@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { createGitWorkerClient, type GitWorkerClient } from '../utils/gitWorkerClient'
+import { createGitEngine } from '../platform/gitFactory'
+import type { GitEngine } from '../platform/types'
 import { pickDirectory, ensurePermission, verifyGitRepositoryRoot, snapshotGitFiles, snapshotWorktreeFiles } from '../utils/fs'
 import type { AppStatus } from '../types/appStatus'
 
@@ -15,7 +16,7 @@ export type RepoStatus =
 export function useGitRepository(setAppStatus?: (s: AppStatus) => void) {
   const [currentDir, setCurrentDir] = useState<FileSystemDirectoryHandle | null>(null)
   const [repoStatus, setRepoStatus] = useState<RepoStatus>({ state: 'idle' })
-  const [gitClient, setGitClient] = useState<GitWorkerClient | null>(null)
+  const [gitClient, setGitClient] = useState<GitEngine | null>(null)
   const [gitProgress, setGitProgress] = useState<string | null>(null)
   const [branches, setBranches] = useState<string[]>([])
   const [baseBranch, setBaseBranch] = useState<string>('')
@@ -63,7 +64,7 @@ export function useGitRepository(setAppStatus?: (s: AppStatus) => void) {
     setGitProgress('Initializing repository worker…')
     setAppStatus?.({ state: 'LOADING', task: 'repo', message: 'Initializing repository…', progress: 'indeterminate' })
     try { console.info('[app-status]', { state: 'LOADING', task: 'repo', message: 'Initializing repository…', progress: 'indeterminate' }) } catch {}
-    const client = createGitWorkerClient((m: string) => {
+    const client = createGitEngine((m: string) => {
       setGitProgress(m)
       const lower = (m || '').toLowerCase()
       let progress: number | 'indeterminate' = 'indeterminate'

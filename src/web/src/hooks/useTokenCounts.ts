@@ -1,23 +1,25 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { GitWorkerClient } from '../utils/gitWorkerClient'
+import type { GitEngine, TokenizerEngine } from '../platform/types'
+import { createTokenizer } from '../platform/tokenizerFactory'
 import type { FileDiffStatus } from './useFileTree'
-import { countTokens } from '../utils/tokenizer'
 import { buildUnifiedDiffForStatus } from '../utils/diff'
 
 export type TokenCounts = Map<string, number>
 
 type Args = {
-  gitClient: GitWorkerClient | null
+  gitClient: GitEngine | null
   baseRef: string
   compareRef: string
   selectedPaths: Set<string>
   statusByPath: Map<string, FileDiffStatus>
   diffContextLines: number
+  tokenizer?: TokenizerEngine
 }
 
-export function useTokenCounts({ gitClient, baseRef, compareRef, selectedPaths, statusByPath, diffContextLines }: Args) {
+export function useTokenCounts({ gitClient, baseRef, compareRef, selectedPaths, statusByPath, diffContextLines, tokenizer }: Args) {
   const [counts, setCounts] = useState<TokenCounts>(new Map())
   const [busy, setBusy] = useState(false)
+  const tok: TokenizerEngine = useMemo(() => tokenizer ?? createTokenizer(), [tokenizer])
 
   const selectedList = useMemo(() => Array.from(selectedPaths), [selectedPaths])
 
@@ -61,7 +63,7 @@ export function useTokenCounts({ gitClient, baseRef, compareRef, selectedPaths, 
               const oldText = (baseRes as any)?.binary || (baseRes as any)?.notFound ? '' : (baseRes as any)?.text ?? ''
               textForCount = oldText
             }
-              const n = await countTokens(textForCount)
+              const n = await tok.count(textForCount)
               next.set(path, n)
             }),
           )
