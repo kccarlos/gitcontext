@@ -270,8 +270,27 @@ function App() {
 
   // Output settings: toggles controlling included sections and UI behavior
   const [includeFileTree, setIncludeFileTree] = useState<boolean>(true)
-  const [includeBinaryAsPaths, setIncludeBinaryAsPaths] = useState<boolean>(true)
+  const [includeBinaryAsPaths, setIncludeBinaryAsPaths] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('gc.includeBinaryAsPaths')
+      if (saved === '0' || saved === 'false') return false
+      if (saved === '1' || saved === 'true') return true
+    } catch {}
+    return true
+  })
+  const includeBinaryAsPathsRef = useRef<boolean>(includeBinaryAsPaths)
+  useEffect(() => { includeBinaryAsPathsRef.current = includeBinaryAsPaths }, [includeBinaryAsPaths])
+  const includeBinaryCheckboxRef = useRef<HTMLInputElement | null>(null)
+  useEffect(() => {
+    try {
+      localStorage.setItem('gc.includeBinaryAsPaths', includeBinaryAsPaths ? '1' : '0')
+    } catch {}
+  }, [includeBinaryAsPaths])
   const [diffContextLines, setDiffContextLines] = useState<number>(3)
+  // Immediate UI value used for copy; debounced value used for token recomputations
+  const [diffContextImmediate, setDiffContextImmediate] = useState<number>(3)
+  const diffContextImmediateRef = useRef<number>(diffContextImmediate)
+  const diffRangeRef = useRef<HTMLInputElement | null>(null)
   const MAX_CONTEXT = 999
   const debouncedSetDiffContextLines = useMemo(() => debounce(setDiffContextLines, 250), [])
   // Collapsible User Instructions
@@ -338,6 +357,10 @@ function App() {
     selectAll,
     deselectAll,
   } = useFileTree(setAppStatus)
+
+  // Mirror selection into a ref to avoid stale closures in event handlers
+  const selectedPathsRef = useRef<Set<string>>(selectedPaths)
+  useEffect(() => { selectedPathsRef.current = selectedPaths }, [selectedPaths])
 
   useEffect(() => {
     setPendingTreeTokenCalc((x) => x + 1)
@@ -508,7 +531,7 @@ function App() {
   async function copyAllSelected() {
     if (!gitClient || !baseBranch || !compareBranch) return
     try {
-      const selected = Array.from(selectedPaths)
+      const selected = Array.from(selectedPathsRef.current)
       // Resolve refs for display; handle WORKDIR sentinel specially
       const WORKDIR = '__WORKDIR__'
       const baseDisp = baseBranch === WORKDIR
@@ -539,7 +562,14 @@ function App() {
 
       // File sections
       const fileSections: string[] = []
-      const fileReadPromises = selected.map((path) => {
+      let includeBinaryNow = (includeBinaryCheckboxRef.current?.checked ?? includeBinaryAsPathsRef.current)
+      try {
+        const saved = localStorage.getItem('gc.includeBinaryAsPaths')
+        if (saved === '0' || saved === 'false') includeBinaryNow = false
+        else if (saved === '1' || saved === 'true') includeBinaryNow = true
+      } catch {}
+      const pathsToProcess = includeBinaryNow ? selected : selected.filter((p) => !isLikelyBinaryPath(p))
+      const fileReadPromises = pathsToProcess.map((path) => {
         const status = statusByPath.get(path) ?? 'unchanged'
         const needBase = status !== 'add'
         const needCompare = status !== 'remove'
@@ -553,17 +583,21 @@ function App() {
         const isBinary = (baseRes as { binary?: boolean } | undefined)?.binary || (compareRes as { binary?: boolean } | undefined)?.binary
         const header = `## FILE: ${path} (${status.toUpperCase()})\n\n`
         if (isBinary) {
-          if (!includeBinaryAsPaths) continue
+          // When we filtered out likely-binary paths earlier and still hit binary here (e.g. unknown ext),
+          // respect the includeBinaryNow toggle: either include a path-only note or skip entirely.
+          if (!includeBinaryNow) continue
           fileSections.push(header + '_Binary file; included as path only._\n\n')
           continue
         }
 
-        const ctx = diffContextLines >= MAX_CONTEXT ? Number.MAX_SAFE_INTEGER : diffContextLines
+        const rawContext = Number(diffContextImmediateRef.current ?? diffContextImmediate)
+        const ctx = rawContext >= MAX_CONTEXT ? Number.MAX_SAFE_INTEGER : rawContext
 
         if (status === 'modify' || status === 'add' || status === 'remove') {
           if (status === 'add' && ctx === Number.MAX_SAFE_INTEGER) {
             // Whole file view for newly added files when slider is at ∞
-            const newText = (compareRes as { text?: string } | undefined)?.text ?? ''
+            const newTextRaw = (compareRes as { text?: string } | undefined)?.text ?? ''
+            const newText = newTextRaw.endsWith('\n') ? newTextRaw.slice(0, -1) : newTextRaw
             const lang = inferLangFromPath(path)
             fileSections.push(header + '```' + lang + '\n' + newText + '\n```\n\n')
           } else {
@@ -618,6 +652,17 @@ function App() {
     if (lower.endsWith('.css')) return 'css'
     if (lower.endsWith('.html') || lower.endsWith('.htm')) return 'html'
     return ''
+  }
+  function isLikelyBinaryPath(p: string): boolean {
+    const lower = p.toLowerCase()
+    const binaryExts = [
+      '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.ico',
+      '.pdf', '.zip', '.rar', '.7z', '.tar', '.gz', '.tgz',
+      '.mp3', '.wav', '.flac', '.mp4', '.mov', '.avi', '.mkv', '.webm',
+      '.exe', '.dll', '.bin', '.dmg', '.pkg', '.iso',
+      '.woff', '.woff2', '.ttf', '.otf'
+    ]
+    return binaryExts.some((ext) => lower.endsWith(ext))
   }
 
   return (
@@ -903,11 +948,33 @@ function App() {
                       Include File Tree
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <input type="checkbox" checked={includeBinaryAsPaths} onChange={(e) => setIncludeBinaryAsPaths(e.target.checked)} />
+                      <input
+                        ref={includeBinaryCheckboxRef}
+                        type="checkbox"
+                        checked={includeBinaryAsPaths}
+                        onChange={(e) => {
+                          const next = e.target.checked
+                          setIncludeBinaryAsPaths(next)
+                          includeBinaryAsPathsRef.current = next
+                          if (!next) {
+                            // Proactively deselect likely-binary files from the selection
+                            const curr = Array.from(selectedPathsRef.current)
+                            for (const p of curr) {
+                              if (isLikelyBinaryPath(p)) {
+                                toggleSelect(p)
+                              }
+                            }
+                          }
+                        }}
+                      />
                       Include Binary as Paths
                     </label>
                     <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
-                      <button type="button" onClick={() => copyAllSelected()} disabled={selectedPaths.size === 0 || !gitClient}>
+                      <button
+                        type="button"
+                        onClick={() => { void copyAllSelected() }}
+                        disabled={selectedPaths.size === 0 || !gitClient}
+                      >
                         {copyFlash ? copyFlash : (<><Copy size={16} /> COPY ALL SELECTED</>)}
                       </button>
                     </div>
@@ -917,17 +984,28 @@ function App() {
                     <label style={{display:'flex',alignItems:'center',gap:8, width: '100%'}}>
                       <span style={{whiteSpace:'nowrap'}}>Context&nbsp;lines:</span>
                       <input
+                        ref={diffRangeRef}
                         type="range"
                         min={0}
                         max={MAX_CONTEXT}
                         step={1}
-                        value={diffContextLines}
-                        onChange={(e) => debouncedSetDiffContextLines(Number(e.target.value))}
+                        value={diffContextImmediate}
+                        onInput={(e) => {
+                          const v = Number((e.target as HTMLInputElement).value)
+                          diffContextImmediateRef.current = v
+                          setDiffContextImmediate(v)
+                        }}
+                        onChange={(e) => {
+                          const v = Number(e.target.value)
+                          diffContextImmediateRef.current = v
+                          setDiffContextImmediate(v)
+                          debouncedSetDiffContextLines(v)
+                        }}
                         style={{flex:1, minWidth: '120px'}}
                         title="Number of context lines to include around diffs"
                       />
                       <span style={{width:36,textAlign:'right'}}>
-                        {diffContextLines >= MAX_CONTEXT ? '∞' : diffContextLines}
+                        {diffContextImmediate >= MAX_CONTEXT ? '∞' : diffContextImmediate}
                       </span>
                     </label>
                   </div>
