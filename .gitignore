@@ -155,3 +155,9 @@ src/web/*.local
 *.sw?
 
 src/web/dist-electron
+src/web/test-results
+# Ignore all Markdown files
+*.md
+
+# But keep README.md
+!README.md
