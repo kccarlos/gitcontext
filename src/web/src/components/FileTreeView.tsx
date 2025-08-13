@@ -136,6 +136,8 @@ export function FileTreeView({
               <span style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {renderStatusIcon(st)}
                 <span>{node.name}</span>
+                {/* Hidden full path to aid tests/search without impacting layout */}
+                <span style={{ display: 'none' }} aria-hidden="true" data-full-path={node.path}>{node.path}</span>
               </span>
               <button
                 type="button"
