@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
+import './git-service'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
