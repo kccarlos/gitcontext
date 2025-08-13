@@ -160,7 +160,12 @@ export function useGitRepository(setAppStatus?: (s: AppStatus) => void) {
         setGitClient(client)
       }
       const fallback = !res || !res.branches || res.branches.length === 0 ? branchesFromSnapshot(gitFiles) : null
-      const finalBranches: string[] = fallback ? fallback.branches : (res.branches as string[])
+      let finalBranches: string[] = fallback ? fallback.branches : (res.branches as string[])
+      // Ensure WORKDIR sentinel is present when falling back to snapshot-derived branches
+      if (fallback) {
+        const WORKDIR_SENTINEL = '__WORKDIR__'
+        finalBranches = [WORKDIR_SENTINEL, ...finalBranches]
+      }
       const finalDefault: string | null = fallback ? fallback.defaultBranch : (res.defaultBranch as string | null)
       try { console.info('[fallback] branches:', finalBranches.length, finalBranches) } catch {}
       setBranches(finalBranches)
