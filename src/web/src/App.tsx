@@ -939,11 +939,12 @@ function App() {
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <input type="checkbox" checked={includeFileTree} onChange={(e) => setIncludeFileTree(e.target.checked)} />
+                      <input data-testid="toggle-include-file-tree" type="checkbox" checked={includeFileTree} onChange={(e) => setIncludeFileTree(e.target.checked)} />
                       Include File Tree
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <input
+                        data-testid="toggle-include-binary-paths"
                         ref={includeBinaryCheckboxRef}
                         type="checkbox"
                         checked={includeBinaryAsPaths}
@@ -966,6 +967,7 @@ function App() {
                     </label>
                     <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
                       <button
+                        data-testid="copy-all-selected"
                         type="button"
                         onClick={() => { void copyAllSelected() }}
                         disabled={selectedPaths.size === 0 || !gitClient}
@@ -979,6 +981,7 @@ function App() {
                     <label style={{display:'flex',alignItems:'center',gap:8, width: '100%'}}>
                       <span style={{whiteSpace:'nowrap'}}>Context&nbsp;lines:</span>
                       <input
+                        data-testid="context-lines-slider"
                         ref={diffRangeRef}
                         type="range"
                         min={0}
