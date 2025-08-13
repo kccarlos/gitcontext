@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test'
 
 test.describe('Output Generation and Token Counting', () => {
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page, context }) => {
+    // Grant clipboard permissions for this origin to stabilize clipboard calls
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'http://localhost:5173' })
     // Worker override with synthetic repo
     await page.addInitScript(() => {
       const RealWorker = window.Worker
