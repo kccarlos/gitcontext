@@ -562,12 +562,7 @@ function App() {
 
       // File sections
       const fileSections: string[] = []
-      let includeBinaryNow = (includeBinaryCheckboxRef.current?.checked ?? includeBinaryAsPathsRef.current)
-      try {
-        const saved = localStorage.getItem('gc.includeBinaryAsPaths')
-        if (saved === '0' || saved === 'false') includeBinaryNow = false
-        else if (saved === '1' || saved === 'true') includeBinaryNow = true
-      } catch {}
+      const includeBinaryNow = (includeBinaryCheckboxRef.current?.checked ?? includeBinaryAsPathsRef.current)
       const pathsToProcess = includeBinaryNow ? selected : selected.filter((p) => !isLikelyBinaryPath(p))
       const fileReadPromises = pathsToProcess.map((path) => {
         const status = statusByPath.get(path) ?? 'unchanged'
