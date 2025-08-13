@@ -75,8 +75,6 @@ test.describe('Repository Loading and Initialization', () => {
         if (!(window as any).__MOCK_DIR__) throw new Error('No mock dir set')
         return (window as any).__MOCK_DIR__
       }
-      // Pre-seed branch selection to WORKDIR for this mock repo to avoid diff on load
-      try { localStorage.setItem('branchSel:repo-mock-repo', JSON.stringify({ base: '__WORKDIR__', compare: '__WORKDIR__' })) } catch {}
     })
 
     // Navigate to app
@@ -148,12 +146,18 @@ test.describe('Repository Loading and Initialization', () => {
     await expect(baseSelect).toHaveValue(/.+/)
     await expect(compareSelect).toHaveValue(/.+/)
 
+    // Verify available options include expected branches and WORKDIR label
+    const optionLabels = await baseSelect.locator('option').allTextContents()
+    expect(optionLabels).toEqual(expect.arrayContaining(['My Working Directory', 'main', 'feature-branch']))
+
+    // Verify initial selections match default logic (base=head, compare=first non-identical → WORKDIR)
+    const initialBase = await baseSelect.inputValue()
+    const initialCompare = await compareSelect.inputValue()
+    expect(initialBase).toBe('main')
+    expect(initialCompare).toBe('__WORKDIR__')
+
     // Ensure they are non-identical
-    const baseVal = await baseSelect.inputValue()
-    const compareVal = await compareSelect.inputValue()
-    expect(baseVal).not.toEqual('')
-    expect(compareVal).not.toEqual('')
-    expect(compareVal).not.toEqual(baseVal)
+    expect(initialCompare).not.toEqual(initialBase)
 
     // Do not assert status text; mock repo lacks real objects so diff may emit errors
     await expect(branchesPanel).toBeVisible()
