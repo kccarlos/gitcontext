@@ -13,7 +13,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       nodeIntegrationInWorker: true,
-      preload: join(__dirnameSafe, 'preload.js'),
+      preload: join(__dirnameSafe, 'preload.mjs'),
     }
   })
 
