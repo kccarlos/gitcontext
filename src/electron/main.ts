@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, ipcMain } from 'electron'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -27,6 +27,29 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // IPC: fetch LLM models from main process (used by renderer via preload bridge)
+  ipcMain.handle('fetch-models', async () => {
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/models', {
+        headers: { 'Content-Type': 'application/json' },
+      })
+      if (!res.ok) return null
+      const apiResponse = await res.json()
+      if (!apiResponse || !Array.isArray(apiResponse.data)) return null
+      const models = apiResponse.data.map((apiModel: any) => ({
+        id: apiModel.id,
+        name: apiModel.name || apiModel.id,
+        description: apiModel.description || '',
+        context_length: apiModel.context_length || 0,
+        pricing: apiModel.pricing || '',
+        available: apiModel.available !== false,
+      }))
+      return models
+    } catch {
+      return null
+    }
+  })
+
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
