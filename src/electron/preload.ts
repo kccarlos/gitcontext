@@ -1,11 +1,8 @@
-// Use CommonJS-style require to ensure compatibility with Electron preload
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { contextBridge /*, ipcRenderer*/ } = require('electron')
+import { contextBridge, ipcRenderer } from 'electron'
 
 contextBridge.exposeInMainWorld('electron', {
-  invoke: (channel: string, ..._args: unknown[]) => {
-    return Promise.reject(new Error(`IPC not implemented for channel: ${channel}`))
-  }
+  invoke: (channel: string, ...args: unknown[]) =>
+    ipcRenderer.invoke(channel, ...args),
 })
 
-;(globalThis as any).isElectron = true
+globalThis.isElectron = true

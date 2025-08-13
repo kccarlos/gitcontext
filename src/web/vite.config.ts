@@ -27,7 +27,7 @@ export default defineConfig({
               vite: {
                 build: {
                   rollupOptions: {
-                    output: { format: 'cjs' },
+                    output: { format: 'cjs', entryFileNames: 'preload.mjs' },
                   },
                 },
               },
