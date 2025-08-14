@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ArrowUpDown, Search, X, FilePenLine, FilePlus2, FileMinus2, File as FileIcon } from 'lucide-react'
+import { ArrowUpDown, Search, X, FilePenLine, FilePlus2, FileMinus2, File as FileIcon, FileArchive } from 'lucide-react'
 import type { GitWorkerClient } from '../utils/gitWorkerClient'
 import { useTokenCounts } from '../hooks/useTokenCounts'
 import type { FileDiffStatus } from '../hooks/useFileTree'
@@ -9,6 +9,7 @@ type SelectedEntry = {
   name: string
   status: FileDiffStatus
   tokens: number
+  isLikelyBinary?: boolean
 }
 
 type SortKey = 'tokens-desc' | 'tokens-asc' | 'name-asc' | 'name-desc'
@@ -37,7 +38,10 @@ export function SelectedFilesPanel({ gitClient, baseRef, compareRef, selectedPat
       const st = statusByPath.get(path) ?? 'unchanged'
       const tokens = counts.get(path) ?? 0
       const name = path.includes('/') ? path.slice(path.lastIndexOf('/') + 1) : path
-      entries.push({ path, name, status: st, tokens })
+      const lower = path.toLowerCase()
+      const exts = ['.png','.jpg','.jpeg','.gif','.webp','.svg','.ico','.pdf','.zip','.gz','.tgz','.rar','.7z','.mp4','.mp3','.wav','.mov','.avi','.mkv','.woff','.woff2','.ttf']
+      const isLikelyBinary = exts.some((e) => lower.endsWith(e))
+      entries.push({ path, name, status: st, tokens, isLikelyBinary })
     }
     const q = (filterText || '').trim().toLowerCase()
     const filtered = q
@@ -111,7 +115,14 @@ export function SelectedFilesPanel({ gitClient, baseRef, compareRef, selectedPat
             <div key={it.path} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
               <span title={pathTreeTooltip(it.path)} style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 <StatusIcon status={it.status} />
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.name}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {it.isLikelyBinary ? (
+                    <span aria-label="Binary file" title="Binary (heuristic)">
+                      <FileArchive size={14} />
+                    </span>
+                  ) : null}
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.name}</span>
+                </span>
               </span>
               <span style={{ opacity: 0.8, minWidth: 64, textAlign: 'right' }}>{it.tokens.toLocaleString()}</span>
               <button
