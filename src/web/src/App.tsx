@@ -585,30 +585,32 @@ function App() {
           continue
         }
 
-        const rawContext = Number(diffContextImmediateRef.current ?? diffContextImmediate)
+        // Read the live slider value to tolerate cases where input events were not dispatched
+        const sliderVal = (() => { try { return Number(diffRangeRef.current?.value) } catch { return NaN } })()
+        const rawContext = Number.isFinite(sliderVal) && !Number.isNaN(sliderVal)
+          ? sliderVal
+          : Number(diffContextImmediateRef.current ?? diffContextImmediate)
         const ctx = rawContext >= MAX_CONTEXT ? Number.MAX_SAFE_INTEGER : rawContext
 
-        if (status === 'modify' || status === 'add' || status === 'remove') {
-          if (status === 'add' && ctx === Number.MAX_SAFE_INTEGER) {
-            // Whole file view for newly added files when slider is at ∞
-            const newTextRaw = (compareRes as { text?: string } | undefined)?.text ?? ''
-            const newText = newTextRaw.endsWith('\n') ? newTextRaw.slice(0, -1) : newTextRaw
-            const lang = inferLangFromPath(path)
-            fileSections.push(header + '```' + lang + '\n' + newText + '\n```\n\n')
+        if (status === 'add') {
+          // Always include full content for newly added files
+          const newTextRaw = (compareRes as { text?: string } | undefined)?.text ?? ''
+          const newText = newTextRaw.endsWith('\n') ? newTextRaw.slice(0, -1) : newTextRaw
+          const lang = inferLangFromPath(path)
+          fileSections.push(header + '```' + lang + '\n' + newText + '\n```\n\n')
+        } else if (status === 'modify' || status === 'remove') {
+          const diffText = buildUnifiedDiffForStatus(
+            status,
+            path,
+            baseRes as { binary: boolean; text: string | null; notFound?: boolean } | undefined,
+            compareRes as { binary: boolean; text: string | null; notFound?: boolean } | undefined,
+            { context: ctx },
+          )
+          if (diffText) {
+            fileSections.push(header + '```diff\n' + diffText + '```\n\n')
           } else {
-            const diffText = buildUnifiedDiffForStatus(
-              status,
-              path,
-              baseRes as { binary: boolean; text: string | null; notFound?: boolean } | undefined,
-              compareRes as { binary: boolean; text: string | null; notFound?: boolean } | undefined,
-              { context: ctx },
-            )
-            if (diffText) {
-              fileSections.push(header + '```diff\n' + diffText + '```\n\n')
-            } else {
-              // Fallback: no text
-              fileSections.push(header + '_No textual content available._\n\n')
-            }
+            // Fallback: no text
+            fileSections.push(header + '_No textual content available._\n\n')
           }
         } else {
           // unchanged: include full base content

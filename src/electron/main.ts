@@ -35,9 +35,9 @@ app.whenReady().then(() => {
         headers: { 'Content-Type': 'application/json' },
       })
       if (!res.ok) return null
-      const apiResponse = await res.json()
+      const apiResponse: any = await res.json()
       if (!apiResponse || !Array.isArray(apiResponse.data)) return null
-      const models = apiResponse.data.map((apiModel: any) => ({
+      const models = (apiResponse.data as any[]).map((apiModel: any) => ({
         id: apiModel.id,
         name: apiModel.name || apiModel.id,
         description: apiModel.description || '',
