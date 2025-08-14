@@ -175,7 +175,8 @@ test.describe('Output Generation and Token Counting', () => {
     expect(txt).toContain('## File Tree')
     expect(txt).toMatch(/## FILE:\s+src\/existing.ts/i)
     expect(txt).toMatch(/## FILE:\s+src\/new.ts/i)
-    expect(txt).toMatch(/_Binary file; included as path only\._/)
+    // Binary files should be included as path-only entries without content
+    expect(txt).toMatch(/## FILE:\s+assets\/image\.png\s*\(ADD\)/)
     expect(txt).toContain(instr)
   })
 
