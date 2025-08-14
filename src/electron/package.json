@@ -15,10 +15,11 @@
   "type": "module",
   "main": "main.ts",
   "scripts": {
-    "build": "echo 'electron build placeholder'",
+    "build": "tsc -p tsconfig.json",
     "lint": "echo 'electron lint placeholder'"
   },
   "dependencies": {
+    "isomorphic-git": "^1.32.3",
     "fast-glob": "^3.3.2",
     "fs-extra": "^11.2.0",
     "lru-cache": "^10.2.0"

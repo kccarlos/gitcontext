@@ -17,7 +17,16 @@ class WebRepoPicker implements RepoPicker {
 
 class DesktopRepoPicker implements RepoPicker {
   async pickDirectory(): Promise<{ type: 'electron'; path: string }> {
-    throw new Error('Desktop RepoPicker not yet wired. Will be implemented in Phase 2.5')
+    const invoke = (window as any)?.electron?.invoke as ((ch: string, payload?: any) => Promise<any>) | undefined
+    if (!invoke) throw new Error('Electron bridge unavailable')
+    const res = await invoke('dialog:pick-repo')
+    if (!res || res.type !== 'ok') {
+      const err = (res && res.error) ? String(res.error) : 'cancelled'
+      throw new Error(err)
+    }
+    const path = String(res.data?.path || '')
+    if (!path) throw new Error('No path selected')
+    return { type: 'electron', path }
   }
 }
 

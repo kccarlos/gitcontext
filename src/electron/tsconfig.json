@@ -1,0 +1,24 @@
+{
+  "extends": "../web/tsconfig.node.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": ".",
+    "module": "ESNext",
+    "target": "ES2022",
+    "moduleResolution": "Bundler",
+    "types": ["node"],
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "verbatimModuleSyntax": true
+  },
+  "include": [
+    "./**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}
+
+
+
