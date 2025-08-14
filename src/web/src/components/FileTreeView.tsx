@@ -1,5 +1,5 @@
 import type { FileTreeNode, FileDiffStatus } from '../hooks/useFileTree'
-import { ChevronDown, ChevronRight, Search, FilePenLine, FilePlus2, FileMinus2, File as FileIcon } from 'lucide-react'
+import { ChevronDown, ChevronRight, Search, FilePenLine, FilePlus2, FileMinus2, File as FileIcon, FileArchive } from 'lucide-react'
 
 type Props = {
   tree: FileTreeNode | null
@@ -135,7 +135,14 @@ export function FileTreeView({
               <input type="checkbox" checked={checked} onChange={() => onToggleSelect(node.path)} />
               <span style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {renderStatusIcon(st)}
-                <span>{node.name}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {node.isLikelyBinary ? (
+                    <span aria-label="Binary file" title="Binary (heuristic)">
+                      <FileArchive size={14} />
+                    </span>
+                  ) : null}
+                  <span>{node.name}</span>
+                </span>
                 {/* Hidden full path to aid tests/search without impacting layout */}
                 <span style={{ display: 'none' }} aria-hidden="true" data-full-path={node.path}>{node.path}</span>
               </span>
