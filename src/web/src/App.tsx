@@ -563,7 +563,7 @@ function App() {
       // File sections
       const fileSections: string[] = []
       const includeBinaryNow = (includeBinaryCheckboxRef.current?.checked ?? includeBinaryAsPathsRef.current)
-      const pathsToProcess = includeBinaryNow ? selected : selected.filter((p) => !isLikelyBinaryPath(p))
+        const pathsToProcess = includeBinaryNow ? selected : selected.filter((p) => !isLikelyBinaryPath(p))
       const fileReadPromises = pathsToProcess.map((path) => {
         const status = statusByPath.get(path) ?? 'unchanged'
         const needBase = status !== 'add'
@@ -574,14 +574,14 @@ function App() {
         ]).then(([baseRes, compareRes]) => ({ path, status, baseRes, compareRes }))
       })
       const fileContents = await Promise.all(fileReadPromises)
-      for (const { path, status, baseRes, compareRes } of fileContents) {
-        const isBinary = (baseRes as { binary?: boolean } | undefined)?.binary || (compareRes as { binary?: boolean } | undefined)?.binary
+        for (const { path, status, baseRes, compareRes } of fileContents) {
+          const isBinary = (baseRes as { binary?: boolean } | undefined)?.binary || (compareRes as { binary?: boolean } | undefined)?.binary || isLikelyBinaryPath(path)
         const header = `## FILE: ${path} (${status.toUpperCase()})\n\n`
         if (isBinary) {
           // When we filtered out likely-binary paths earlier and still hit binary here (e.g. unknown ext),
           // respect the includeBinaryNow toggle: either include a path-only note or skip entirely.
-          if (!includeBinaryNow) continue
-          fileSections.push(header + '_Binary file; included as path only._\n\n')
+            if (!includeBinaryNow) continue
+            fileSections.push(`## FILE: ${path} (${status.toUpperCase()})\n\n`)
           continue
         }
 

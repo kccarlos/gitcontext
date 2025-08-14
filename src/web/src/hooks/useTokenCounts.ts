@@ -54,16 +54,20 @@ export function useTokenCounts({ gitClient, baseRef, compareRef, selectedPaths, 
             const ctx = diffContextLines >= MAX_CONTEXT ? Number.MAX_SAFE_INTEGER : diffContextLines
             let textForCount = ''
             if (status === 'modify' || status === 'add' || status === 'remove') {
-              if (status === 'add' && ctx === Number.MAX_SAFE_INTEGER) {
+              const isBinary = Boolean((baseRes as any)?.binary) || Boolean((compareRes as any)?.binary)
+              if (isBinary) {
+                textForCount = ''
+              } else if (status === 'add' && ctx === Number.MAX_SAFE_INTEGER) {
                 textForCount = (compareRes as { text?: string } | undefined)?.text ?? ''
               } else {
                 textForCount = buildUnifiedDiffForStatus(status, path, baseRes as any, compareRes as any, { context: ctx }) || ''
               }
             } else {
-              const oldText = (baseRes as any)?.binary || (baseRes as any)?.notFound ? '' : (baseRes as any)?.text ?? ''
+              const isBinary = Boolean((baseRes as any)?.binary)
+              const oldText = isBinary || (baseRes as any)?.notFound ? '' : (baseRes as any)?.text ?? ''
               textForCount = oldText
             }
-              const n = await tok.count(textForCount)
+              const n = textForCount ? await tok.count(textForCount) : 0
               next.set(path, n)
             }),
           )
