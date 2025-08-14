@@ -81,7 +81,22 @@ export function useWorkspaces(onWorkspaceSelect: (handle: FileSystemDirectoryHan
   const saveWorkspaceFromHandle = useCallback(
     async (handle: FileSystemDirectoryHandle | null) => {
       if (!handle) return
-      const name = window.prompt('Enter a name for this workspace:', handle.name)
+      // In Electron, window.prompt is not supported. Fallback to the folder name.
+      const isElectron = (() => {
+        try {
+          // @ts-ignore
+          const isRenderer = typeof window !== 'undefined' && typeof window.process !== 'undefined' && (window.process as any).type === 'renderer'
+          // @ts-ignore
+          const hasFlag = typeof window !== 'undefined' && (window as any).isElectron
+          return Boolean(isRenderer || hasFlag)
+        } catch { return false }
+      })()
+      let name: string | null = null
+      if (isElectron) {
+        name = handle.name || 'Workspace'
+      } else {
+        name = window.prompt('Enter a name for this workspace:', handle.name)
+      }
       if (!name || !name.trim()) return
       const id = await saveWorkspace(name.trim(), handle)
       await refreshWorkspaceList()
