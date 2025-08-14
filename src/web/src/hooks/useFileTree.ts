@@ -10,6 +10,7 @@ export type FileTreeNode = {
   type: 'dir' | 'file'
   children?: FileTreeNode[]
   status?: FileDiffStatus
+  isLikelyBinary?: boolean
 }
 
 type ProgressSetter = (update: { message: string; percent: number } | null) => void
@@ -38,6 +39,13 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
       return node
     }
 
+    const likelyBinary = (p: string): boolean => {
+      const lower = p.toLowerCase()
+      // Heuristic similar to App.tsx; keep in sync
+      const exts = ['.png','.jpg','.jpeg','.gif','.webp','.svg','.ico','.pdf','.zip','.gz','.tgz','.rar','.7z','.mp4','.mp3','.wav','.mov','.avi','.mkv','.woff','.woff2','.ttf']
+      return exts.some((e) => lower.endsWith(e))
+    }
+
     for (const fullPath of allPaths) {
       const parts = fullPath.split('/')
       const dirPath = parts.slice(0, -1).join('/')
@@ -49,6 +57,7 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
           path: fullPath,
           type: 'file',
           status: (diffMap.get(fullPath) ?? 'unchanged') as FileDiffStatus,
+          isLikelyBinary: likelyBinary(fullPath),
         }
         ;(parent.children as FileTreeNode[]).push(fileNode)
       }
