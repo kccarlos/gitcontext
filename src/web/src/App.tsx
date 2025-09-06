@@ -118,8 +118,15 @@ function App() {
 
   // --- Column resizer state & handlers ---
   const uiHasResizer = currentDir !== null
+  const [narrowLayout, setNarrowLayout] = useState(window.matchMedia('(max-width: 1100px)').matches)
   useEffect(() => {
-    if (!uiHasResizer) return
+    const mql = window.matchMedia('(max-width: 1100px)')
+    const onChange = (e: MediaQueryListEvent) => setNarrowLayout(e.matches)
+    mql.addEventListener('change', onChange)
+    return () => mql.removeEventListener('change', onChange)
+  }, [])
+  useEffect(() => {
+    if (!uiHasResizer || narrowLayout) return
     const appEl = document.getElementById('gc-app')
     if (!appEl) return
 
@@ -180,6 +187,15 @@ function App() {
       dragging = false
       appEl.classList.remove('resizing')
       ;(e.target as HTMLElement).releasePointerCapture?.(e.pointerId)
+      // Snap to ~50% if handle is near the middle
+      const current = Number((getComputedStyle(appEl).getPropertyValue('--left-col') || '').replace('px','')) || minLeft
+      const mid = Math.round(appEl.clientWidth * 0.5)
+      if (Math.abs(current - mid) < 24) applyLeft(mid)
+    }
+    // Double-click to center
+    const onDoubleClick = () => {
+      const mid = Math.round(appEl.clientWidth * 0.5)
+      applyLeft(mid)
     }
 
     // Keyboard support: ArrowLeft/Right, Home/End
@@ -218,18 +234,20 @@ function App() {
     }
 
     handle.addEventListener('pointerdown', onPointerDown)
+    handle.addEventListener('dblclick', onDoubleClick)
     handle.addEventListener('keydown', onKeyDown)
     window.addEventListener('pointermove', onPointerMove)
     window.addEventListener('pointerup', onPointerUp)
     window.addEventListener('resize', onWindowResize)
     return () => {
       handle.removeEventListener('pointerdown', onPointerDown)
+      handle.removeEventListener('dblclick', onDoubleClick)
       handle.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointerup', onPointerUp)
       window.removeEventListener('resize', onWindowResize)
     }
-  }, [uiHasResizer])
+  }, [uiHasResizer, narrowLayout])
 
   // User instructions: persisted in localStorage and token-counted for budgeting
   const [userInstructions, setUserInstructions] = useState<string>('')
@@ -726,8 +744,8 @@ function App() {
     <BrowserSupportGate>
       <div className={`app-container${!projectLoaded ? ' landing-full' : ''}`} id="gc-app">
         <header className="header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button type="button" onClick={() => resetRepo()} title="Go to landing" aria-label="Go to landing" style={{ background: 'transparent', border: 'none', padding: 0, margin: 0, cursor: 'pointer' }}>
+          <div className="brand">
+            <button type="button" onClick={() => resetRepo()} title="Go to landing" aria-label="Go to landing" className="btn btn-ghost">
               <img
                 src={`${import.meta.env.BASE_URL}${effectiveTheme === 'dark' ? 'gitcontext-full-dark.svg' : 'gitcontext-full.svg'}`}
                 alt="GitContext"
@@ -737,13 +755,7 @@ function App() {
             </button>
             <GitHubStarIconButton repoUrl="https://github.com/kccarlos/gitcontext" />
             <BugIconButton url="https://github.com/kccarlos/gitcontext/issues" size={16} />
-            <button
-              type="button"
-              onClick={toggleTheme}
-              className="icon-only"
-              aria-label="Toggle color scheme"
-              title="Toggle color scheme"
-            >
+            <button type="button" onClick={toggleTheme} className="btn btn-ghost btn-icon" aria-label="Toggle color scheme" title="Toggle color scheme">
               {effectiveTheme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
             </button>
           </div>
@@ -756,14 +768,14 @@ function App() {
           <section className="panel" style={{ gridColumn: '1 / -1' }}>
             <div className="landing-grid">
               <div>
-                <h2 style={{ fontSize: '1.35rem' }}>Build Perfect Context of Your Codebase for Your AI Chatbot</h2>
+                <h2 className="landing-title">Build Perfect Context of Your Codebase for Your AI Chatbot</h2>
                 <p>
                   GitContext helps you package local file diffs and code into a single, clean prompt,
                   ensuring your AI chatbot has the precise information it needs — all without your code ever
                   leaving your machine.
                 </p>
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  <button type="button" onClick={() => void selectNewRepo()}>
+                <div className="row" style={{ marginTop: '.5rem' }}>
+                  <button type="button" className="btn btn-primary" onClick={() => void selectNewRepo()}>
                     <Folder size={16} /> Select Project Folder
                   </button>
                 </div>
@@ -771,7 +783,7 @@ function App() {
                   Requires a Chromium-based browser (Chrome/Edge). Your data stays local.
                 </p>
 
-                <h3 style={{ marginTop: '1rem', marginBottom: 6, fontSize: '1rem' }}>How it works</h3>
+                <h3 className="landing-subtitle">How it works</h3>
                 <ul className="how-list">
                   <li className="how-item">
                     <span><FolderGit2 size={18} /></span>
@@ -796,34 +808,23 @@ function App() {
                 </ul>
 
                 <div style={{ marginTop: '1.25rem' }}>
-                  <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div className="row" style={{ marginTop: 8 }}>
                     <GitHubStarIconButton repoUrl="https://github.com/kccarlos/gitcontext" />
                     <a href="https://github.com/kccarlos/gitcontext" target="_blank" rel="noreferrer" className="hint">
                       Star this project on GitHub
                     </a>
                   </div>
-                  <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div className="row" style={{ marginTop: 8 }}>
                     <BugIconButton url="https://github.com/kccarlos/gitcontext/issues" size={16} />
                     <a href="https://github.com/kccarlos/gitcontext/issues" target="_blank" rel="noreferrer" className="hint">
                       Report a problem
                     </a>
                   </div>
-                  <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <button
-                      type="button"
-                      onClick={toggleTheme}
-                      className="icon-only"
-                      aria-label="Toggle color scheme"
-                      title="Toggle color scheme"
-                    >
+                  <div className="row" style={{ marginTop: 8 }}>
+                    <button type="button" onClick={toggleTheme} className="btn btn-ghost btn-icon" aria-label="Toggle color scheme" title="Toggle color scheme">
                       {effectiveTheme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
                     </button>
-                    <button
-                      type="button"
-                      onClick={toggleTheme}
-                      className="hint"
-                      style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
-                    >
+                    <button type="button" onClick={toggleTheme} className="hint btn btn-ghost">
                       {effectiveTheme === 'dark' ? 'Turn on the light' : 'Turn off the light'}
                     </button>
                   </div>
@@ -844,7 +845,7 @@ function App() {
                 {/* Overlay: clickable svg that hides on click */}
                 {!exampleOpen && (
                   <button type="button" className="landing-visual-button landing-visual-overlay" onClick={() => void openExample()} aria-label="Show me an example" title="Show me an example">
-                    <img src={`${import.meta.env.BASE_URL}landing-placeholder.svg`} alt="GitContext demo – Show me an example" style={{ width: '100%', display: 'block', borderRadius: 8 }} />
+                    <img className="img-rounded" src={`${import.meta.env.BASE_URL}landing-placeholder.svg`} alt="GitContext demo – Show me an example" />
                   </button>
                 )}
               </div>
@@ -879,21 +880,20 @@ function App() {
               </div>
 
               <div className="panel-section">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                <div className="row-between">
                   <h2 style={{ margin: 0 }}>File Tree</h2>
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    <input
+                  <div className="row">
+                    <input className="input"
                       type="text"
                       placeholder="Filter files…"
                       value={treeFilter}
                       onChange={(e) => setTreeFilter(e.target.value)}
-                      style={{ padding: '0.3rem 0.5rem', borderRadius: 6, border: '1px solid color-mix(in hsl, currentColor 20%, transparent)' }}
                     />
-                    <button type="button" onClick={expandAll} disabled={!fileTree} title="Expand all" className="icon-only"><ChevronsDown size={18} /></button>
-                    <button type="button" onClick={collapseAll} disabled={!fileTree} title="Collapse all" className="icon-only"><ChevronsUp size={18} /></button>
-                    <button type="button" onClick={selectAll} disabled={!fileTree} title="Select all" className="icon-only"><CheckSquare size={16} /></button>
-                    <button type="button" onClick={deselectAll} disabled={!fileTree} title="Deselect all" className="icon-only"><Square size={16} /></button>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <button type="button" onClick={expandAll} disabled={!fileTree} title="Expand all" className="btn btn-ghost btn-icon"><ChevronsDown size={18} /></button>
+                    <button type="button" onClick={collapseAll} disabled={!fileTree} title="Collapse all" className="btn btn-ghost btn-icon"><ChevronsUp size={18} /></button>
+                    <button type="button" onClick={selectAll} disabled={!fileTree} title="Select all" className="btn btn-ghost btn-icon"><CheckSquare size={16} /></button>
+                    <button type="button" onClick={deselectAll} disabled={!fileTree} title="Deselect all" className="btn btn-ghost btn-icon"><Square size={16} /></button>
+                    <label className="row" style={{ alignItems: 'center' }}>
                       <input
                         type="checkbox"
                         checked={showChangedOnly}
@@ -929,9 +929,9 @@ function App() {
 
             <div className="right-panel">
               <div className="panel-section">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div className="row-between">
                   <h2 style={{ margin: 0 }}>User Instructions</h2>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div className="row">
                     <span className="hint">{userInstructionsTokens.toLocaleString()} tokens</span>
                     <button
                       type="button"
@@ -946,15 +946,16 @@ function App() {
                 {instructionsOpen && (
                   <>
                     <textarea
-                      className="instructions-textarea"
+                      className="instructions-textarea textarea"
                       placeholder="You are an expert engineer. Analyze the following..."
                       value={userInstructions}
                       onChange={(e) => setUserInstructions(e.target.value)}
                       style={{ minHeight: 56, height: 56 }}
                       rows={3}
                     />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                    <div className="row" style={{ marginTop: 8 }}>
                       <select
+                        className="select"
                         value={templateId}
                         onChange={(e) => {
                           const id = e.target.value
@@ -962,7 +963,7 @@ function App() {
                           const tmpl = PROMPT_TEMPLATES.find((t) => t.id === id)
                           if (tmpl) setUserInstructions(tmpl.content)
                         }}
-                        style={{ flexGrow: 1, padding: '0.25rem 0.4rem' }}
+                        style={{ flexGrow: 1 }}
                       >
                         <option value="">Choose template…</option>
                         {PROMPT_TEMPLATES.map((t) => (
@@ -977,13 +978,14 @@ function App() {
               <div className="panel-section">
                 <h2>Output Settings</h2>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                  <div className="row" style={{ width: '100%' }}>
                     <span>Model:</span>
                     <select
+                      className="select"
                       value={modelId}
                       onChange={(e) => setModelId(e.target.value)}
                       disabled={models.length === 0}
-                      style={{ padding: '0.25rem 0.4rem', minWidth: 260 }}
+                      style={{ minWidth: 260 }}
                     >
                       {models.length === 0 ? (
                         <option value="">Loading models…</option>
@@ -996,13 +998,14 @@ function App() {
                       )}
                     </select>
                     <input
+                      className="input"
                       type="text"
                       placeholder="Filter models…"
                       aria-label="Filter models"
                       value={modelFilter}
                       onChange={(e) => setModelFilter(e.target.value)}
                       disabled={models.length === 0}
-                      style={{ flex: 1, padding: '0.3rem 0.5rem', borderRadius: 6, border: '1px solid color-mix(in hsl, currentColor 20%, transparent)' }}
+                      style={{ flex: 1 }}
                     />
                   </div>
 
@@ -1044,10 +1047,11 @@ function App() {
                       />
                       Include Binary as Paths
                     </label>
-                    <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+                    <div className="row ml-auto">
                       <button
                         data-testid="copy-all-selected"
                         type="button"
+                        className="btn btn-primary"
                         onClick={() => { void copyAllSelected() }}
                         disabled={selectedPaths.size === 0 || !gitClient}
                       >
@@ -1056,8 +1060,8 @@ function App() {
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-                    <label style={{display:'flex',alignItems:'center',gap:8, width: '100%'}}>
+                  <div className="row" style={{ width: '100%' }}>
+                    <label className="row" style={{ width: '100%' }}>
                       <span style={{whiteSpace:'nowrap'}}>Context&nbsp;lines:</span>
                       <input
                         data-testid="context-lines-slider"
