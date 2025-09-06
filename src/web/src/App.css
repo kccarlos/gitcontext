@@ -12,7 +12,7 @@
   --border-col: color-mix(in hsl, currentColor 18%, transparent);
   --ring: #646cff;
   --primary: #646cff;
-  --primary-contrast: white;
+  --primary-contrast: CanvasText;
 }
 [data-theme="dark"] {
   --surface-1: color-mix(in oklab, Canvas 88%, transparent);
@@ -545,6 +545,10 @@ button {
       'right';
     grid-template-columns: 1fr;
     grid-template-rows: auto auto 1fr;
+    /* Allow content to expand beyond viewport height for scrolling */
+    min-height: 100vh;
+    min-height: 100dvh;
+    height: auto;
   }
   .column-resizer { display: none; }
   .left-panel, .right-panel { padding: 0; }

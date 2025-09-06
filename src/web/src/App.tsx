@@ -745,7 +745,7 @@ function App() {
       <div className={`app-container${!projectLoaded ? ' landing-full' : ''}`} id="gc-app">
         <header className="header">
           <div className="brand">
-            <button type="button" onClick={() => resetRepo()} title="Go to landing" aria-label="Go to landing" className="btn btn-ghost">
+            <button type="button" onClick={() => resetRepo()} title="Go to landing" aria-label="Go to landing" className="btn btn-ghost" style={{ border: 'none', background: 'transparent' }}>
               <img
                 src={`${import.meta.env.BASE_URL}${effectiveTheme === 'dark' ? 'gitcontext-full-dark.svg' : 'gitcontext-full.svg'}`}
                 alt="GitContext"
@@ -821,12 +821,12 @@ function App() {
                     </a>
                   </div>
                   <div className="row" style={{ marginTop: 8 }}>
-                    <button type="button" onClick={toggleTheme} className="btn btn-ghost btn-icon" aria-label="Toggle color scheme" title="Toggle color scheme">
+                    <button type="button" onClick={toggleTheme} className="btn btn-ghost btn-icon" aria-label="Toggle color scheme" title="Toggle color scheme" style={{ border: 'none', background: 'transparent' }}>
                       {effectiveTheme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
                     </button>
-                    <button type="button" onClick={toggleTheme} className="hint btn btn-ghost">
+                    <a href="#" onClick={(e) => { e.preventDefault(); toggleTheme(); }} className="hint">
                       {effectiveTheme === 'dark' ? 'Turn on the light' : 'Turn off the light'}
-                    </button>
+                    </a>
                   </div>
                 </div>
               </div>

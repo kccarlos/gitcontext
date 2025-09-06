@@ -24,6 +24,15 @@ body,
   overflow: hidden;
 }
 
+/* Allow scrolling on narrow screens when content exceeds viewport */
+@media (max-width: 1100px) {
+  html,
+  body,
+  #root {
+    overflow: auto;
+  }
+}
+
 a {
   font-weight: 500;
   color: #646cff;

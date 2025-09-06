@@ -161,3 +161,6 @@ src/web/test-results
 
 # But keep README.md
 !README.md
+
+agent/
+.cursor/
