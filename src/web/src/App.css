@@ -175,10 +175,13 @@ button.icon-only {
   grid-template-areas:
     'header header header'
     'left   resizer right';
-  grid-template-columns: var(--left-col, minmax(320px, 1fr)) 6px 1fr;
+  /* Clamp the left column so saved px widths don't break on smaller viewports */
+  grid-template-columns: clamp(240px, var(--left-col, 40%), 55%) 6px 1fr;
   grid-template-rows: auto 1fr;
   gap: 1.25rem;
+  /* Mobile browser chrome friendly */
   height: 100vh;
+  height: 100dvh;
   padding: 2rem;
   padding-bottom: 4.5rem; /* space for fixed status footer */
   box-sizing: border-box;
@@ -236,6 +239,12 @@ button.icon-only {
   touch-action: none;
   -webkit-user-select: none;
   user-select: none;
+}
+
+.column-resizer:focus-visible {
+  outline: 2px solid #646cff;
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .column-resizer:hover {
@@ -421,4 +430,57 @@ button.icon-only {
   color: inherit;
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+/* ---------- Responsiveness ---------- */
+/* Stack columns on narrower screens; hide the resizer */
+@media (max-width: 1100px) {
+  .app-container {
+    grid-template-areas:
+      'header'
+      'left'
+      'right';
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto 1fr;
+  }
+  .column-resizer { display: none; }
+  .left-panel, .right-panel { padding: 0; }
+}
+
+/* Tighten padding and let header wrap nicely on small devices */
+@media (max-width: 700px) {
+  .app-container {
+    padding: 1rem;
+    padding-bottom: 4.5rem;
+  }
+  .header { flex-wrap: wrap; gap: 0.5rem; }
+  .header img[alt="GitContext"] { height: 40px; }
+}
+
+/* Selected Files: rows wrap on small screens; token count drops under filename */
+.selected-file-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  flex-wrap: nowrap;
+}
+.selected-file-row .tokens {
+  opacity: 0.8;
+  min-width: 64px;
+  text-align: right;
+}
+@media (max-width: 700px) {
+  .selected-file-row { flex-wrap: wrap; }
+  .selected-file-row .tokens {
+    order: 3;
+    width: 100%;
+    min-width: 0;
+    text-align: left;
+  }
+}
+
+/* Make generic icon-only targets a bit friendlier to tap */
+@media (hover: none) and (pointer: coarse) {
+  button.icon-only { padding: 0.75em; }
 }
