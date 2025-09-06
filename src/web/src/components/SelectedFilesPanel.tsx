@@ -112,7 +112,7 @@ export function SelectedFilesPanel({ gitClient, baseRef, compareRef, selectedPat
       ) : (
         <div style={{ border: '1px solid color-mix(in hsl, currentColor 20%, transparent)', borderRadius: 8, padding: '0.5rem', flex: 1, minHeight: 0, overflowY: 'auto' }}>
           {items.map((it) => (
-            <div key={it.path} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
+            <div key={it.path} className="selected-file-row">
               <span title={pathTreeTooltip(it.path)} style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 <StatusIcon status={it.status} />
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -124,7 +124,7 @@ export function SelectedFilesPanel({ gitClient, baseRef, compareRef, selectedPat
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.name}</span>
                 </span>
               </span>
-              <span style={{ opacity: 0.8, minWidth: 64, textAlign: 'right' }}>{it.tokens.toLocaleString()}</span>
+              <span className="tokens">{it.tokens.toLocaleString()}</span>
               <button
                 type="button"
                 onClick={() => onPreview(it.path, it.status)}
