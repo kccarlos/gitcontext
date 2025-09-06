@@ -18,6 +18,28 @@ let blobCacheHits = 0
 const gitCache: Record<string, any> = Object.create(null)
 const WORKDIR = '__WORKDIR__'
 
+// Helper function to parse packed-refs
+async function parsePackedRefs(repoPath: string): Promise<string[]> {
+  const heads: string[] = []
+  try {
+    const packedPath = path.join(repoPath, '.git', 'packed-refs')
+    const packed = await fs.promises.readFile(packedPath, 'utf8')
+    for (const line of packed.split('\n')) {
+      const l = line.trim()
+      if (!l || l.startsWith('#') || l.startsWith('^')) continue
+      const parts = l.split(/\s+/)
+      if (parts.length < 2) continue
+      const ref = parts[1]
+      if (ref && ref.startsWith('refs/heads/')) {
+        heads.push(ref.slice('refs/heads/'.length))
+      }
+    }
+  } catch {
+    // ignore if no packed-refs
+  }
+  return heads
+}
+
 function send(msg: any) { parentPort?.postMessage(msg) }
 function ok(id: number, data?: any) { send({ id, type: 'ok', data }) }
 function err(id: number, error: string) { send({ id, type: 'error', error }) }
@@ -37,7 +59,7 @@ parentPort?.on('message', async (m: Msg) => {
     if (m.type === 'loadRepo') {
       repoPath = m.repoPath
       progress(m.id, `repo=${repoPath}`)
-      // Discover branches (with fallback to refs/heads scan)
+      // Discover branches (with fallback to refs/heads scan and packed-refs)
       const branches = await git.listBranches({ fs, dir: repoPath }).catch(async () => {
         const headsDir = path.join(repoPath, '.git', 'refs', 'heads')
         const list: string[] = []
@@ -52,7 +74,13 @@ parentPort?.on('message', async (m: Msg) => {
             }
           }
         } catch {}
-        return list
+        
+        // Also parse packed-refs
+        const packedHeads = await parsePackedRefs(repoPath)
+        list.push(...packedHeads)
+        
+        // de-dup and sort
+        return Array.from(new Set(list)).sort()
       })
       const def = branches.includes('main') ? 'main'
                 : branches.includes('master') ? 'master'
@@ -77,7 +105,13 @@ parentPort?.on('message', async (m: Msg) => {
               }
             }
           } catch {}
-          return list
+          
+          // Also parse packed-refs
+          const packedHeads = await parsePackedRefs(repoPath)
+          list.push(...packedHeads)
+          
+          // de-dup and sort
+          return Array.from(new Set(list)).sort()
         })
         const def = branches.includes('main') ? 'main' : branches.includes('master') ? 'master' : branches[0] ?? WORKDIR
         ok(m.id, { branches: [WORKDIR, ...branches], defaultBranch: def })
