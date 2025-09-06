@@ -41,35 +41,19 @@ export function HeaderControls({
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 1fr) auto auto', gap: '0.5rem', alignItems: 'center', minWidth: 0 }}>
+    <div className="header-controls">
       {/* Combined header + dropdown control */}
-      <div style={{ position: 'relative', minWidth: 0 }}>
-        <div
-          style={{
-            border: '1px solid color-mix(in hsl, currentColor 20%, transparent)',
-            borderRadius: 8,
-            padding: '0.5rem 0.75rem',
-          }}
-        >
-          <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Folder size={18} /> {headerId}</div>
-          {headerFolder ? (
-            <div style={{ opacity: 0.9 }}>{headerFolder}</div>
-          ) : null}
-          {/* full path removed per request */}
+      <div className="ws-wrap">
+        <div className="ws-card">
+          <div className="row" style={{ fontWeight: 600 }}><Folder size={18} /> {headerId}</div>
+          {headerFolder ? (<div className="hint">{headerFolder}</div>) : null}
         </div>
         {/* Overlay a transparent select to act as the dropdown trigger */}
         <select
           value={selectedWorkspaceId}
           onChange={handleSelectMenu}
           title="Switch workspace or browse…"
-          style={{
-            position: 'absolute',
-            inset: 0,
-            opacity: 0,
-            width: '100%',
-            height: '100%',
-            cursor: 'pointer',
-          }}
+          className="ws-select-overlay"
         >
           {/* Show current first */}
           <option value={selectedWorkspaceId}>
@@ -87,7 +71,7 @@ export function HeaderControls({
         </select>
       </div>
 
-      <button type="button" onClick={() => onSaveWorkspace()} disabled={!projectLoaded} title="Save current folder as workspace" className="icon-only">
+      <button type="button" onClick={() => onSaveWorkspace()} disabled={!projectLoaded} title="Save current folder as workspace" className="btn btn-ghost btn-icon">
         <Save size={16} />
       </button>
       <button
@@ -95,7 +79,7 @@ export function HeaderControls({
         onClick={() => onRemoveWorkspace()}
         disabled={selectedWorkspaceId === ''}
         title={selectedWorkspaceId === '' ? 'Select a saved workspace to remove' : 'Remove selected from saved workspaces'}
-        className="icon-only"
+        className="btn btn-ghost btn-icon"
       >
         <Trash2 size={16} />
       </button>

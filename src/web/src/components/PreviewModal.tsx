@@ -23,14 +23,11 @@ type Props = {
   compare: Side
 }
 
-function StatusBadge({ status }: { status: FileDiffStatus }) {
-  const label = status === 'modify' ? 'MODIFIED' : status === 'add' ? 'ADDED' : status === 'remove' ? 'REMOVED' : 'UNCHANGED'
-  return <span className="tag">{label}</span>
-}
 
 export default function PreviewModal({ open, onClose, path, status, baseLabel, compareLabel, base, compare }: Props) {
   const [splitView, setSplitView] = useState(true)
   const [isDark, setIsDark] = useState(document.documentElement.getAttribute('data-theme') === 'dark')
+  const [closeBtnEl, setCloseBtnEl] = useState<HTMLButtonElement | null>(null)
 
   useEffect(() => {
     const observer = new MutationObserver(() => {
@@ -86,70 +83,41 @@ export default function PreviewModal({ open, onClose, path, status, baseLabel, c
   }, [base, compare, status])
 
   if (!open) return null
+  // Close on Escape
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    closeBtnEl?.focus?.()
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose, closeBtnEl])
 
   const handleBackdrop = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) onClose()
   }
 
   return (
-    <div
-      onClick={handleBackdrop}
-      style={{
-        position: 'fixed', inset: 0, background: 'color-mix(in hsl, black 40%, transparent)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-      }}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="preview-modal-title"
-    >
-      <div
-        style={{
-          background: 'Canvas', color: 'CanvasText', borderRadius: 10, width: 'min(1200px, 96vw)',
-          maxHeight: '86vh', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 40px rgba(0,0,0,0.35)'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', padding: '0.75rem 1rem', gap: 10, borderBottom: '1px solid color-mix(in hsl, currentColor 20%, transparent)' }}>
+    <div className="gc-modal-backdrop" onClick={handleBackdrop} role="dialog" aria-modal="true" aria-labelledby="preview-modal-title">
+      <div className="gc-modal">
+        <div className="gc-modal-header" style={{ gap: 10 }}>
           <strong id="preview-modal-title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             Preview: <code>{path}</code>
           </strong>
-          <StatusBadge status={status} />
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span className="tag">{baseLabel} — {infoLeft}</span>
-            <span className="tag">{compareLabel} — {infoRight}</span>
-            <div style={{ borderLeft: '1px solid color-mix(in hsl, currentColor 20%, transparent)', height: 22 }} />
-            <button
-              type="button"
-              aria-pressed={!splitView}
-              onClick={() => setSplitView(false)}
-              style={{
-                padding: '0.25rem 0.5rem',
-                borderRadius: 6,
-                border: '1px solid color-mix(in hsl, currentColor 20%, transparent)',
-                background: !splitView ? 'color-mix(in oklab, currentColor 12%, transparent)' : 'transparent',
-              }}
-              title="Unified Diff"
-            >
+          <span className={`badge ${status === 'modify' ? 'm' : status === 'add' ? 'a' : status === 'remove' ? 'd' : ''}`}>{status.toUpperCase()}</span>
+          <div className="row ml-auto" style={{ gap: 8 }}>
+            <span className="badge">{baseLabel} — {infoLeft}</span>
+            <span className="badge">{compareLabel} — {infoRight}</span>
+            <div className="v-divider" />
+            <button type="button" aria-pressed={!splitView} onClick={() => setSplitView(false)} className="btn btn-ghost" title="Unified Diff">
               Unified
             </button>
-            <button
-              type="button"
-              aria-pressed={splitView}
-              onClick={() => setSplitView(true)}
-              style={{
-                padding: '0.25rem 0.5rem',
-                borderRadius: 6,
-                border: '1px solid color-mix(in hsl, currentColor 20%, transparent)',
-                background: splitView ? 'color-mix(in oklab, currentColor 12%, transparent)' : 'transparent',
-              }}
-              title="Side-by-Side Diff"
-            >
+            <button type="button" aria-pressed={splitView} onClick={() => setSplitView(true)} className="btn btn-ghost" title="Side-by-Side Diff">
               Side-by-Side
             </button>
-            <button type="button" onClick={onClose} title="Close" aria-label="Close" style={{ marginLeft: 6 }} className="icon-only"><X size={18} /></button>
+            <button ref={setCloseBtnEl} type="button" onClick={onClose} title="Close" aria-label="Close" className="btn btn-ghost btn-icon"><X size={18} /></button>
           </div>
         </div>
-
-        <div style={{ padding: '0.75rem 1rem', overflow: 'auto' }}>
+        <div className="gc-modal-body">
           {isBinary ? (
             <div className="hint">Binary file preview is not supported. Contents are omitted.</div>
           ) : (

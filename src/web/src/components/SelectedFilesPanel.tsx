@@ -89,14 +89,14 @@ export function SelectedFilesPanel({ gitClient, baseRef, compareRef, selectedPat
   }
 
   return (
-    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div className="selected-files">
+      <div className="row-between">
         <h2 style={{ margin: 0 }}>Selected Files</h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="row">
           <span className="tag" style={{ visibility: effectiveBusy ? 'visible' : 'hidden' }}>{effectiveBusy ? 'Recalculating…' : ''}</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div className="row">
             <ArrowUpDown size={16} />
-            <select value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} title="Sort by" style={{ padding: '0.25rem 0.4rem' }}>
+            <select className="select" value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} title="Sort by">
               <option value="tokens-desc">Tokens: High to Low</option>
               <option value="tokens-asc">Tokens: Low to High</option>
               <option value="name-asc">Name: A → Z</option>
@@ -110,12 +110,12 @@ export function SelectedFilesPanel({ gitClient, baseRef, compareRef, selectedPat
       {items.length === 0 ? (
         <div className="hint">No files selected.</div>
       ) : (
-        <div style={{ border: '1px solid color-mix(in hsl, currentColor 20%, transparent)', borderRadius: 8, padding: '0.5rem', flex: 1, minHeight: 0, overflowY: 'auto' }}>
+        <div className="selected-files-list">
           {items.map((it) => (
             <div key={it.path} className="selected-file-row">
-              <span title={pathTreeTooltip(it.path)} style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span title={pathTreeTooltip(it.path)} className="row" style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 <StatusIcon status={it.status} />
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <span className="row" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {it.isLikelyBinary ? (
                     <span aria-label="Binary file" title="Binary (heuristic)">
                       <FileArchive size={14} />
@@ -124,14 +124,13 @@ export function SelectedFilesPanel({ gitClient, baseRef, compareRef, selectedPat
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.name}</span>
                 </span>
               </span>
-              <span className="tokens">{it.tokens.toLocaleString()}</span>
+              <span className="tokens"><span className="badge">{it.tokens.toLocaleString()}</span></span>
               <button
                 type="button"
                 onClick={() => onPreview(it.path, it.status)}
                 title="Preview"
                 aria-label="Preview"
-                className="icon-only"
-                style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 4 }}
+                className="btn btn-ghost btn-icon"
               >
                 <Search size={14} />
               </button>
@@ -139,8 +138,7 @@ export function SelectedFilesPanel({ gitClient, baseRef, compareRef, selectedPat
                 type="button"
                 onClick={() => onUnselect(it.path)}
                 title="Remove from selection"
-                className="icon-only"
-                style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 4 }}
+                className="btn btn-ghost btn-icon"
               >
                 <X size={16} />
               </button>
