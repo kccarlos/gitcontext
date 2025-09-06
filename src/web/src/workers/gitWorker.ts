@@ -130,7 +130,7 @@ async function computeBranches(): Promise<{ branches: string[]; defaultBranch: s
   const git = await getGit()
   let branches: string[] = []
   try {
-    branches = await git.listBranches({ fs: pfs, dir: '/' })
+    branches = await git.listBranches({ fs: lfs, dir: '/' })
   } catch {
     // ignore
   }
@@ -327,7 +327,7 @@ async function handleListFiles(id: number, ref: string): Promise<ResOk> {
     return { id, type: 'ok', data: { files: out.sort() } }
   }
   const git = await getGit()
-  const files = await git.listFiles({ fs: pfs, dir: '/', ref })
+  const files = await git.listFiles({ fs: lfs, dir: '/', ref })
   return { id, type: 'ok', data: { files } }
 }
 
@@ -352,10 +352,10 @@ async function handleDiff(
   let compareOid: string | null = null
   try {
     if (base !== WORKDIR_SENTINEL) {
-      baseOid = await git.resolveRef({ fs: pfs, dir: '/', ref: base })
+      baseOid = await git.resolveRef({ fs: lfs, dir: '/', ref: base })
     }
     if (compare !== WORKDIR_SENTINEL) {
-      compareOid = await git.resolveRef({ fs: pfs, dir: '/', ref: compare })
+      compareOid = await git.resolveRef({ fs: lfs, dir: '/', ref: compare })
     }
   } catch (e: any) {
     throw new Error(
@@ -379,7 +379,7 @@ async function handleDiff(
 
   let processed = 0
   const results = (await git.walk({
-    fs: pfs,
+    fs: lfs,
     dir: '/',
     cache: gitCache,
     trees: [A, B],
@@ -392,7 +392,7 @@ async function handleDiff(
       if (filepath === '.git' || filepath.startsWith('.git/')) return
       // Respect .gitignore by consulting git's own ignore logic via WORKDIR + TREE walker filtering
       try {
-        const ignored = await (git as any).isIgnored?.({ fs: pfs, dir: '/', filepath })
+        const ignored = await (git as any).isIgnored?.({ fs: lfs, dir: '/', filepath })
         if (ignored) return
       } catch {
         // older isomorphic-git may not have isIgnored; ignore silently
@@ -453,12 +453,12 @@ async function handleReadFile(
     }
   }
   const git = await getGit()
-  const commitOid = await git.resolveRef({ fs: pfs, dir: '/', ref })
+  const commitOid = await git.resolveRef({ fs: lfs, dir: '/', ref })
 
   let raw: Uint8Array | null = null
   try {
     const { blob } = (await git.readBlob({
-      fs: pfs,
+      fs: lfs,
       dir: '/',
       oid: commitOid,
       filepath,
@@ -533,7 +533,7 @@ self.onmessage = async (ev: MessageEvent) => {
       }
       case 'resolveRef': {
         if (!pfs) throw new Error('Repository is not initialized in worker')
-        const oid = await (await getGit()).resolveRef({ fs: pfs, dir: '/', ref: msg.ref })
+        const oid = await (await getGit()).resolveRef({ fs: lfs, dir: '/', ref: msg.ref })
         send({ id: msg.id, type: 'ok', data: { oid } })
         return
       }
