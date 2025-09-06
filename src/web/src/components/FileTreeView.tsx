@@ -98,11 +98,12 @@ export function FileTreeView({
         }
         return (
           <li key={node.path}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div className="row tree-row" style={{ gap: 4 }}>
               <button
                 type="button"
                 onClick={() => onToggleExpand(node.path)}
-                style={{ width: 18, border: 'none', background: 'none', cursor: 'pointer', padding: 2 }}
+                className="btn btn-ghost btn-icon"
+                style={{ width: 28, padding: 2 }}
                 title={isExpanded ? 'Collapse' : 'Expand'}
               >
                 {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
@@ -131,11 +132,11 @@ export function FileTreeView({
         const checked = selectedPaths.has(node.path)
         return (
           <li key={node.path}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 4 }}>
+            <div className="row tree-row" style={{ gap:6, paddingLeft:4 }}>
               <input type="checkbox" checked={checked} onChange={() => onToggleSelect(node.path)} />
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <span className="row" style={{ gap:6, flex:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
                 {renderStatusIcon(st)}
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span className="row" style={{ gap:4 }}>
                   {node.isLikelyBinary ? (
                     <span aria-label="Binary file" title="Binary (heuristic)">
                       <FileArchive size={14} />
@@ -144,15 +145,14 @@ export function FileTreeView({
                   <span>{node.name}</span>
                 </span>
                 {/* Hidden full path to aid tests/search without impacting layout */}
-                <span style={{ display: 'none' }} aria-hidden="true" data-full-path={node.path}>{node.path}</span>
+                <span className="visually-hidden" aria-hidden="true" data-full-path={node.path}>{node.path}</span>
               </span>
               <button
                 type="button"
                 onClick={() => onPreviewFile(node.path, st)}
-                style={{ marginLeft: 'auto', border: 'none', background: 'none', cursor: 'pointer' }}
+                className="btn btn-ghost btn-icon ml-auto"
                 title="Preview"
                 aria-label="Preview"
-              className="icon-only"
               >
                 <Search size={14} />
               </button>

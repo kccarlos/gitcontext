@@ -1,3 +1,70 @@
+.visually-hidden { position:absolute !important; height:1px; width:1px; overflow:hidden; clip:rect(1px,1px,1px,1px); white-space:nowrap; }
+
+/* =============== Design tokens & utilities =============== */
+:root {
+  --radius: 10px;
+  --radius-sm: 8px;
+  --radius-lg: 14px;
+  --shadow-1: 0 1px 2px rgba(0,0,0,.05), 0 8px 24px rgba(0,0,0,.06);
+  --shadow-2: 0 2px 8px rgba(0,0,0,.08), 0 12px 28px rgba(0,0,0,.12);
+  --surface-1: color-mix(in oklab, Canvas 96%, transparent);
+  --surface-2: color-mix(in oklab, Canvas 92%, transparent);
+  --border-col: color-mix(in hsl, currentColor 18%, transparent);
+  --ring: #646cff;
+  --primary: #646cff;
+  --primary-contrast: white;
+}
+[data-theme="dark"] {
+  --surface-1: color-mix(in oklab, Canvas 88%, transparent);
+  --surface-2: color-mix(in oklab, Canvas 84%, transparent);
+  --border-col: color-mix(in hsl, currentColor 26%, transparent);
+  --ring: #a3a6ff;
+  --primary: #a3a6ff;
+}
+
+:where(button,[role="button"],a,input,select,textarea):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Buttons & inputs */
+.btn {
+  --_bg: transparent; --_fg: inherit; --_bd: var(--border-col);
+  display:inline-flex; align-items:center; justify-content:center; gap:.5rem;
+  padding:.5rem .75rem; border:1px solid var(--_bd); border-radius:var(--radius-sm);
+  background:var(--_bg); color:var(--_fg); cursor:pointer;
+  transition: background .2s ease, border-color .2s ease, transform .05s ease;
+}
+.btn:hover { background: color-mix(in oklab, currentColor 10%, transparent); }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity:.55; cursor:not-allowed; }
+.btn-primary { --_bg: var(--primary); --_fg: var(--primary-contrast); --_bd: color-mix(in oklab, var(--primary) 85%, black); }
+.btn-ghost { --_bg: transparent; --_bd: var(--border-col); }
+.btn-icon { padding:.5rem; width:36px; height:36px; }
+
+.input, .select, .textarea {
+  padding:.4rem .55rem; border-radius: var(--radius-sm);
+  border:1px solid var(--border-col); background: transparent; color: inherit;
+}
+.select { padding-right:1.75rem; }
+.textarea { resize: vertical; }
+
+.badge {
+  display:inline-flex; align-items:center; gap:.35rem;
+  font-size:.8rem; padding:.2rem .45rem; border:1px solid var(--border-col);
+  border-radius: 999px; background: var(--surface-1);
+}
+.badge.m { color:#e5c07b; border-color: currentColor; }
+.badge.a { color:#7cc37f; border-color: currentColor; }
+.badge.d { color:#e06c75; border-color: currentColor; }
+
+.row { display:flex; align-items:center; gap:.5rem; }
+.row-between { display:flex; align-items:center; justify-content:space-between; gap:.5rem; }
+.ml-auto { margin-left:auto; }
+.v-divider { border-left:1px solid var(--border-col); height:22px; }
+.img-rounded { border-radius: 8px; display:block; }
+
 #root {
   max-width: 1440px;
   margin: 0 auto;
@@ -15,7 +82,13 @@
   justify-content: space-between;
   gap: 0.75rem;
   grid-area: header;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  backdrop-filter: blur(6px);
 }
+
+.brand { display:flex; align-items:center; gap:.75rem; }
 
 .header h1 {
   margin: 0;
@@ -38,8 +111,10 @@
 }
 
 .panel {
-  border: 1px solid color-mix(in hsl, currentColor 20%, transparent);
-  border-radius: 10px;
+  border: 1px solid var(--border-col);
+  border-radius: var(--radius);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-1);
   padding: 1rem 1.25rem;
 }
 
@@ -78,10 +153,11 @@ a.hint:active {
 }
 
 .landing-visual {
-  border: 1px solid color-mix(in hsl, currentColor 20%, transparent);
-  border-radius: 10px;
+  border: 1px solid var(--border-col);
+  border-radius: var(--radius);
   padding: 0.75rem;
-  background: color-mix(in oklab, Canvas 92%, transparent);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-1);
 }
 
 .landing-visual-stack {
@@ -113,7 +189,7 @@ a.hint:active {
   max-height: 360px;
   overflow: auto;
   border-radius: 8px;
-  border: 1px solid color-mix(in hsl, currentColor 20%, transparent);
+  border: 1px solid var(--border-col);
   background: Canvas;
   color: CanvasText;
   padding: 0.75rem;
@@ -147,10 +223,7 @@ button {
   gap: 0.5rem;
 }
 
-button.icon-only {
-  padding: 0.6em;
-  gap: 0;
-}
+.icon-only { padding: 0.6em; gap: 0; } /* legacy (kept for compatibility) */
 
 /* Unsupported browser overlay */
 .gc-overlay {
@@ -225,20 +298,22 @@ button.icon-only {
   cursor: col-resize;
   align-self: stretch;
   justify-self: center;
-  background:
-    linear-gradient(
-      to bottom,
-      transparent 0%,
-      color-mix(in hsl, currentColor 12%, transparent) 10%,
-      color-mix(in hsl, currentColor 18%, transparent) 50%,
-      color-mix(in hsl, currentColor 12%, transparent) 90%,
-      transparent 100%
-    );
+  background: color-mix(in hsl, currentColor 16%, transparent);
   border-radius: 3px;
   /* Ensure the element can receive pointer events for dragging */
   touch-action: none;
   -webkit-user-select: none;
   user-select: none;
+  position: relative;
+}
+
+.column-resizer::after {
+  content:""; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+  width:2px; height:48px; border-radius:2px;
+  background: repeating-linear-gradient(to bottom,
+    color-mix(in hsl, currentColor 40%, transparent) 0 6px,
+    transparent 6px 12px);
+  opacity:.85;
 }
 
 .column-resizer:focus-visible {
@@ -247,17 +322,7 @@ button.icon-only {
   border-radius: 4px;
 }
 
-.column-resizer:hover {
-  background:
-    linear-gradient(
-      to bottom,
-      transparent 0%,
-      color-mix(in hsl, currentColor 20%, transparent) 10%,
-      color-mix(in hsl, currentColor 28%, transparent) 50%,
-      color-mix(in hsl, currentColor 20%, transparent) 90%,
-      transparent 100%
-    );
-}
+.column-resizer:hover { background: color-mix(in hsl, currentColor 24%, transparent); }
 
 /* Reduce accidental selection while dragging */
 .app-container.resizing,
@@ -266,8 +331,9 @@ button.icon-only {
 }
 
 .panel-section {
-  border: 1px solid color-mix(in hsl, currentColor 20%, transparent);
-  border-radius: 10px;
+  border: 1px solid var(--border-col);
+  border-radius: var(--radius);
+  background: var(--surface-2);
   padding: 1rem 1.25rem;
   display: flex;
   flex-direction: column;
@@ -289,9 +355,8 @@ button.icon-only {
 .instructions-textarea {
   width: 100%;
   min-height: 100px;
-  resize: vertical;
   background-color: transparent;
-  border: 1px solid color-mix(in hsl, currentColor 20%, transparent);
+  border: 1px solid var(--border-col);
   border-radius: 6px;
   padding: 0.5rem;
   font-family: inherit;
@@ -343,6 +408,10 @@ button.icon-only {
   height: 12px;
 }
 
+/* Rows & hovers */
+.tree-row, .selected-file-row { border-radius: var(--radius-sm); }
+.tree-row:hover, .selected-file-row:hover { background: color-mix(in oklab, currentColor 8%, transparent); }
+
 /* Status bar */
 .status-bar {
   display: flex;
@@ -365,7 +434,7 @@ button.icon-only {
 
 .status-bar-fill {
   height: 100%;
-  background-color: #646cff;
+  background-color: var(--primary);
   border-radius: 4px;
   transition: width 0.3s ease-in-out;
 }
@@ -432,6 +501,40 @@ button.icon-only {
   text-underline-offset: 2px;
 }
 
+/* Modal (Preview) */
+.gc-modal-backdrop {
+  position: fixed; inset: 0; display:flex; align-items:center; justify-content:center;
+  background: color-mix(in hsl, black 45%, transparent); z-index:1000;
+}
+.gc-modal {
+  background: Canvas; color: CanvasText; border:1px solid var(--border-col);
+  border-radius: var(--radius); width: min(1200px, 96vw); max-height: 86vh;
+  display:flex; flex-direction:column; box-shadow: var(--shadow-2);
+}
+.gc-modal-header {
+  position: sticky; top:0; display:flex; align-items:center; gap:.5rem;
+  padding:.75rem 1rem; border-bottom:1px solid var(--border-col); background: var(--surface-1);
+}
+.gc-modal-body { padding:.75rem 1rem; overflow:auto; }
+
+/* Header controls */
+.header-controls {
+  display:grid; grid-template-columns: minmax(280px,1fr) auto auto;
+  gap:.5rem; align-items:center; min-width:0;
+}
+.ws-wrap { position:relative; min-width:0; }
+.ws-card {
+  border:1px solid var(--border-col); border-radius: var(--radius-sm);
+  padding:.5rem .75rem; background: var(--surface-2);
+}
+.ws-select-overlay {
+  position:absolute; inset:0; opacity:0; width:100%; height:100%; cursor:pointer;
+}
+
+/* Selected files */
+.selected-files { width:100%; display:flex; flex-direction:column; min-height:0; }
+.selected-files-list { border: 1px solid var(--border-col); border-radius: 8px; padding:.5rem; flex:1; min-height:0; overflow-y:auto; }
+
 /* ---------- Responsiveness ---------- */
 /* Stack columns on narrower screens; hide the resizer */
 @media (max-width: 1100px) {
@@ -483,4 +586,5 @@ button.icon-only {
 /* Make generic icon-only targets a bit friendlier to tap */
 @media (hover: none) and (pointer: coarse) {
   button.icon-only { padding: 0.75em; }
+  .btn-icon { width:40px; height:40px; }
 }
