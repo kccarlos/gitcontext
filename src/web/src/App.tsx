@@ -281,6 +281,7 @@ function App() {
   const includeBinaryAsPathsRef = useRef<boolean>(includeBinaryAsPaths)
   useEffect(() => { includeBinaryAsPathsRef.current = includeBinaryAsPaths }, [includeBinaryAsPaths])
   const includeBinaryCheckboxRef = useRef<HTMLInputElement | null>(null)
+  const lastDeselectedBinaryPathsRef = useRef<Set<string>>(new Set())
   useEffect(() => {
     try {
       localStorage.setItem('gc.includeBinaryAsPaths', includeBinaryAsPaths ? '1' : '0')
@@ -955,13 +956,23 @@ function App() {
                           setIncludeBinaryAsPaths(next)
                           includeBinaryAsPathsRef.current = next
                           if (!next) {
-                            // Proactively deselect likely-binary files from the selection
+                            // Proactively deselect likely-binary files from the selection and remember them
                             const curr = Array.from(selectedPathsRef.current)
+                            const removed: string[] = []
                             for (const p of curr) {
                               if (isLikelyBinaryPath(p)) {
+                                removed.push(p)
                                 toggleSelect(p)
                               }
                             }
+                            lastDeselectedBinaryPathsRef.current = new Set(removed)
+                          } else {
+                            // Toggle switched ON: restore previously auto-deselected binary paths
+                            const toRestore = Array.from(lastDeselectedBinaryPathsRef.current)
+                            for (const p of toRestore) {
+                              if (!selectedPathsRef.current.has(p)) toggleSelect(p)
+                            }
+                            lastDeselectedBinaryPathsRef.current.clear()
                           }
                         }}
                       />
