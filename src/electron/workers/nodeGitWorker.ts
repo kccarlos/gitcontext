@@ -37,7 +37,27 @@ parentPort?.on('message', async (m: Msg) => {
     if (m.type === 'loadRepo') {
       repoPath = m.repoPath
       progress(m.id, `repo=${repoPath}`)
-      ok(m.id, { branches: [WORKDIR], defaultBranch: WORKDIR })
+      // Discover branches (with fallback to refs/heads scan)
+      const branches = await git.listBranches({ fs, dir: repoPath }).catch(async () => {
+        const headsDir = path.join(repoPath, '.git', 'refs', 'heads')
+        const list: string[] = []
+        try {
+          const stack = [{ p: headsDir, prefix: '' }]
+          while (stack.length) {
+            const { p, prefix } = stack.pop() as { p: string; prefix: string }
+            const entries = await fs.promises.readdir(p, { withFileTypes: true }).catch(() => [])
+            for (const e of entries) {
+              if (e.isDirectory()) stack.push({ p: path.join(p, e.name), prefix: prefix ? `${prefix}/${e.name}` : e.name })
+              else if (e.isFile()) list.push(prefix ? `${prefix}/${e.name}` : e.name)
+            }
+          }
+        } catch {}
+        return list
+      })
+      const def = branches.includes('main') ? 'main'
+                : branches.includes('master') ? 'master'
+                : branches[0] ?? WORKDIR
+      ok(m.id, { branches: [WORKDIR, ...branches], defaultBranch: def })
       return
     }
     if (!repoPath) throw new Error('Repo not loaded')
@@ -64,8 +84,12 @@ parentPort?.on('message', async (m: Msg) => {
         return
       }
       case 'resolveRef': {
-        const { oid } = await git.resolveRef({ fs, dir: repoPath, ref: m.ref }).then((oid) => ({ oid })).catch(() => ({ oid: '0'.repeat(40) }))
-        ok(m.id, { oid })
+        try {
+          const oid = await git.resolveRef({ fs, dir: repoPath, ref: m.ref })
+          ok(m.id, { oid })
+        } catch {
+          err(m.id, `Cannot resolve ref "${m.ref}"`)
+        }
         return
       }
       case 'readFile': {
@@ -112,7 +136,14 @@ parentPort?.on('message', async (m: Msg) => {
             const abs = path.join(dir, e.name)
             const nextRel = rel ? `${rel}/${e.name}` : e.name
             if (e.isDirectory()) await walk(abs, nextRel)
-            else if (e.isFile()) results.push(nextRel)
+            else if (e.isFile()) {
+              try {
+                const ignored = await (git as any).isIgnored?.({ fs, dir: repoPath, filepath: nextRel })
+                if (!ignored) results.push(nextRel)
+              } catch {
+                results.push(nextRel) // graceful fallback
+              }
+            }
           }
         }
         await walk(root, '')
@@ -134,6 +165,8 @@ parentPort?.on('message', async (m: Msg) => {
         }
         progress(m.id, `Resolved base=${baseOid ? short(baseOid) : WORKDIR} compare=${compareOid ? short(compareOid) : WORKDIR}`)
 
+        if (base !== WORKDIR && !baseOid) throw new Error(`Cannot resolve base "${base}"`)
+        if (compare !== WORKDIR && !compareOid) throw new Error(`Cannot resolve compare "${compare}"`)
         const A = base === WORKDIR ? (git as any).WORKDIR() : (git as any).TREE({ ref: baseOid })
         const B = compare === WORKDIR ? (git as any).WORKDIR() : (git as any).TREE({ ref: compareOid })
 
