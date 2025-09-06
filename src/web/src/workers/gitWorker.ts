@@ -319,7 +319,15 @@ async function handleListFiles(id: number, ref: string): Promise<ResOk> {
           await pfs.readdir(full)
           await walk(full)
         } catch {
-          out.push(full.slice(1))
+          const filePath = full.slice(1)
+          // Respect .gitignore by consulting git's own ignore logic
+          try {
+            const git = await getGit()
+            const ignored = await (git as any).isIgnored?.({ fs: lfs, dir: '/', filepath: filePath })
+            if (!ignored) out.push(filePath)
+          } catch {
+            out.push(filePath) // graceful fallback
+          }
         }
       }
     }
