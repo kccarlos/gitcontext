@@ -297,7 +297,7 @@ async function handleLoadRepo(msg: Extract<RequestMessage, { type: 'loadRepo' }>
 async function handleListBranches(id: number): Promise<ResOk> {
   if (!pfs) throw new Error('Repository is not initialized in worker')
   const { branches, defaultBranch } = await computeBranches()
-  return { id, type: 'ok', data: { branches, defaultBranch } }
+  return { id, type: 'ok', data: { branches: [WORKDIR_SENTINEL, ...branches], defaultBranch } }
 }
 
 async function handleListFiles(id: number, ref: string): Promise<ResOk> {
