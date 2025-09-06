@@ -135,7 +135,32 @@ function App() {
     if (!handle) return
 
     const minLeft = 240 // px
-    const maxLeft = Math.max(480, Math.floor((appEl.clientWidth - 100) * 0.85))
+    const computeMaxLeft = () => Math.max(480, Math.floor((appEl.clientWidth - 100) * 0.85))
+    let maxLeft = computeMaxLeft()
+
+    // ARIA setup for accessibility
+    try {
+      handle.setAttribute('role', 'separator')
+      handle.setAttribute('aria-orientation', 'vertical')
+      handle.setAttribute('aria-valuemin', String(minLeft))
+      handle.setAttribute('aria-valuemax', String(maxLeft))
+      ;(handle as HTMLElement).tabIndex = 0
+      const current = Number((getComputedStyle(appEl).getPropertyValue('--left-col') || '').replace('px','')) || minLeft
+      handle.setAttribute('aria-valuenow', String(current))
+      handle.setAttribute('aria-label', 'Resize panels')
+    } catch {}
+
+    const applyLeft = (px: number) => {
+      const clamped = Math.min(Math.max(px, minLeft), maxLeft)
+      appEl.style.setProperty('--left-col', `${clamped}px`)
+      try {
+        localStorage.setItem('gc.leftCol', String(clamped))
+      } catch (e) {
+        logError('leftColSave', e)
+      }
+      try { handle.setAttribute('aria-valuenow', String(clamped)) } catch {}
+    }
+
     let dragging = false
 
     const onPointerDown = (e: PointerEvent) => {
@@ -149,12 +174,7 @@ function App() {
       const rect = appEl.getBoundingClientRect()
       const x = e.clientX - rect.left
       const clamped = Math.min(Math.max(x - 12, minLeft), maxLeft)
-      appEl.style.setProperty('--left-col', `${clamped}px`)
-      try {
-        localStorage.setItem('gc.leftCol', String(clamped))
-      } catch (e) {
-        logError('leftColSave', e)
-      }
+      applyLeft(clamped)
     }
     const onPointerUp = (e: PointerEvent) => {
       dragging = false
@@ -162,13 +182,52 @@ function App() {
       ;(e.target as HTMLElement).releasePointerCapture?.(e.pointerId)
     }
 
+    // Keyboard support: ArrowLeft/Right, Home/End
+    const onKeyDown = (e: KeyboardEvent) => {
+      const step = e.ctrlKey ? 50 : 16
+      const curr = Number((getComputedStyle(appEl).getPropertyValue('--left-col') || '').replace('px','')) || minLeft
+      switch (e.key) {
+        case 'ArrowLeft':
+          applyLeft(curr - step)
+          e.preventDefault()
+          break
+        case 'ArrowRight':
+          applyLeft(curr + step)
+          e.preventDefault()
+          break
+        case 'Home':
+          applyLeft(minLeft)
+          e.preventDefault()
+          break
+        case 'End':
+          applyLeft(maxLeft)
+          e.preventDefault()
+          break
+      }
+    }
+
+    // Clamp saved width on window resize so layout never overflows
+    const onWindowResize = () => {
+      const nextMax = computeMaxLeft()
+      if (nextMax !== maxLeft) {
+        maxLeft = nextMax
+        try { handle.setAttribute('aria-valuemax', String(maxLeft)) } catch {}
+        const curr = Number((getComputedStyle(appEl).getPropertyValue('--left-col') || '').replace('px','')) || minLeft
+        applyLeft(curr) // re-clamp
+      }
+    }
+
     handle.addEventListener('pointerdown', onPointerDown)
+    handle.addEventListener('keydown', onKeyDown)
     window.addEventListener('pointermove', onPointerMove)
     window.addEventListener('pointerup', onPointerUp)
+    window.addEventListener('resize', onWindowResize)
     return () => {
       handle.removeEventListener('pointerdown', onPointerDown)
+      handle.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointerup', onPointerUp)
+      window.removeEventListener('resize', onWindowResize)
     }
   }, [uiHasResizer])
 
@@ -859,7 +918,14 @@ function App() {
             </div>
 
             {/* Resizer handle between columns */}
-            <div className="column-resizer" id="gc-col-resizer" />
+            <div
+              className="column-resizer"
+              id="gc-col-resizer"
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize panels"
+              tabIndex={0}
+            />
 
             <div className="right-panel">
               <div className="panel-section">
