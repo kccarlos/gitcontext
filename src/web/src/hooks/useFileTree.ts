@@ -103,12 +103,11 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
         setAppStatus?.({ state: 'LOADING', task: 'diff', message: 'Fetching file list…', progress: 50 })
         try { console.info('[app-status]', { state: 'LOADING', task: 'diff', message: 'Fetching file list…', progress: 50 }) } catch {}
         const baseList = await gitClient.listFiles(baseBranch)
+        const compareList = await gitClient.listFiles(compareBranch)
         const diffMap = new Map<string, FileDiffStatus>()
         for (const f of res.files) diffMap.set(f.path, f.type as FileDiffStatus)
-        const union = new Set<string>(baseList.files)
-        for (const f of res.files) {
-          if (f.type === 'add') union.add(f.path)
-        }
+        // Build union from both sides to keep unchanged files present on either side
+        const union = new Set<string>([...baseList.files, ...compareList.files])
         setProgress?.({ message: 'Building file tree…', percent: 75 })
         setAppStatus?.({ state: 'LOADING', task: 'diff', message: 'Building file tree…', progress: 75 })
         try { console.info('[app-status]', { state: 'LOADING', task: 'diff', message: 'Building file tree…', progress: 75 }) } catch {}
