@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { ArrowUpDown, Search, X, FilePenLine, FilePlus2, FileMinus2, File as FileIcon, FileArchive } from 'lucide-react'
-import type { GitWorkerClient } from '../utils/gitWorkerClient'
-import { useTokenCounts } from '../hooks/useTokenCounts'
+import { useTokenCountsContext } from '../context/TokenCountsContext'
 import type { FileDiffStatus } from '../hooks/useFileTree'
 
 type SelectedEntry = {
@@ -15,21 +14,17 @@ type SelectedEntry = {
 type SortKey = 'tokens-desc' | 'tokens-asc' | 'name-asc' | 'name-desc'
 
 type Props = {
-  gitClient: GitWorkerClient | null
-  baseRef: string
-  compareRef: string
   selectedPaths: Set<string>
   statusByPath: Map<string, FileDiffStatus>
-  diffContextLines: number
   onUnselect: (path: string) => void
   onPreview: (path: string, status: FileDiffStatus) => void
   refreshing?: boolean
   filterText?: string
 }
 
-export function SelectedFilesPanel({ gitClient, baseRef, compareRef, selectedPaths, statusByPath, diffContextLines, onUnselect, onPreview, refreshing, filterText }: Props) {
+export function SelectedFilesPanel({ selectedPaths, statusByPath, onUnselect, onPreview, refreshing, filterText }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>('tokens-desc')
-  const { counts, busy } = useTokenCounts({ gitClient, baseRef, compareRef, selectedPaths, statusByPath, diffContextLines })
+  const { counts, busy } = useTokenCountsContext()
   const effectiveBusy = !!refreshing || busy
 
   const items = useMemo<SelectedEntry[]>(() => {

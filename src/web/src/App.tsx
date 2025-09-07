@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import { Folder, ChevronsDown, ChevronsUp, CheckSquare, Square, Copy, Sun, Moon, ArrowLeftRight, MessageCircleMore, FolderGit2, ListChecks } from 'lucide-react'
 import BrowserSupportGate from './components/BrowserSupportGate'
@@ -19,7 +19,8 @@ import type { ModelInfo } from './types/models'
 import type { AppStatus } from './types/appStatus'
 import { buildUnifiedDiffForStatus } from './utils/diff'
 import { countTokens } from './utils/tokenizer'
-import { useTokenCounts } from './hooks/useTokenCounts'
+// Globally shared token counts
+import { TokenCountsProvider, useTokenCountsContext } from './context/TokenCountsContext'
 import { logError } from './utils/logger'
 import { debounce } from './utils/debounce'
 
@@ -379,7 +380,7 @@ function App() {
   const [fileTreeTokens, setFileTreeTokens] = useState<number>(0)
   const [treeFilter, setTreeFilter] = useState<string>('')
   const [treeTokensBusy, setTreeTokensBusy] = useState<boolean>(false)
-  const [tokenProgress, setTokenProgress] = useState<number>(0) // 0..100 for selected-files counting
+  // (moved into TokenCountsContext)
 
   function generateSelectedTreeString(paths: string[]): string {
     // Build a minimal tree of selected files only
@@ -549,71 +550,11 @@ function App() {
     return m
   }, [fileTree])
 
-  // Total tokens for selected files (same hook used in SelectedFilesPanel)
-  const {
-    total: selectedFilesTokensTotal,
-    busy: selectedFilesTokensBusy,
-  } = useTokenCounts({
-    gitClient,
-    baseRef: baseBranch,
-    compareRef: compareBranch,
-    selectedPaths,
-    statusByPath,
-    diffContextLines,
-    onBatch: (done, total) => {
-      // Clamp and convert to 0..100; handle total=0 safely.
-      const pct = total <= 0 ? 100 : Math.max(0, Math.min(100, Math.round((done / total) * 100)))
-      setTokenProgress(pct)
-    },
-  })
+  // Token counting is now provided globally via <TokenCountsProvider />.
 
-  // Reset numeric progress when we begin a new selected-files counting pass
-  useEffect(() => {
-    if (selectedFilesTokensBusy) setTokenProgress(0)
-  }, [selectedFilesTokensBusy])
+  // (progress is handled in the TokenCountsProvider; no local reset needed)
 
-  // ---- Status bar integration for token counting ---------------------------------
-  // Show an indeterminate status while we (re)count tokens, but don't override other LOADING tasks.
-  useEffect(() => {
-    const anotherTaskLoading =
-      appStatus.state === 'LOADING' &&
-      'task' in appStatus &&
-      appStatus.task !== 'tokens'
-
-    const tokenWorkActive = selectedFilesTokensBusy || treeTokensBusy
-    // Build a combined percent so the bar advances smoothly.
-    // Reserve 85% for selected-files counting, and 15% for the (quick) file-tree tokenization.
-    const withTree = includeFileTree
-    const selectedWeight = withTree ? 85 : 100
-    const treeWeight = withTree ? 15 : 0
-    const selectedPortion = Math.round((Math.max(0, Math.min(100, tokenProgress)) * selectedWeight) / 100)
-    const treePortion = treeTokensBusy ? 0 : treeWeight
-    const overallPercent = Math.max(0, Math.min(100, selectedPortion + treePortion))
-
-    if (tokenWorkActive) {
-      // Only show token counting status when a repository is loaded
-      if (!anotherTaskLoading && currentDir !== null) {
-        const files = selectedPaths.size
-        const msg = files > 0
-          ? `Counting tokens for ${files.toLocaleString()} selected file${files === 1 ? '' : 's'}…`
-          : 'Counting tokens…'
-        setAppStatus({
-          state: 'LOADING',
-          task: 'tokens',
-          message: `${msg} ${overallPercent}%`,
-          progress: overallPercent,
-        })
-        try { console.info('[app-status]', { state: 'LOADING', task: 'tokens', message: `${msg} ${overallPercent}%`, progress: overallPercent }) } catch {}
-      }
-    } else {
-      // only clear if we were the ones showing the tokens task AND a repository is loaded
-      if (appStatus.state === 'LOADING' && 'task' in appStatus && appStatus.task === 'tokens' && currentDir !== null) {
-        setAppStatus({ state: 'READY', message: 'Token counts updated.' })
-        try { console.info('[app-status]', { state: 'READY', message: 'Token counts updated.' }) } catch {}
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFilesTokensBusy, treeTokensBusy, selectedPaths.size, tokenProgress, includeFileTree, currentDir])
+  // (moved status-bar tie-in to a small bridge component below)
 
   const headerRight = (
     <HeaderControls
@@ -805,8 +746,101 @@ function App() {
     return binaryExts.some((ext) => lower.endsWith(ext))
   }
 
+  // Small helper: use context to feed TokenUsage without prop-drilling
+  function TokenUsageWithContext({
+    filesCount,
+    instructionsTokens,
+    fileTreeTokens,
+    limit,
+  }: {
+    filesCount: number
+    instructionsTokens: number
+    fileTreeTokens: number
+    limit: number
+  }) {
+    const { total } = useTokenCountsContext()
+    const src = useCallback(() => total, [total])
+    return (
+      <TokenUsage
+        fileTokensTotalSource={src}
+        filesCount={filesCount}
+        instructionsTokens={instructionsTokens}
+        fileTreeTokens={fileTreeTokens}
+        limit={limit}
+      />
+    )
+  }
+
+  // Bridge: keeps your StatusBar messages/progress exactly as before, now fed by the context.
+  function TokenCountingStatusBridge({
+    includeTree,
+    treeBusy,
+  }: {
+    includeTree: boolean
+    treeBusy: boolean
+  }) {
+    const { busy, progress } = useTokenCountsContext()
+    useEffect(() => {
+      const anotherTaskLoading =
+        appStatus.state === 'LOADING' && 'task' in appStatus && appStatus.task !== 'tokens'
+
+      const tokenWorkActive = busy || treeBusy
+      const selectedWeight = includeTree ? 85 : 100
+      const treeWeight = includeTree ? 15 : 0
+      const selectedPortion = Math.round((Math.max(0, Math.min(100, progress.percent)) * selectedWeight) / 100)
+      const treePortion = treeBusy ? 0 : treeWeight
+      const overallPercent = Math.max(0, Math.min(100, selectedPortion + treePortion))
+
+      if (tokenWorkActive) {
+        if (!anotherTaskLoading && currentDir !== null) {
+          const files = selectedPaths.size
+          const msg =
+            files > 0
+              ? `Counting tokens for ${files.toLocaleString()} selected file${files === 1 ? '' : 's'}…`
+              : 'Counting tokens…'
+          setAppStatus({
+            state: 'LOADING',
+            task: 'tokens',
+            message: `${msg} ${overallPercent}%`,
+            progress: overallPercent,
+          })
+          try {
+            console.info('[app-status]', {
+              state: 'LOADING',
+              task: 'tokens',
+              message: `${msg} ${overallPercent}%`,
+              progress: overallPercent,
+            })
+          } catch {}
+        }
+      } else {
+        if (
+          appStatus.state === 'LOADING' &&
+          'task' in appStatus &&
+          appStatus.task === 'tokens' &&
+          currentDir !== null
+        ) {
+          setAppStatus({ state: 'READY', message: 'Token counts updated.' })
+          try {
+            console.info('[app-status]', { state: 'READY', message: 'Token counts updated.' })
+          } catch {}
+        }
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [busy, treeBusy, progress.percent, includeTree, currentDir, selectedPaths.size])
+    return null
+  }
+
   return (
     <BrowserSupportGate>
+      <TokenCountsProvider
+        gitClient={gitClient}
+        baseRef={baseBranch}
+        compareRef={compareBranch}
+        selectedPaths={selectedPaths}
+        statusByPath={statusByPath}
+        diffContextLines={diffContextLines}
+      >
       <div className={`app-container${!projectLoaded ? ' landing-full' : ''}`} id="gc-app">
         <header className="header">
           <div className="brand">
@@ -1156,9 +1190,8 @@ function App() {
                     </label>
                   </div>
 
-                  {/* Token usage summary */}
-                  <TokenUsage
-                    fileTokensTotalSource={() => selectedFilesTokensTotal}
+                  {/* Token usage summary (fed from global context) */}
+                  <TokenUsageWithContext
                     filesCount={selectedPaths.size}
                     instructionsTokens={userInstructionsTokens}
                     fileTreeTokens={includeFileTree ? fileTreeTokens : 0}
@@ -1172,12 +1205,8 @@ function App() {
               <div className="panel-section">
                 <SelectedFilesPanel
                   key={`sel-${selectedPaths.size}`}
-                  gitClient={gitClient}
-                  baseRef={baseBranch}
-                  compareRef={compareBranch}
                   selectedPaths={selectedPaths}
                   statusByPath={statusByPath}
-                  diffContextLines={diffContextLines}
                   onUnselect={(path) => toggleSelect(path)}
                   onPreview={(path, status) => previewFile(path, status)}
                   refreshing={repoStatus.state === 'loading'}
@@ -1224,6 +1253,10 @@ function App() {
           </div>
         )}
       </div>
+
+      {/* Keep StatusBar updates synchronized with global token counting */}
+      <TokenCountingStatusBridge includeTree={includeFileTree} treeBusy={treeTokensBusy} />
+      </TokenCountsProvider>
     </BrowserSupportGate>
   )
 }
