@@ -1,3 +1,19 @@
+# [1.2.0](https://github.com/kccarlos/gitcontext/compare/v1.1.0...v1.2.0) (2025-09-07)
+
+
+### Bug Fixes
+
+* binary file detection ([0243902](https://github.com/kccarlos/gitcontext/commit/0243902579fc539c27a4373514db59f1e139526e))
+* binary file handling ([65c051a](https://github.com/kccarlos/gitcontext/commit/65c051a6968e7325ef3f49b001ef15ca0c28435b))
+* file tree not updated after workspace switch ([d73a4ab](https://github.com/kccarlos/gitcontext/commit/d73a4ab15a85512a174c7c2c80044b40c0121932))
+* single token counting pass app wide ([e554bd1](https://github.com/kccarlos/gitcontext/commit/e554bd129e35a663517bd0cbdc7c797fad06c24b))
+
+
+### Features
+
+* status bar message during token counting ([d54502e](https://github.com/kccarlos/gitcontext/commit/d54502e405ca37fcc2b82033ba1c8682b6dbf81a))
+* token counting progress ([2c13043](https://github.com/kccarlos/gitcontext/commit/2c1304343d68e93f43c911fc0809e125f326381f))
+
 # [1.1.0](https://github.com/kccarlos/gitcontext/compare/v1.0.1...v1.1.0) (2025-09-07)
 
 
