@@ -16,20 +16,7 @@ import LightningFS from '@isomorphic-git/lightning-fs'
 import * as BufferModule from 'buffer'
 import ProcessModule from 'process'
 import * as GIT from 'isomorphic-git'
-// Lightweight duplicate; workers can't import app utils directly. Keep in sync with utils/binary.ts.
-const BINARY_EXTS = [
-  '.png','.jpg','.jpeg','.gif','.bmp','.webp','.ico',
-  '.pdf','.zip','.rar','.7z','.tar','.gz','.tgz',
-  '.mp3','.wav','.flac',
-  '.mp4','.mov','.avi','.mkv','.webm',
-  '.exe','.dll','.bin','.dmg','.pkg','.iso',
-  '.woff','.woff2','.ttf','.otf',
-  '.svg'
-]
-function isBinaryPathLocal(p: string): boolean {
-  const lower = p.toLowerCase()
-  return BINARY_EXTS.some((ext) => lower.endsWith(ext))
-}
+import { detectBinaryByContent, SNIFF_BYTES, isBinaryPath } from '../shared/binary'
 
 ;(self as any).Buffer = (self as any).Buffer || (BufferModule as any).Buffer
 ;(self as any).process = (self as any).process || (ProcessModule as any)
@@ -437,24 +424,6 @@ async function handleDiff(
   return { id, type: 'ok', data: { files } }
 }
 
-// Heuristic binary detection
-function looksBinary(buf: Uint8Array): boolean {
-  // If there are many zero bytes or high ASCII control chars, treat as binary
-  const len = buf.length
-  if (len === 0) return false
-  let suspicious = 0
-  const maxCheck = Math.min(len, 8192)
-  for (let i = 0; i < maxCheck; i++) {
-    const c = buf[i]
-    // Allow common whitespace and ASCII printable range
-    if (c === 0) {
-      suspicious += 2
-    } else if (c < 7 || (c > 13 && c < 32)) {
-      suspicious++
-    }
-  }
-  return suspicious / maxCheck > 0.3
-}
 
 async function handleReadFile(
   id: number,
@@ -463,26 +432,21 @@ async function handleReadFile(
 ): Promise<ResOk> {
   if (!pfs) throw new Error('Repository is not initialized in worker')
 
-  // Skip heavy reads for known-binary extensions
-  if (isBinaryPathLocal(filepath)) {
+  // Fast extension short-circuit (no content read)
+  if (isBinaryPath(filepath)) {
     if (ref === WORKDIR_SENTINEL) {
-      // Best-effort existence check without loading file contents
-      try {
-        await pfs.stat('/' + filepath)
-        return { id, type: 'ok', data: { binary: true, text: null, notFound: false } }
-      } catch {
-        return { id, type: 'ok', data: { binary: false, text: null, notFound: true } }
-      }
+      try { await pfs.stat('/' + filepath); return { id, type: 'ok', data: { binary: true, text: null, notFound: false } } }
+      catch { return { id, type: 'ok', data: { binary: false, text: null, notFound: true } } }
     }
-    // For commit refs we assume existence (paths come from list/diff); avoid blob load
     return { id, type: 'ok', data: { binary: true, text: null, notFound: false } }
   }
 
-  // Read raw to detect binary first
+  // Read raw and sniff (LightningFS can only read full files; we still only *inspect* a small prefix)
   if (ref === WORKDIR_SENTINEL) {
     try {
       const raw = (await pfs.readFile('/' + filepath)) as Uint8Array
-      const binary = looksBinary(raw)
+      const sample = raw.subarray(0, SNIFF_BYTES)
+      const binary = detectBinaryByContent(sample, filepath)
       const text = binary ? null : new TextDecoder('utf-8', { fatal: false }).decode(raw)
       return { id, type: 'ok', data: { binary, text, notFound: false } }
     } catch {
@@ -506,7 +470,8 @@ async function handleReadFile(
     return { id, type: 'ok', data: { binary: false, text: null, notFound: true } }
   }
 
-  const binary = looksBinary(raw)
+  const sample = (raw as Uint8Array).subarray(0, SNIFF_BYTES)
+  const binary = detectBinaryByContent(sample, filepath)
   let text: string | null = null
   if (!binary && raw) {
     // Decode as UTF-8
