@@ -14,9 +14,10 @@ type Args = {
   statusByPath: Map<string, FileDiffStatus>
   diffContextLines: number
   tokenizer?: TokenizerEngine
+  onBatch?: (completed: number, total: number) => void
 }
 
-export function useTokenCounts({ gitClient, baseRef, compareRef, selectedPaths, statusByPath, diffContextLines, tokenizer }: Args) {
+export function useTokenCounts({ gitClient, baseRef, compareRef, selectedPaths, statusByPath, diffContextLines, tokenizer, onBatch }: Args) {
   const [counts, setCounts] = useState<TokenCounts>(new Map())
   const [busy, setBusy] = useState(false)
   const tok: TokenizerEngine = useMemo(() => tokenizer ?? createTokenizer(), [tokenizer])
@@ -28,11 +29,17 @@ export function useTokenCounts({ gitClient, baseRef, compareRef, selectedPaths, 
     async function run() {
       if (!gitClient || !baseRef || !compareRef) {
         setCounts(new Map())
+        // If caller wants progress, mark as "complete" when there's nothing to do.
+        try { onBatch?.(1, 1) } catch {}
         return
       }
       setBusy(true)
       try {
         const next = new Map<string, number>()
+        const totalFiles = selectedList.length
+        let completed = 0
+        // initial tick
+        try { onBatch?.(totalFiles === 0 ? 1 : 0, totalFiles === 0 ? 1 : totalFiles) } catch {}
         
         // Limit concurrent requests to prevent overwhelming the worker
         const BATCH_SIZE = 10
@@ -71,10 +78,19 @@ export function useTokenCounts({ gitClient, baseRef, compareRef, selectedPaths, 
               next.set(path, n)
             }),
           )
+          // batch finished; advance progress
+          completed += batch.length
+          try {
+            onBatch?.(Math.min(completed, totalFiles), totalFiles || 1)
+          } catch {}
         }
         if (!cancelled) setCounts(next)
       } finally {
         if (!cancelled) setBusy(false)
+        // ensure we always end at 100%
+        try {
+          onBatch?.(selectedList.length || 1, selectedList.length || 1)
+        } catch {}
       }
     }
     run()
