@@ -2,7 +2,7 @@ export type AppStatus =
   | { state: 'IDLE' }
   | {
       state: 'LOADING'
-      task: 'repo' | 'diff' | 'refresh'
+      task: 'repo' | 'diff' | 'refresh' | 'tokens'
       message: string
       progress: number | 'indeterminate'
     }

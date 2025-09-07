@@ -25,6 +25,7 @@ import { debounce } from './utils/debounce'
 
 function App() {
   const [appStatus, setAppStatus] = useState<AppStatus>({ state: 'IDLE' })
+  // note: we will temporarily set task='tokens' while counting, see effect below
 
   const [currentDir, setCurrentDir] = useState<FileSystemDirectoryHandle | null>(null)
   const { 
@@ -377,6 +378,7 @@ function App() {
   // Selected files token counts come from hook; compute extras for file tree and assemble total
   const [fileTreeTokens, setFileTreeTokens] = useState<number>(0)
   const [treeFilter, setTreeFilter] = useState<string>('')
+  const [treeTokensBusy, setTreeTokensBusy] = useState<boolean>(false)
 
   function generateSelectedTreeString(paths: string[]): string {
     // Build a minimal tree of selected files only
@@ -449,12 +451,17 @@ function App() {
     ;(async () => {
       if (!includeFileTree) {
         setFileTreeTokens(0)
+        setTreeTokensBusy(false)
         return
       }
+      setTreeTokensBusy(true)
       const list = Array.from(selectedPaths)
       const treeStr = generateSelectedTreeString(list)
       const n = await countTokens(treeStr)
-      if (!cancelled) setFileTreeTokens(n)
+      if (!cancelled) {
+        setFileTreeTokens(n)
+        setTreeTokensBusy(false)
+      }
     })()
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -542,7 +549,10 @@ function App() {
   }, [fileTree])
 
   // Total tokens for selected files (same hook used in SelectedFilesPanel)
-  const { total: selectedFilesTokensTotal } = useTokenCounts({
+  const {
+    total: selectedFilesTokensTotal,
+    busy: selectedFilesTokensBusy,
+  } = useTokenCounts({
     gitClient,
     baseRef: baseBranch,
     compareRef: compareBranch,
@@ -550,6 +560,42 @@ function App() {
     statusByPath,
     diffContextLines,
   })
+
+  // ---- Status bar integration for token counting ---------------------------------
+  // Show an indeterminate status while we (re)count tokens, but don't override other LOADING tasks.
+  useEffect(() => {
+    const anotherTaskLoading =
+      appStatus.state === 'LOADING' &&
+      'task' in appStatus &&
+      appStatus.task !== 'tokens'
+
+    const tokenWorkActive = selectedFilesTokensBusy || treeTokensBusy
+    if (tokenWorkActive) {
+      // Only show token counting status when a repository is loaded
+      if (!anotherTaskLoading && currentDir !== null) {
+        const files = selectedPaths.size
+        const msg =
+          files > 0
+            ? `Counting tokens for ${files.toLocaleString()} selected file${files === 1 ? '' : 's'}…`
+            : 'Counting tokens…'
+        setAppStatus({
+          state: 'LOADING',
+          task: 'tokens',
+          message: msg,
+          progress: 'indeterminate',
+        })
+        try { console.info('[app-status]', { state: 'LOADING', task: 'tokens', message: msg, progress: 'indeterminate' }) } catch {}
+      }
+    } else {
+      // only clear if we were the ones showing the tokens task AND a repository is loaded
+      if (appStatus.state === 'LOADING' && 'task' in appStatus && appStatus.task === 'tokens' && currentDir !== null) {
+        setAppStatus({ state: 'READY', message: 'Token counts updated.' })
+        try { console.info('[app-status]', { state: 'READY', message: 'Token counts updated.' }) } catch {}
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFilesTokensBusy, treeTokensBusy, selectedPaths.size, currentDir])
+
   const headerRight = (
     <HeaderControls
       workspaces={workspaces}
