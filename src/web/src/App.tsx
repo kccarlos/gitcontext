@@ -522,6 +522,13 @@ function App() {
     // Keep a local mirror of currentDir for legacy display
     setCurrentDir(repoDir)
   }, [repoDir])
+
+  // Invalidate the memoized diff key whenever the underlying repository changes.
+  // Without this, switching to a different workspace with the same branch names
+  // (e.g. __WORKDIR__ → main) won't trigger a recompute and the tree stays stale.
+  useEffect(() => {
+    lastDiffKeyRef.current = ''
+  }, [repoDir, gitClient])
   
 
   // Keep the main UI visible during refresh; only hide when no project selected
@@ -1003,7 +1010,7 @@ function App() {
                   </div>
                 </div>
                 <FileTreeView
-                  key={`${baseBranch}→${compareBranch}`}
+                  key={`${repoDir?.name ?? 'no-repo'}:${baseBranch}→${compareBranch}`}
                   tree={fileTree}
                   expandedPaths={expandedPaths}
                   selectedPaths={selectedPaths}
