@@ -3,6 +3,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as git from 'isomorphic-git'
 import { LRUCache } from 'lru-cache'
+import { isBinaryPath, detectBinaryByContent, SNIFF_BYTES } from '../shared/binary'
 
 type Msg =
   | { id: number; type: 'loadRepo'; repoPath: string }
@@ -17,19 +18,6 @@ const blobCache = new LRUCache<string, { binary: boolean; text: string | null }>
 let blobCacheHits = 0
 const gitCache: Record<string, any> = Object.create(null)
 const WORKDIR = '__WORKDIR__'
-const BINARY_EXTS = [
-  '.png','.jpg','.jpeg','.gif','.bmp','.webp','.ico',
-  '.pdf','.zip','.rar','.7z','.tar','.gz','.tgz',
-  '.mp3','.wav','.flac',
-  '.mp4','.mov','.avi','.mkv','.webm',
-  '.exe','.dll','.bin','.dmg','.pkg','.iso',
-  '.woff','.woff2','.ttf','.otf',
-  '.svg'
-]
-function isBinaryPathLocal(p: string): boolean {
-  const lower = p.toLowerCase()
-  return BINARY_EXTS.some(ext => lower.endsWith(ext))
-}
 
 // Helper function to parse packed-refs
 async function parsePackedRefs(repoPath: string): Promise<string[]> {
@@ -58,14 +46,7 @@ function ok(id: number, data?: any) { send({ id, type: 'ok', data }) }
 function err(id: number, error: string) { send({ id, type: 'error', error }) }
 function progress(id: number, message: string) { send({ id, type: 'progress', message }) }
 
-function looksBinary(buf: Buffer): boolean {
-  const len = Math.min(buf.length, 8000)
-  for (let i = 0; i < len; i++) {
-    const c = buf[i]
-    if (c === 0) return true
-  }
-  return false
-}
+// (content sniffing comes from shared helper)
 
 parentPort?.on('message', async (m: Msg) => {
   try {
@@ -141,7 +122,7 @@ parentPort?.on('message', async (m: Msg) => {
       }
       case 'readFile': {
         // Fast path: known-binary extension => no content read
-        if (isBinaryPathLocal(m.filepath)) {
+        if (isBinaryPath(m.filepath)) {
           if (m.ref !== WORKDIR) {
             ok(m.id, { binary: true, text: null, notFound: false }); return
           }
@@ -168,17 +149,32 @@ parentPort?.on('message', async (m: Msg) => {
           const res = await git.readBlob({ fs, dir: repoPath, oid: commitOid, filepath: m.filepath }).catch(() => null)
           if (!res) { ok(m.id, { binary: false, text: null, notFound: true }); return }
           const buf = Buffer.from(res.blob)
-          const binary = looksBinary(buf)
+          const sample = buf.subarray(0, SNIFF_BYTES)
+          const binary = detectBinaryByContent(sample, m.filepath)
           const value = { binary, text: binary ? null : buf.toString('utf8') }
           blobCache.set(cacheKey, value)
           ok(m.id, { ...value, notFound: false })
           return
         }
+        // Partial read to sniff type without pulling whole large files
         const fileAbs = path.join(repoPath, m.filepath)
-        const buf = await fs.promises.readFile(fileAbs).catch(() => null as any)
-        if (!buf) { ok(m.id, { binary: false, text: null, notFound: true }); return }
-        const binary = looksBinary(buf as Buffer)
-        ok(m.id, { binary, text: binary ? null : (buf as Buffer).toString('utf8') })
+        const fd = await fs.promises.open(fileAbs, 'r').catch(() => null as any)
+        if (!fd) { ok(m.id, { binary: false, text: null, notFound: true }); return }
+        try {
+          const probe = Buffer.allocUnsafe(SNIFF_BYTES)
+          const { bytesRead } = await fd.read(probe, 0, SNIFF_BYTES, 0)
+          const sample = probe.subarray(0, bytesRead)
+          const binary = detectBinaryByContent(sample, m.filepath)
+          if (binary) {
+            ok(m.id, { binary: true, text: null, notFound: false })
+          } else {
+            // Now read full text if needed
+            const full = await fs.promises.readFile(fileAbs, 'utf8')
+            ok(m.id, { binary: false, text: full, notFound: false })
+          }
+        } finally {
+          await fd.close().catch(() => {})
+        }
         return
       }
       case 'listFiles': {
