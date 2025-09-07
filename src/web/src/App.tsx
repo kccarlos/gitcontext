@@ -21,6 +21,7 @@ import { buildUnifiedDiffForStatus } from './utils/diff'
 import { countTokens } from './utils/tokenizer'
 // Globally shared token counts
 import { TokenCountsProvider, useTokenCountsContext } from './context/TokenCountsContext'
+import { isBinaryPath } from './utils/binary'
 import { logError } from './utils/logger'
 import { debounce } from './utils/debounce'
 
@@ -580,6 +581,11 @@ function App() {
 
   async function previewFile(path: string, status: FileDiffStatus): Promise<void> {
     if (!gitClient) return
+    // Hard guard: no previews for binary files (prevents heavy reads)
+    if (isBinaryPath(path)) {
+      setNotif('Binary file preview is not supported.')
+      return
+    }
     try {
       const toFetchBase = status !== 'add'
       const toFetchCompare = status !== 'remove'
@@ -589,6 +595,13 @@ function App() {
         toFetchCompare && compareBranch ? gitClient.readFile(compareBranch, path) : Promise.resolve(undefined),
       ])
 
+      // If worker reports binary, bail out as well
+      const baseBin = (baseRes as any)?.binary
+      const compareBin = (compareRes as any)?.binary
+      if (baseBin || compareBin) {
+        setNotif('Binary file preview is not supported.')
+        return
+      }
       setPreviewPath(path)
       setPreviewStatus(status)
       setPreviewData({
@@ -654,11 +667,19 @@ function App() {
       // File sections
       const fileSections: string[] = []
       const includeBinaryNow = (includeBinaryCheckboxRef.current?.checked ?? includeBinaryAsPathsRef.current)
-        const pathsToProcess = includeBinaryNow ? selected : selected.filter((p) => !isLikelyBinaryPath(p))
+        const pathsToProcess = includeBinaryNow ? selected : selected.filter((p) => !isBinaryPath(p))
       const fileReadPromises = pathsToProcess.map((path) => {
         const status = statusByPath.get(path) ?? 'unchanged'
         const needBase = status !== 'add'
         const needCompare = status !== 'remove'
+        // Avoid heavy reads for binary paths — we only emit a header line
+        if (isBinaryPath(path)) {
+          return Promise.resolve({
+            path, status,
+            baseRes: { binary: true, text: null },
+            compareRes: { binary: true, text: null },
+          })
+        }
         return Promise.all([
           needBase ? gitClient.readFile(baseBranch, path) : Promise.resolve(undefined),
           needCompare ? gitClient.readFile(compareBranch, path) : Promise.resolve(undefined),
@@ -666,7 +687,7 @@ function App() {
       })
       const fileContents = await Promise.all(fileReadPromises)
         for (const { path, status, baseRes, compareRes } of fileContents) {
-          const isBinary = (baseRes as { binary?: boolean } | undefined)?.binary || (compareRes as { binary?: boolean } | undefined)?.binary || isLikelyBinaryPath(path)
+          const isBinary = (baseRes as { binary?: boolean } | undefined)?.binary || (compareRes as { binary?: boolean } | undefined)?.binary || isBinaryPath(path)
         const header = `## FILE: ${path} (${status.toUpperCase()})\n\n`
         if (isBinary) {
           // When we filtered out likely-binary paths earlier and still hit binary here (e.g. unknown ext),
@@ -741,17 +762,7 @@ function App() {
     if (lower.endsWith('.html') || lower.endsWith('.htm')) return 'html'
     return ''
   }
-  function isLikelyBinaryPath(p: string): boolean {
-    const lower = p.toLowerCase()
-    const binaryExts = [
-      '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.ico',
-      '.pdf', '.zip', '.rar', '.7z', '.tar', '.gz', '.tgz',
-      '.mp3', '.wav', '.flac', '.mp4', '.mov', '.avi', '.mkv', '.webm',
-      '.exe', '.dll', '.bin', '.dmg', '.pkg', '.iso',
-      '.woff', '.woff2', '.ttf', '.otf'
-    ]
-    return binaryExts.some((ext) => lower.endsWith(ext))
-  }
+  // binary detection now centralized in utils/binary.ts (isBinaryPath)
 
   // Small helper: use context to feed TokenUsage without prop-drilling
   function TokenUsageWithContext({
@@ -847,6 +858,7 @@ function App() {
         selectedPaths={selectedPaths}
         statusByPath={statusByPath}
         diffContextLines={diffContextLines}
+        includeBinaryPaths={includeBinaryAsPaths}
       >
       <div className={`app-container${!projectLoaded ? ' landing-full' : ''}`} id="gc-app">
         <header className="header">
@@ -1135,7 +1147,7 @@ function App() {
                             const curr = Array.from(selectedPathsRef.current)
                             const removed: string[] = []
                             for (const p of curr) {
-                              if (isLikelyBinaryPath(p)) {
+                              if (isBinaryPath(p)) {
                                 removed.push(p)
                                 toggleSelect(p)
                               }

@@ -16,6 +16,20 @@ import LightningFS from '@isomorphic-git/lightning-fs'
 import * as BufferModule from 'buffer'
 import ProcessModule from 'process'
 import * as GIT from 'isomorphic-git'
+// Lightweight duplicate; workers can't import app utils directly. Keep in sync with utils/binary.ts.
+const BINARY_EXTS = [
+  '.png','.jpg','.jpeg','.gif','.bmp','.webp','.ico',
+  '.pdf','.zip','.rar','.7z','.tar','.gz','.tgz',
+  '.mp3','.wav','.flac',
+  '.mp4','.mov','.avi','.mkv','.webm',
+  '.exe','.dll','.bin','.dmg','.pkg','.iso',
+  '.woff','.woff2','.ttf','.otf',
+  '.svg'
+]
+function isBinaryPathLocal(p: string): boolean {
+  const lower = p.toLowerCase()
+  return BINARY_EXTS.some((ext) => lower.endsWith(ext))
+}
 
 ;(self as any).Buffer = (self as any).Buffer || (BufferModule as any).Buffer
 ;(self as any).process = (self as any).process || (ProcessModule as any)
@@ -448,6 +462,21 @@ async function handleReadFile(
   filepath: string,
 ): Promise<ResOk> {
   if (!pfs) throw new Error('Repository is not initialized in worker')
+
+  // Skip heavy reads for known-binary extensions
+  if (isBinaryPathLocal(filepath)) {
+    if (ref === WORKDIR_SENTINEL) {
+      // Best-effort existence check without loading file contents
+      try {
+        await pfs.stat('/' + filepath)
+        return { id, type: 'ok', data: { binary: true, text: null, notFound: false } }
+      } catch {
+        return { id, type: 'ok', data: { binary: false, text: null, notFound: true } }
+      }
+    }
+    // For commit refs we assume existence (paths come from list/diff); avoid blob load
+    return { id, type: 'ok', data: { binary: true, text: null, notFound: false } }
+  }
 
   // Read raw to detect binary first
   if (ref === WORKDIR_SENTINEL) {

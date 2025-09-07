@@ -17,6 +17,19 @@ const blobCache = new LRUCache<string, { binary: boolean; text: string | null }>
 let blobCacheHits = 0
 const gitCache: Record<string, any> = Object.create(null)
 const WORKDIR = '__WORKDIR__'
+const BINARY_EXTS = [
+  '.png','.jpg','.jpeg','.gif','.bmp','.webp','.ico',
+  '.pdf','.zip','.rar','.7z','.tar','.gz','.tgz',
+  '.mp3','.wav','.flac',
+  '.mp4','.mov','.avi','.mkv','.webm',
+  '.exe','.dll','.bin','.dmg','.pkg','.iso',
+  '.woff','.woff2','.ttf','.otf',
+  '.svg'
+]
+function isBinaryPathLocal(p: string): boolean {
+  const lower = p.toLowerCase()
+  return BINARY_EXTS.some(ext => lower.endsWith(ext))
+}
 
 // Helper function to parse packed-refs
 async function parsePackedRefs(repoPath: string): Promise<string[]> {
@@ -127,6 +140,20 @@ parentPort?.on('message', async (m: Msg) => {
         return
       }
       case 'readFile': {
+        // Fast path: known-binary extension => no content read
+        if (isBinaryPathLocal(m.filepath)) {
+          if (m.ref !== WORKDIR) {
+            ok(m.id, { binary: true, text: null, notFound: false }); return
+          }
+          // WORKDIR existence without reading file
+          const fileAbs = path.join(repoPath, m.filepath)
+          const exists = await fs.promises
+            .stat(fileAbs)
+            .then(() => true)
+            .catch(() => false)
+          ok(m.id, { binary: exists, text: null, notFound: !exists })
+          return
+        }
         if (m.ref !== WORKDIR) {
           const commitOid = await git.resolveRef({ fs, dir: repoPath, ref: m.ref }).catch(() => null as any)
           if (!commitOid) { ok(m.id, { binary: false, text: null, notFound: true }); return }
