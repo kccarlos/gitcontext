@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import type { GitWorkerClient } from '../utils/gitWorkerClient'
 import type { AppStatus } from '../types/appStatus'
+import { isBinaryPath } from '../utils/binary'
 
 export type FileDiffStatus = 'modify' | 'add' | 'remove' | 'unchanged'
 
@@ -39,12 +40,7 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
       return node
     }
 
-    const likelyBinary = (p: string): boolean => {
-      const lower = p.toLowerCase()
-      // Heuristic similar to App.tsx; keep in sync
-      const exts = ['.png','.jpg','.jpeg','.gif','.webp','.svg','.ico','.pdf','.zip','.gz','.tgz','.rar','.7z','.mp4','.mp3','.wav','.mov','.avi','.mkv','.woff','.woff2','.ttf']
-      return exts.some((e) => lower.endsWith(e))
-    }
+    const likelyBinary = (p: string): boolean => isBinaryPath(p)
 
     for (const fullPath of allPaths) {
       const parts = fullPath.split('/')

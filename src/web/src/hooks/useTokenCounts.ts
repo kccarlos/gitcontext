@@ -3,6 +3,7 @@ import type { GitEngine, TokenizerEngine } from '../platform/types'
 import { createTokenizer } from '../platform/tokenizerFactory'
 import type { FileDiffStatus } from './useFileTree'
 import { buildUnifiedDiffForStatus } from '../utils/diff'
+import { isBinaryPath } from '../utils/binary'
 
 export type TokenCounts = Map<string, number>
 
@@ -13,11 +14,22 @@ type Args = {
   selectedPaths: Set<string>
   statusByPath: Map<string, FileDiffStatus>
   diffContextLines: number
+  includeBinaryPaths?: boolean
   tokenizer?: TokenizerEngine
   onBatch?: (completed: number, total: number) => void
 }
 
-export function useTokenCounts({ gitClient, baseRef, compareRef, selectedPaths, statusByPath, diffContextLines, tokenizer, onBatch }: Args) {
+export function useTokenCounts({
+  gitClient,
+  baseRef,
+  compareRef,
+  selectedPaths,
+  statusByPath,
+  diffContextLines,
+  includeBinaryPaths = true,
+  tokenizer,
+  onBatch,
+}: Args) {
   const [counts, setCounts] = useState<TokenCounts>(new Map())
   const [busy, setBusy] = useState(false)
   const tok: TokenizerEngine = useMemo(() => tokenizer ?? createTokenizer(), [tokenizer])
@@ -49,31 +61,51 @@ export function useTokenCounts({ gitClient, baseRef, compareRef, selectedPaths, 
           const batch = selectedList.slice(i, i + BATCH_SIZE)
           await Promise.all(
             batch.map(async (path) => {
-            const status = statusByPath.get(path) ?? 'unchanged'
-            const needBase = status !== 'add'
-            const needCompare = status !== 'remove'
-            const [baseRes, compareRes] = await Promise.all([
-              needBase && baseRef ? gitClient.readFile(baseRef, path) : Promise.resolve(undefined as any),
-              needCompare && compareRef ? gitClient.readFile(compareRef, path) : Promise.resolve(undefined as any),
-            ])
-            // Mirror final output generation logic
-            const MAX_CONTEXT = 999
-            const ctx = diffContextLines >= MAX_CONTEXT ? Number.MAX_SAFE_INTEGER : diffContextLines
-            let textForCount = ''
-            if (status === 'modify' || status === 'add' || status === 'remove') {
-              const isBinary = Boolean((baseRes as any)?.binary) || Boolean((compareRes as any)?.binary)
-              if (isBinary) {
-                textForCount = ''
-              } else if (status === 'add' && ctx === Number.MAX_SAFE_INTEGER) {
-                textForCount = (compareRes as { text?: string } | undefined)?.text ?? ''
+              const status = statusByPath.get(path) ?? 'unchanged'
+              const looksBinary = isBinaryPath(path)
+              let textForCount = ''
+
+              // Fast path: known-binary files never load content
+              if (looksBinary) {
+                if (includeBinaryPaths) {
+                  // Mirror the exact header we output during copy
+                  const header = `## FILE: ${path} (${(status || 'unchanged').toUpperCase()})\n\n`
+                  textForCount = header
+                } else {
+                  textForCount = ''
+                }
               } else {
-                textForCount = buildUnifiedDiffForStatus(status, path, baseRes as any, compareRes as any, { context: ctx }) || ''
+                // Textual path -> maybe fetch content/diff
+                const needBase = status !== 'add'
+                const needCompare = status !== 'remove'
+                const [baseRes, compareRes] = await Promise.all([
+                  needBase && baseRef ? gitClient.readFile(baseRef, path) : Promise.resolve(undefined as any),
+                  needCompare && compareRef ? gitClient.readFile(compareRef, path) : Promise.resolve(undefined as any),
+                ])
+                // Mirror final output generation logic
+                const MAX_CONTEXT = 999
+                const ctx = diffContextLines >= MAX_CONTEXT ? Number.MAX_SAFE_INTEGER : diffContextLines
+                if (status === 'modify' || status === 'add' || status === 'remove') {
+                  const isBinary = Boolean((baseRes as any)?.binary) || Boolean((compareRes as any)?.binary)
+                  if (isBinary) {
+                    // Edge: unknown ext but worker says binary; treat same as looksBinary
+                    if (includeBinaryPaths) {
+                      const header = `## FILE: ${path} (${(status || 'unchanged').toUpperCase()})\n\n`
+                      textForCount = header
+                    } else {
+                      textForCount = ''
+                    }
+                  } else if (status === 'add' && ctx === Number.MAX_SAFE_INTEGER) {
+                    textForCount = (compareRes as { text?: string } | undefined)?.text ?? ''
+                  } else {
+                    textForCount = buildUnifiedDiffForStatus(status, path, baseRes as any, compareRes as any, { context: ctx }) || ''
+                  }
+                } else {
+                  const isBinary = Boolean((baseRes as any)?.binary)
+                  const oldText = isBinary || (baseRes as any)?.notFound ? '' : (baseRes as any)?.text ?? ''
+                  textForCount = oldText
+                }
               }
-            } else {
-              const isBinary = Boolean((baseRes as any)?.binary)
-              const oldText = isBinary || (baseRes as any)?.notFound ? '' : (baseRes as any)?.text ?? ''
-              textForCount = oldText
-            }
               const n = textForCount ? await tok.count(textForCount) : 0
               next.set(path, n)
             }),

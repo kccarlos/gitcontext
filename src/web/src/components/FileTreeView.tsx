@@ -151,8 +151,9 @@ export function FileTreeView({
                 type="button"
                 onClick={() => onPreviewFile(node.path, st)}
                 className="btn btn-ghost btn-icon ml-auto"
-                title="Preview"
+                title={node.isLikelyBinary ? 'Preview disabled for binary files' : 'Preview'}
                 aria-label="Preview"
+                disabled={node.isLikelyBinary}
               >
                 <Search size={14} />
               </button>

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { ArrowUpDown, Search, X, FilePenLine, FilePlus2, FileMinus2, File as FileIcon, FileArchive } from 'lucide-react'
 import { useTokenCountsContext } from '../context/TokenCountsContext'
 import type { FileDiffStatus } from '../hooks/useFileTree'
+import { isBinaryPath } from '../utils/binary'
 
 type SelectedEntry = {
   path: string
@@ -33,9 +34,7 @@ export function SelectedFilesPanel({ selectedPaths, statusByPath, onUnselect, on
       const st = statusByPath.get(path) ?? 'unchanged'
       const tokens = counts.get(path) ?? 0
       const name = path.includes('/') ? path.slice(path.lastIndexOf('/') + 1) : path
-      const lower = path.toLowerCase()
-      const exts = ['.png','.jpg','.jpeg','.gif','.webp','.svg','.ico','.pdf','.zip','.gz','.tgz','.rar','.7z','.mp4','.mp3','.wav','.mov','.avi','.mkv','.woff','.woff2','.ttf']
-      const isLikelyBinary = exts.some((e) => lower.endsWith(e))
+      const isLikelyBinary = isBinaryPath(path)
       entries.push({ path, name, status: st, tokens, isLikelyBinary })
     }
     const q = (filterText || '').trim().toLowerCase()
@@ -123,9 +122,10 @@ export function SelectedFilesPanel({ selectedPaths, statusByPath, onUnselect, on
               <button
                 type="button"
                 onClick={() => onPreview(it.path, it.status)}
-                title="Preview"
+                title={it.isLikelyBinary ? 'Preview disabled for binary files' : 'Preview'}
                 aria-label="Preview"
                 className="btn btn-ghost btn-icon"
+                disabled={it.isLikelyBinary}
               >
                 <Search size={14} />
               </button>

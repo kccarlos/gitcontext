@@ -20,6 +20,7 @@ type ProviderProps = {
   selectedPaths: Set<string>
   statusByPath: Map<string, FileDiffStatus>
   diffContextLines: number
+  includeBinaryPaths?: boolean
   children: React.ReactNode
 }
 
@@ -30,6 +31,7 @@ export function TokenCountsProvider({
   selectedPaths,
   statusByPath,
   diffContextLines,
+  includeBinaryPaths = true,
   children,
 }: ProviderProps) {
   const [progress, setProgress] = useState<ProgressState>({ completed: 0, total: 0, percent: 0 })
@@ -41,6 +43,7 @@ export function TokenCountsProvider({
     selectedPaths,
     statusByPath,
     diffContextLines,
+    includeBinaryPaths,
     onBatch: (done, totalFiles) => {
       const pct =
         totalFiles <= 0
