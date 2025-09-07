@@ -849,6 +849,91 @@ function App() {
     return null
   }
 
+  // Small helper: use context to feed TokenUsage without prop-drilling
+  function TokenUsageWithContext({
+    filesCount,
+    instructionsTokens,
+    fileTreeTokens,
+    limit,
+  }: {
+    filesCount: number
+    instructionsTokens: number
+    fileTreeTokens: number
+    limit: number
+  }) {
+    const { total } = useTokenCountsContext()
+    const src = useCallback(() => total, [total])
+    return (
+      <TokenUsage
+        fileTokensTotalSource={src}
+        filesCount={filesCount}
+        instructionsTokens={instructionsTokens}
+        fileTreeTokens={fileTreeTokens}
+        limit={limit}
+      />
+    )
+  }
+
+  // Bridge: keeps your StatusBar messages/progress exactly as before, now fed by the context.
+  function TokenCountingStatusBridge({
+    includeTree,
+    treeBusy,
+  }: {
+    includeTree: boolean
+    treeBusy: boolean
+  }) {
+    const { busy, progress } = useTokenCountsContext()
+    useEffect(() => {
+      const anotherTaskLoading =
+        appStatus.state === 'LOADING' && 'task' in appStatus && appStatus.task !== 'tokens'
+
+      const tokenWorkActive = busy || treeBusy
+      const selectedWeight = includeTree ? 85 : 100
+      const treeWeight = includeTree ? 15 : 0
+      const selectedPortion = Math.round((Math.max(0, Math.min(100, progress.percent)) * selectedWeight) / 100)
+      const treePortion = treeBusy ? 0 : treeWeight
+      const overallPercent = Math.max(0, Math.min(100, selectedPortion + treePortion))
+
+      if (tokenWorkActive) {
+        if (!anotherTaskLoading && currentDir !== null) {
+          const files = selectedPaths.size
+          const msg =
+            files > 0
+              ? `Counting tokens for ${files.toLocaleString()} selected file${files === 1 ? '' : 's'}…`
+              : 'Counting tokens…'
+          setAppStatus({
+            state: 'LOADING',
+            task: 'tokens',
+            message: `${msg} ${overallPercent}%`,
+            progress: overallPercent,
+          })
+          try {
+            console.info('[app-status]', {
+              state: 'LOADING',
+              task: 'tokens',
+              message: `${msg} ${overallPercent}%`,
+              progress: overallPercent,
+            })
+          } catch {}
+        }
+      } else {
+        if (
+          appStatus.state === 'LOADING' &&
+          'task' in appStatus &&
+          appStatus.task === 'tokens' &&
+          currentDir !== null
+        ) {
+          setAppStatus({ state: 'READY', message: 'Token counts updated.' })
+          try {
+            console.info('[app-status]', { state: 'READY', message: 'Token counts updated.' })
+          } catch {}
+        }
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [busy, treeBusy, progress.percent, includeTree, currentDir, selectedPaths.size])
+    return null
+  }
+
   return (
     <BrowserSupportGate>
       <TokenCountsProvider
