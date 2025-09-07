@@ -379,6 +379,7 @@ function App() {
   const [fileTreeTokens, setFileTreeTokens] = useState<number>(0)
   const [treeFilter, setTreeFilter] = useState<string>('')
   const [treeTokensBusy, setTreeTokensBusy] = useState<boolean>(false)
+  const [tokenProgress, setTokenProgress] = useState<number>(0) // 0..100 for selected-files counting
 
   function generateSelectedTreeString(paths: string[]): string {
     // Build a minimal tree of selected files only
@@ -559,7 +560,17 @@ function App() {
     selectedPaths,
     statusByPath,
     diffContextLines,
+    onBatch: (done, total) => {
+      // Clamp and convert to 0..100; handle total=0 safely.
+      const pct = total <= 0 ? 100 : Math.max(0, Math.min(100, Math.round((done / total) * 100)))
+      setTokenProgress(pct)
+    },
   })
+
+  // Reset numeric progress when we begin a new selected-files counting pass
+  useEffect(() => {
+    if (selectedFilesTokensBusy) setTokenProgress(0)
+  }, [selectedFilesTokensBusy])
 
   // ---- Status bar integration for token counting ---------------------------------
   // Show an indeterminate status while we (re)count tokens, but don't override other LOADING tasks.
@@ -570,21 +581,29 @@ function App() {
       appStatus.task !== 'tokens'
 
     const tokenWorkActive = selectedFilesTokensBusy || treeTokensBusy
+    // Build a combined percent so the bar advances smoothly.
+    // Reserve 85% for selected-files counting, and 15% for the (quick) file-tree tokenization.
+    const withTree = includeFileTree
+    const selectedWeight = withTree ? 85 : 100
+    const treeWeight = withTree ? 15 : 0
+    const selectedPortion = Math.round((Math.max(0, Math.min(100, tokenProgress)) * selectedWeight) / 100)
+    const treePortion = treeTokensBusy ? 0 : treeWeight
+    const overallPercent = Math.max(0, Math.min(100, selectedPortion + treePortion))
+
     if (tokenWorkActive) {
       // Only show token counting status when a repository is loaded
       if (!anotherTaskLoading && currentDir !== null) {
         const files = selectedPaths.size
-        const msg =
-          files > 0
-            ? `Counting tokens for ${files.toLocaleString()} selected file${files === 1 ? '' : 's'}…`
-            : 'Counting tokens…'
+        const msg = files > 0
+          ? `Counting tokens for ${files.toLocaleString()} selected file${files === 1 ? '' : 's'}…`
+          : 'Counting tokens…'
         setAppStatus({
           state: 'LOADING',
           task: 'tokens',
-          message: msg,
-          progress: 'indeterminate',
+          message: `${msg} ${overallPercent}%`,
+          progress: overallPercent,
         })
-        try { console.info('[app-status]', { state: 'LOADING', task: 'tokens', message: msg, progress: 'indeterminate' }) } catch {}
+        try { console.info('[app-status]', { state: 'LOADING', task: 'tokens', message: `${msg} ${overallPercent}%`, progress: overallPercent }) } catch {}
       }
     } else {
       // only clear if we were the ones showing the tokens task AND a repository is loaded
@@ -594,7 +613,7 @@ function App() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFilesTokensBusy, treeTokensBusy, selectedPaths.size, currentDir])
+  }, [selectedFilesTokensBusy, treeTokensBusy, selectedPaths.size, tokenProgress, includeFileTree, currentDir])
 
   const headerRight = (
     <HeaderControls
