@@ -9,7 +9,7 @@ const isElectron = process.env.ELECTRON === '1'
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: isElectron ? './' : '/',
+  base: isElectron ? './' : '/gitcontext/',
   plugins: [
     react(),
     wasm(),
