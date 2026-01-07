@@ -1,3 +1,16 @@
+# [1.3.0](https://github.com/kccarlos/gitcontext/compare/v1.2.0...v1.3.0) (2026-01-07)
+
+
+### Bug Fixes
+
+* binary file handling ([65e24c8](https://github.com/kccarlos/gitcontext/commit/65e24c8cfa6b2d0dd5223cb3ed028ba8a5417356))
+* single token counting pass app wide ([98a7d43](https://github.com/kccarlos/gitcontext/commit/98a7d43361273d6b27a9d26634e56d575205af74))
+
+
+### Features
+
+* token counting progress ([816fa79](https://github.com/kccarlos/gitcontext/commit/816fa79b7902b772e1a363ff075cd0110f053563))
+
 # [1.2.0](https://github.com/kccarlos/gitcontext/compare/v1.1.0...v1.2.0) (2025-09-07)
 
 
