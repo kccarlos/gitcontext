@@ -150,11 +150,12 @@ test.describe('Repository Loading and Initialization', () => {
     const optionLabels = await baseSelect.locator('option').allTextContents()
     expect(optionLabels).toEqual(expect.arrayContaining(['My Working Directory', 'main', 'feature-branch']))
 
-    // Verify initial selections match default logic (base=head, compare=first non-identical → WORKDIR)
+    // Verify initial selections match default logic (base=head, compare=first non-WORKDIR branch)
     const initialBase = await baseSelect.inputValue()
     const initialCompare = await compareSelect.inputValue()
     expect(initialBase).toBe('main')
-    expect(initialCompare).toBe('__WORKDIR__')
+    // After Task #9, default compare prefers non-WORKDIR branches
+    expect(initialCompare).toBe('feature-branch')
 
     // Ensure they are non-identical
     expect(initialCompare).not.toEqual(initialBase)

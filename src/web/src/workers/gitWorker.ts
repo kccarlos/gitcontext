@@ -60,6 +60,7 @@ type RequestMessage =
   | (ReqBase & { type: 'listBranches' })
   | (ReqBase & { type: 'diff'; base: string; compare: string })
   | (ReqBase & { type: 'listFiles'; ref: string })
+  | (ReqBase & { type: 'listFilesWithOids'; ref: string })
   | (ReqBase & { type: 'readFile'; ref: string; filepath: string })
   | (ReqBase & { type: 'resolveRef'; ref: string })
 
@@ -391,6 +392,39 @@ async function handleListFiles(id: number, ref: string): Promise<ResOk> {
   return { id, type: 'ok', data: { files } }
 }
 
+async function handleListFilesWithOids(id: number, ref: string): Promise<ResOk> {
+  if (!pfs) throw new Error('Repository is not initialized in worker')
+  if (ref === WORKDIR_SENTINEL) {
+    throw new Error('listFilesWithOids does not support WORKDIR')
+  }
+
+  const git = await getGit()
+  const commitOid = await git.resolveRef({ fs: lfs, dir: '/', ref })
+
+  // Walk the tree and collect file paths with their OIDs
+  const filesWithOids: Array<{ path: string; oid: string }> = []
+
+  await git.walk({
+    fs: lfs,
+    dir: '/',
+    trees: [(git as any).TREE({ ref: commitOid })],
+    map: async (filepath: string, [entry]: Array<any>) => {
+      if (filepath === '.') return
+      if (filepath === '.git' || filepath.startsWith('.git/')) return
+
+      const type = await entry?.type?.()
+      if (type === 'tree') return // skip directories
+
+      const oid = await entry?.oid?.()
+      if (oid) {
+        filesWithOids.push({ path: filepath, oid })
+      }
+    },
+  })
+
+  return { id, type: 'ok', data: { files: filesWithOids } }
+}
+
 type NameStatus = { path: string; type: 'modify' | 'add' | 'remove' }
 
 async function handleDiff(
@@ -610,6 +644,11 @@ self.onmessage = async (ev: MessageEvent) => {
       }
       case 'listFiles': {
         const res = await handleListFiles(msg.id, (msg as any).ref)
+        send(res)
+        return
+      }
+      case 'listFilesWithOids': {
+        const res = await handleListFilesWithOids(msg.id, (msg as any).ref)
         send(res)
         return
       }

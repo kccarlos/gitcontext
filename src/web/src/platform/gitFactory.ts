@@ -1,6 +1,42 @@
 import { createGitWorkerClient } from '../utils/gitWorkerClient'
 import type { GitEngine } from './types'
 import { readWorkdirFile } from '../utils/workdirReader'
+import { computeWorkdirDiff } from '../utils/workdirDiff'
+
+// Simple LRU cache for readFile results
+class ReadFileCache {
+  private cache = new Map<string, any>()
+  private maxSize = 64 // Cache up to 64 file reads
+
+  get(key: string): any | undefined {
+    if (!this.cache.has(key)) return undefined
+    // Move to end (most recently used)
+    const value = this.cache.get(key)!
+    this.cache.delete(key)
+    this.cache.set(key, value)
+    return value
+  }
+
+  set(key: string, value: any): void {
+    // Delete if exists (to update position)
+    if (this.cache.has(key)) {
+      this.cache.delete(key)
+    }
+    // Add to end
+    this.cache.set(key, value)
+    // Evict oldest if over capacity
+    if (this.cache.size > this.maxSize) {
+      const firstKey = this.cache.keys().next().value as string
+      if (firstKey !== undefined) {
+        this.cache.delete(firstKey)
+      }
+    }
+  }
+
+  clear(): void {
+    this.cache.clear()
+  }
+}
 
 function createIpcClient(onProgress?: (message: string) => void): GitEngine {
   const invoke = (window as any)?.electron?.invoke as ((ch: string, payload?: any) => Promise<any>) | undefined
@@ -33,6 +69,12 @@ function createIpcClient(onProgress?: (message: string) => void): GitEngine {
     async listFiles(ref: string) {
       const id = idCounter++
       const res = await invoke('git:call', { id, type: 'listFiles', ref })
+      if (res?.type === 'error') throw new Error(res.error)
+      return res?.data
+    },
+    async listFilesWithOids(ref: string) {
+      const id = idCounter++
+      const res = await invoke('git:call', { id, type: 'listFilesWithOids', ref })
       if (res?.type === 'error') throw new Error(res.error)
       return res?.data
     },
@@ -73,25 +115,84 @@ function fastPathEnabled(): boolean {
 function createWebEngine(onProgress?: (message: string) => void): GitEngine {
   const client = createGitWorkerClient(onProgress)
   let currentDirHandle: FileSystemDirectoryHandle | null = null
+  const fileCache = new ReadFileCache()
 
   const WORKDIR_SENTINEL = '__WORKDIR__'
 
   return {
-    dispose: () => client.dispose(),
-    loadRepo: (repoKey: string, opts: any) => client.loadRepo(repoKey, opts),
+    dispose: () => {
+      fileCache.clear()
+      client.dispose()
+    },
+    loadRepo: (repoKey: string, opts: any) => {
+      fileCache.clear() // Clear cache on repo load
+      return client.loadRepo(repoKey, opts)
+    },
     listBranches: () => client.listBranches(),
-    diff: (a: string, b: string) => client.diff(a, b),
+    async diff(base: string, compare: string) {
+      // Special handling for WORKDIR diffs (web only)
+      // Since worktree is not seeded, compute diff via main thread
+      if (base === WORKDIR_SENTINEL || compare === WORKDIR_SENTINEL) {
+        if (!currentDirHandle) {
+          throw new Error('Cannot compute WORKDIR diff: directory handle not set')
+        }
+
+        // Determine which ref has the commit (non-WORKDIR)
+        const commitRef = base === WORKDIR_SENTINEL ? compare : base
+        const workdirIsCompare = compare === WORKDIR_SENTINEL
+
+        // Get tracked files from commit with their OIDs
+        const { files: filesWithOids } = await client.listFilesWithOids(commitRef)
+
+        // Compute WORKDIR diff via main thread
+        const result = await computeWorkdirDiff({
+          dirHandle: currentDirHandle,
+          filesWithOids,
+          // TODO: wire up progress and cancellation
+        })
+
+        // If WORKDIR is base, invert the types (remove → add, add → remove)
+        if (!workdirIsCompare) {
+          result.files.forEach(f => {
+            if (f.type === 'remove') f.type = 'add'
+            else if (f.type === 'add') f.type = 'remove'
+          })
+        }
+
+        return { files: result.files }
+      }
+
+      // For commit-to-commit diffs, use worker
+      return client.diff(base, compare)
+    },
     listFiles: (ref: string) => client.listFiles(ref),
+    listFilesWithOids: (ref: string) => client.listFilesWithOids(ref),
     async readFile(ref: string, filepath: string) {
+      // Generate cache key
+      // For WORKDIR, we could include file metadata but for simplicity accept minor staleness
+      const cacheKey = `${ref}:${filepath}`
+
+      // Check cache
+      const cached = fileCache.get(cacheKey)
+      if (cached !== undefined) {
+        return cached
+      }
+
       // Route WORKDIR reads through main-thread File System Access API
+      let result: any
       if (ref === WORKDIR_SENTINEL) {
         if (!currentDirHandle) {
           throw new Error('Cannot read WORKDIR file: directory handle not set')
         }
-        return await readWorkdirFile(currentDirHandle, filepath)
+        result = await readWorkdirFile(currentDirHandle, filepath)
+      } else {
+        // For all other refs, use worker
+        result = await client.readFile(ref, filepath)
       }
-      // For all other refs, use worker
-      return await client.readFile(ref, filepath)
+
+      // Cache result
+      fileCache.set(cacheKey, result)
+      return result
     },
     resolveRef: (ref: string) => client.resolveRef(ref),
     setCurrentDir: (dirHandle: FileSystemDirectoryHandle | null) => {
