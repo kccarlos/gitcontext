@@ -1,5 +1,5 @@
 import type { WorkspaceListItem } from '../hooks/useWorkspaces'
-import { Save, Trash2, Folder } from 'lucide-react'
+import { Save, Trash2, Folder, Database } from 'lucide-react'
 
 type Props = {
   workspaces: WorkspaceListItem[]
@@ -8,6 +8,7 @@ type Props = {
   onSaveWorkspace: () => void | Promise<void>
   onRemoveWorkspace: () => void | Promise<void>
   onSelectNewRepo: () => void | Promise<void>
+  onClearCache?: () => void | Promise<void>
   projectLoaded: boolean
   currentDir?: FileSystemDirectoryHandle | null
 }
@@ -19,6 +20,7 @@ export function HeaderControls({
   onSaveWorkspace,
   onRemoveWorkspace,
   onSelectNewRepo,
+  onClearCache,
   projectLoaded,
   currentDir,
 }: Props) {
@@ -83,6 +85,17 @@ export function HeaderControls({
       >
         <Trash2 size={16} />
       </button>
+      {onClearCache && (
+        <button
+          type="button"
+          onClick={() => onClearCache()}
+          disabled={!projectLoaded}
+          title="Clear local cache for this repository"
+          className="btn btn-ghost btn-icon"
+        >
+          <Database size={16} />
+        </button>
+      )}
     </div>
   )
 }

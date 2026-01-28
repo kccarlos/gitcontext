@@ -154,6 +154,62 @@ export async function snapshotGitFiles(
 }
 
 /**
+ * List working directory files (excluding .git) without reading their contents.
+ * Returns file paths relative to repo root (e.g., "src/App.tsx").
+ * Applies .gitignore rules.
+ */
+export async function listWorkdirFiles(
+  repoRoot: FileSystemDirectoryHandle,
+): Promise<string[]> {
+  const files: string[] = []
+
+  // Build ignore matcher from root-level gitignore and .git/info/exclude
+  const ig = ignore()
+  try {
+    const gi = await readFileTextFromDir(repoRoot, ['.gitignore'])
+    ig.add(gi)
+  } catch {
+    // no root .gitignore
+  }
+  try {
+    const ex = await readFileTextFromDir(repoRoot, ['.git', 'info', 'exclude'])
+    ig.add(ex)
+  } catch {
+    // no exclude
+  }
+
+  async function walk(dir: FileSystemDirectoryHandle, prefix: string) {
+    for await (const [name, handle] of (dir as any).entries() as AsyncIterable<
+      [string, FileSystemHandle]
+    >) {
+      // Skip .git directory entirely
+      if ((handle as any).kind === 'directory' && name === '.git') {
+        continue
+      }
+      const relPath = prefix ? `${prefix}/${name}` : name
+      // Apply ignore rules to both files and directories
+      try {
+        // Append trailing slash for directories when testing patterns ending with '/'
+        const candidate = (handle as any).kind === 'directory' ? `${relPath}/` : relPath
+        if (ig.ignores(candidate)) {
+          continue
+        }
+      } catch {
+        // ignore matcher errors
+      }
+      if ((handle as any).kind === 'file') {
+        files.push(relPath)
+      } else {
+        await walk(handle as FileSystemDirectoryHandle, relPath)
+      }
+    }
+  }
+
+  await walk(repoRoot, '')
+  return files
+}
+
+/**
  * Snapshot the working directory files (excluding .git) for a pseudo working-tree ref.
  * Returns entries with paths relative to repo root (e.g., "src/App.tsx").
  */
