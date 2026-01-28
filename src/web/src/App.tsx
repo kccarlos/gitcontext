@@ -22,6 +22,7 @@ import { countTokens } from './utils/tokenizer'
 // Globally shared token counts
 import { TokenCountsProvider, useTokenCountsContext } from './context/TokenCountsContext'
 import { isBinaryPath } from './utils/binary'
+import { MAX_CONCURRENT_READS } from './utils/constants'
 import { logError } from './utils/logger'
 import { debounce } from './utils/debounce'
 
@@ -379,9 +380,18 @@ function App() {
 
   // Selected files token counts come from hook; compute extras for file tree and assemble total
   const [fileTreeTokens, setFileTreeTokens] = useState<number>(0)
-  const [treeFilter, setTreeFilter] = useState<string>('')
+  const [treeFilterInput, setTreeFilterInput] = useState<string>('') // Immediate input value
+  const [treeFilter, setTreeFilter] = useState<string>('') // Debounced filter applied to tree
   const [treeTokensBusy, setTreeTokensBusy] = useState<boolean>(false)
   // (moved into TokenCountsContext)
+
+  // Debounce tree filter to avoid recomputing on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setTreeFilter(treeFilterInput)
+    }, 200) // 200ms debounce delay
+    return () => clearTimeout(timer)
+  }, [treeFilterInput])
 
   function generateSelectedTreeString(paths: string[]): string {
     // Build a minimal tree of selected files only
@@ -667,25 +677,39 @@ function App() {
       // File sections
       const fileSections: string[] = []
       const includeBinaryNow = (includeBinaryCheckboxRef.current?.checked ?? includeBinaryAsPathsRef.current)
-        const pathsToProcess = includeBinaryNow ? selected : selected.filter((p) => !isBinaryPath(p))
-      const fileReadPromises = pathsToProcess.map((path) => {
-        const status = statusByPath.get(path) ?? 'unchanged'
-        const needBase = status !== 'add'
-        const needCompare = status !== 'remove'
-        // Avoid heavy reads for binary paths — we only emit a header line
-        if (isBinaryPath(path)) {
-          return Promise.resolve({
-            path, status,
-            baseRes: { binary: true, text: null },
-            compareRes: { binary: true, text: null },
-          })
-        }
-        return Promise.all([
-          needBase ? gitClient.readFile(baseBranch, path) : Promise.resolve(undefined),
-          needCompare ? gitClient.readFile(compareBranch, path) : Promise.resolve(undefined),
-        ]).then(([baseRes, compareRes]) => ({ path, status, baseRes, compareRes }))
-      })
-      const fileContents = await Promise.all(fileReadPromises)
+      const pathsToProcess = includeBinaryNow ? selected : selected.filter((p) => !isBinaryPath(p))
+
+      // Process files in batches to avoid overwhelming the worker/memory
+      const fileContents: Array<{
+        path: string
+        status: FileDiffStatus
+        baseRes: any
+        compareRes: any
+      }> = []
+
+      for (let i = 0; i < pathsToProcess.length; i += MAX_CONCURRENT_READS) {
+        const batch = pathsToProcess.slice(i, i + MAX_CONCURRENT_READS)
+        const batchPromises = batch.map(async (path) => {
+          const status = statusByPath.get(path) ?? 'unchanged'
+          const needBase = status !== 'add'
+          const needCompare = status !== 'remove'
+          // Avoid heavy reads for binary paths — we only emit a header line
+          if (isBinaryPath(path)) {
+            return {
+              path, status,
+              baseRes: { binary: true, text: null },
+              compareRes: { binary: true, text: null },
+            }
+          }
+          const [baseRes, compareRes] = await Promise.all([
+            needBase ? gitClient.readFile(baseBranch, path) : Promise.resolve(undefined),
+            needCompare ? gitClient.readFile(compareBranch, path) : Promise.resolve(undefined),
+          ])
+          return { path, status, baseRes, compareRes }
+        })
+        const batchResults = await Promise.all(batchPromises)
+        fileContents.push(...batchResults)
+      }
         for (const { path, status, baseRes, compareRes } of fileContents) {
           const isBinary = (baseRes as { binary?: boolean } | undefined)?.binary || (compareRes as { binary?: boolean } | undefined)?.binary || isBinaryPath(path)
         const header = `## FILE: ${path} (${status.toUpperCase()})\n\n`
@@ -1004,8 +1028,8 @@ function App() {
                     <input className="input"
                       type="text"
                       placeholder="Filter files…"
-                      value={treeFilter}
-                      onChange={(e) => setTreeFilter(e.target.value)}
+                      value={treeFilterInput}
+                      onChange={(e) => setTreeFilterInput(e.target.value)}
                     />
                     <button type="button" onClick={expandAll} disabled={!fileTree} title="Expand all" className="btn btn-ghost btn-icon"><ChevronsDown size={18} /></button>
                     <button type="button" onClick={collapseAll} disabled={!fileTree} title="Collapse all" className="btn btn-ghost btn-icon"><ChevronsUp size={18} /></button>

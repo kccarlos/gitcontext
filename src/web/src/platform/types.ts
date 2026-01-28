@@ -22,6 +22,8 @@ export type GitEngine = {
 	listFiles(ref: string): Promise<{ files: string[] }>
 	readFile(ref: string, filepath: string): Promise<ReadFileResult>
 	resolveRef(ref: string): Promise<{ oid: string }>
+	// Set the current directory handle for WORKDIR operations (web only)
+	setCurrentDir?(dirHandle: FileSystemDirectoryHandle | null): void
 }
 
 export type RepoPicker = {

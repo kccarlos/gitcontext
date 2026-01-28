@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createGitEngine } from '../platform/gitFactory'
 import type { GitEngine } from '../platform/types'
-import { pickDirectory, ensurePermission, verifyGitRepositoryRoot, snapshotGitFiles, snapshotWorktreeFiles } from '../utils/fs'
+import { pickDirectory, ensurePermission, verifyGitRepositoryRoot, snapshotGitFiles } from '../utils/fs'
 import type { AppStatus } from '../types/appStatus'
 
 // Foundational repo mode for future expansion (git/plain)
@@ -148,16 +148,19 @@ export function useGitRepository(setAppStatus?: (s: AppStatus) => void) {
 
       setGitProgress('Snapshotting .git files…')
       const gitFiles = await snapshotGitFiles(handle)
-      const workFiles = await snapshotWorktreeFiles(handle)
+      // Note: worktree files are no longer snapshotted by default to scale to large repos
+      // WORKDIR reads will be handled on-demand from main thread via File System Access API
       try { console.info('[snapshot] .git files:', gitFiles.length) } catch {}
       let res: any = null
       try {
-        res = await client.loadRepo(repoKey, { gitFiles, workFiles })
+        res = await client.loadRepo(repoKey, { gitFiles })
       } catch (e: any) {
         console.warn('[git-worker] loadRepo failed, falling back to refs snapshot', e)
       }
       // Only publish the client once the repository is initialized in the worker
       if (res && res.branches) {
+        // Set the current directory handle for WORKDIR operations
+        client.setCurrentDir?.(handle)
         setGitClient(client)
       }
       const fallback = !res || !res.branches || res.branches.length === 0 ? branchesFromSnapshot(gitFiles) : null
@@ -174,19 +177,23 @@ export function useGitRepository(setAppStatus?: (s: AppStatus) => void) {
       const saved = loadSavedSelection()
 
       // Compute next selection
+      const WORKDIR_SENTINEL = '__WORKDIR__'
       let nextBase = saved.base && finalBranches.includes(saved.base)
         ? saved.base
         : (baseBranch && finalBranches.includes(baseBranch)
             ? baseBranch
             : (finalDefault ?? (finalBranches[0] ?? '')))
 
+      // For compare, prefer a non-WORKDIR branch when possible
       let nextCompare = saved.compare && finalBranches.includes(saved.compare)
         ? saved.compare
         : (compareBranch && finalBranches.includes(compareBranch)
             ? compareBranch
-            : (finalBranches.find((b: string) => b !== nextBase) ?? ''))
+            : (finalBranches.find((b: string) => b !== nextBase && b !== WORKDIR_SENTINEL) ??
+               finalBranches.find((b: string) => b !== nextBase) ?? ''))
       if (nextCompare === nextBase) {
-        nextCompare = finalBranches.find((b: string) => b !== nextBase) ?? ''
+        nextCompare = finalBranches.find((b: string) => b !== nextBase && b !== WORKDIR_SENTINEL) ??
+                      finalBranches.find((b: string) => b !== nextBase) ?? ''
       }
       setBaseBranch(nextBase)
       setCompareBranch(nextCompare)
@@ -196,6 +203,7 @@ export function useGitRepository(setAppStatus?: (s: AppStatus) => void) {
       setAppStatus?.({ state: 'READY', message: 'Repository loaded successfully.' })
       try { console.info('[app-status]', { state: 'READY', message: 'Repository loaded successfully.' }) } catch {}
       // Now that the worker FS is initialized and branches known, publish the client
+      client.setCurrentDir?.(handle)
       setGitClient(client)
     } finally {
       // Keep the progress text until the consumer replaces it
