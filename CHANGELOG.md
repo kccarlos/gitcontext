@@ -1,3 +1,12 @@
+## [1.3.2](https://github.com/kccarlos/gitcontext/compare/v1.3.1...v1.3.2) (2026-01-28)
+
+
+### Performance Improvements
+
+* **workdir:** add guardrails, route reads to main thread, and improve concurrency ([b888149](https://github.com/kccarlos/gitcontext/commit/b8881490628f5f3c0c07f842a8823858ed992433))
+* **workdir:** performance & scalability for very large repos ([9dc5005](https://github.com/kccarlos/gitcontext/commit/9dc5005fff85af84ca977c25e9153bdcb819441e))
+* **workdir:** remove eager snapshotting and compute WORKDIR diffs lazily ([be9723c](https://github.com/kccarlos/gitcontext/commit/be9723c6dad0a416cfa907f5787904a9126a0481))
+
 ## [1.3.1](https://github.com/kccarlos/gitcontext/compare/v1.3.0...v1.3.1) (2026-01-07)
 
 
