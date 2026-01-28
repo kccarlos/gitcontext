@@ -1,0 +1,23 @@
+[package]
+name = "gitcontext-desktop"
+version = "1.0.0"
+description = "GitContext Desktop App"
+authors = ["kccarlos"]
+edition = "2021"
+
+[lib]
+name = "gitcontext_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.0", features = ["devtools"] }
+tauri-plugin-dialog = "2.0"
+tauri-plugin-fs = "2.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[target."cfg(not(any(target_os = \"android\", target_os = \"ios\")))".dependencies]
+tauri-plugin-cli = "2.0"

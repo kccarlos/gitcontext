@@ -141,7 +141,16 @@ vite.config.ts.timestamp-*
 src/web/dist
 src/web/dist-ssr
 src/web/*.local
+apps/web/dist
+apps/web/dist-ssr
+apps/web/*.local
+apps/web/dist-electron
+apps/web/test-results
 
+# Desktop (Tauri)
+apps/desktop/dist
+apps/desktop/src-tauri/target
+apps/desktop/src-tauri/Cargo.lock
 
 # Editor directories and files
 .vscode/*
@@ -153,9 +162,6 @@ src/web/*.local
 *.njsproj
 *.sln
 *.sw?
-
-src/web/dist-electron
-src/web/test-results
 # Ignore all Markdown files
 *.md
 

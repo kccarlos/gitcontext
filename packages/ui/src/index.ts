@@ -6,4 +6,4 @@ export { default as GitHubStarIconButton } from './components/GitHubStarIconButt
 export { default as BugIconButton } from './components/BugIconButton'
 export { default as TokenUsage } from './components/TokenUsage'
 export { ProjectPanel } from './components/ProjectPanel'
-export { default as BrowserSupportGate } from './components/BrowserSupportGate'
+// BrowserSupportGate is web-only, uses import.meta.env

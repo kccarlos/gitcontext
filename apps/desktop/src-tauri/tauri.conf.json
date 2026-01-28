@@ -1,0 +1,44 @@
+{
+  "productName": "GitContext",
+  "version": "1.0.0",
+  "identifier": "xyz.gitcontext.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "publisher": "GitContext",
+    "category": "DeveloperTool",
+    "shortDescription": "Package Git diffs and code for LLM context",
+    "longDescription": "GitContext helps you package local file diffs and code into a single, clean prompt for AI chatbots.",
+    "macOS": {
+      "minimumSystemVersion": "10.13"
+    }
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "GitContext",
+        "width": 1200,
+        "height": 800,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  }
+}
