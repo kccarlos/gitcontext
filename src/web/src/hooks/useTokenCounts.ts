@@ -4,6 +4,7 @@ import { createTokenizer } from '../platform/tokenizerFactory'
 import type { FileDiffStatus } from './useFileTree'
 import { buildUnifiedDiffForStatus } from '../utils/diff'
 import { isBinaryPath } from '../utils/binary'
+import { MAX_CONCURRENT_READS } from '../utils/constants'
 
 export type TokenCounts = Map<string, number>
 
@@ -54,11 +55,10 @@ export function useTokenCounts({
         try { onBatch?.(totalFiles === 0 ? 1 : 0, totalFiles === 0 ? 1 : totalFiles) } catch {}
         
         // Limit concurrent requests to prevent overwhelming the worker
-        const BATCH_SIZE = 10
-        for (let i = 0; i < selectedList.length; i += BATCH_SIZE) {
+        for (let i = 0; i < selectedList.length; i += MAX_CONCURRENT_READS) {
           if (cancelled) break
-          
-          const batch = selectedList.slice(i, i + BATCH_SIZE)
+
+          const batch = selectedList.slice(i, i + MAX_CONCURRENT_READS)
           await Promise.all(
             batch.map(async (path) => {
               const status = statusByPath.get(path) ?? 'unchanged'

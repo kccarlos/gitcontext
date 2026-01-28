@@ -72,6 +72,56 @@ let repoKey: string | null = null
 let gitCache: Record<string, any> = Object.create(null)
 const WORKDIR_SENTINEL = '__WORKDIR__'
 
+// Dev-mode logging helper (only logs in development builds)
+const DEV = import.meta.env.DEV
+function devLog(msg: string) {
+  if (DEV) {
+    console.log(`[worker:dev] ${msg}`)
+  }
+}
+
+// Simple LRU cache for diff results
+class LRUCache<K, V> {
+  private cache = new Map<K, V>()
+  private maxSize: number
+
+  constructor(maxSize: number) {
+    this.maxSize = maxSize
+  }
+
+  get(key: K): V | undefined {
+    if (!this.cache.has(key)) return undefined
+    // Move to end (most recently used)
+    const value = this.cache.get(key)!
+    this.cache.delete(key)
+    this.cache.set(key, value)
+    return value
+  }
+
+  set(key: K, value: V): void {
+    // Delete if exists (to update position)
+    if (this.cache.has(key)) {
+      this.cache.delete(key)
+    }
+    // Add to end
+    this.cache.set(key, value)
+    // Evict oldest if over capacity
+    if (this.cache.size > this.maxSize) {
+      const firstKey = this.cache.keys().next().value as K
+      if (firstKey !== undefined) {
+        this.cache.delete(firstKey)
+      }
+    }
+  }
+
+  clear(): void {
+    this.cache.clear()
+  }
+}
+
+// Diff result cache: keyed by (baseOid, compareOid)
+const diffCache = new LRUCache<string, Array<{ path: string; type: 'modify' | 'add' | 'remove' }>>(16)
+
 // ---------- Helpers ----------
 async function listBranchesFallbackFromFS(): Promise<string[]> {
   if (!pfs) return []
@@ -222,6 +272,7 @@ async function handleLoadRepo(msg: Extract<RequestMessage, { type: 'loadRepo' }>
   lfs = new LightningFS(fsName)
   pfs = lfs.promises
   gitCache = Object.create(null)
+  diffCache.clear() // Clear diff cache on repo reload
 
   progress(msg.id, 'Scanning .git directory…')
 
@@ -349,8 +400,12 @@ async function handleDiff(
 ): Promise<ResOk> {
   if (!pfs) throw new Error('Repository is not initialized in worker')
 
+  devLog(`handleDiff: base=${base}, compare=${compare}`)
+  const startTime = performance.now()
+
   if (base === compare) {
     progress(id, 'Base and compare are identical; empty diff.')
+    devLog(`handleDiff completed in ${(performance.now() - startTime).toFixed(2)}ms (empty)`)
     return { id, type: 'ok', data: { files: [] } }
   }
 
@@ -379,6 +434,19 @@ async function handleDiff(
       compareOid ? short(compareOid) : WORKDIR_SENTINEL
     }`,
   )
+
+  // Check cache (only for non-WORKDIR diffs since WORKDIR can change)
+  const cacheKey = `${baseOid || WORKDIR_SENTINEL}:${compareOid || WORKDIR_SENTINEL}`
+  const useCache = base !== WORKDIR_SENTINEL && compare !== WORKDIR_SENTINEL
+  if (useCache) {
+    const cached = diffCache.get(cacheKey)
+    if (cached) {
+      devLog(`handleDiff cache hit: ${cacheKey}`)
+      progress(id, `Diff complete. Files changed: ${cached.length} (cached)`)
+      devLog(`handleDiff completed in ${(performance.now() - startTime).toFixed(2)}ms (cached)`)
+      return { id, type: 'ok', data: { files: cached } }
+    }
+  }
 
   progress(id, 'Computing diff…')
 
@@ -420,7 +488,15 @@ async function handleDiff(
   })) as Array<NameStatus | undefined>
 
   const files = results.filter((x): x is NameStatus => Boolean(x))
+
+  // Store in cache (only for non-WORKDIR diffs)
+  if (useCache) {
+    diffCache.set(cacheKey, files)
+    devLog(`handleDiff cache set: ${cacheKey}`)
+  }
+
   progress(id, `Diff complete. Files changed: ${files.length}`)
+  devLog(`handleDiff completed in ${(performance.now() - startTime).toFixed(2)}ms (${files.length} files, ${processed} entries scanned)`)
   return { id, type: 'ok', data: { files } }
 }
 
@@ -432,12 +508,22 @@ async function handleReadFile(
 ): Promise<ResOk> {
   if (!pfs) throw new Error('Repository is not initialized in worker')
 
+  devLog(`handleReadFile: ref=${ref}, filepath=${filepath}`)
+  const startTime = performance.now()
+
   // Fast extension short-circuit (no content read)
   if (isBinaryPath(filepath)) {
     if (ref === WORKDIR_SENTINEL) {
-      try { await pfs.stat('/' + filepath); return { id, type: 'ok', data: { binary: true, text: null, notFound: false } } }
-      catch { return { id, type: 'ok', data: { binary: false, text: null, notFound: true } } }
+      try {
+        await pfs.stat('/' + filepath)
+        devLog(`handleReadFile completed in ${(performance.now() - startTime).toFixed(2)}ms (binary fast-path, exists)`)
+        return { id, type: 'ok', data: { binary: true, text: null, notFound: false } }
+      } catch {
+        devLog(`handleReadFile completed in ${(performance.now() - startTime).toFixed(2)}ms (binary fast-path, not found)`)
+        return { id, type: 'ok', data: { binary: false, text: null, notFound: true } }
+      }
     }
+    devLog(`handleReadFile completed in ${(performance.now() - startTime).toFixed(2)}ms (binary fast-path)`)
     return { id, type: 'ok', data: { binary: true, text: null, notFound: false } }
   }
 
@@ -448,8 +534,10 @@ async function handleReadFile(
       const sample = raw.subarray(0, SNIFF_BYTES)
       const binary = detectBinaryByContent(sample, filepath)
       const text = binary ? null : new TextDecoder('utf-8', { fatal: false }).decode(raw)
+      devLog(`handleReadFile completed in ${(performance.now() - startTime).toFixed(2)}ms (WORKDIR, ${raw.length} bytes, binary=${binary})`)
       return { id, type: 'ok', data: { binary, text, notFound: false } }
     } catch {
+      devLog(`handleReadFile completed in ${(performance.now() - startTime).toFixed(2)}ms (WORKDIR, not found)`)
       return { id, type: 'ok', data: { binary: false, text: null, notFound: true } }
     }
   }
@@ -467,6 +555,7 @@ async function handleReadFile(
     raw = blob as Uint8Array
   } catch (e: any) {
     // File does not exist at this ref (e.g. added/removed cases)
+    devLog(`handleReadFile completed in ${(performance.now() - startTime).toFixed(2)}ms (commit, not found)`)
     return { id, type: 'ok', data: { binary: false, text: null, notFound: true } }
   }
 
@@ -478,6 +567,7 @@ async function handleReadFile(
     text = new TextDecoder('utf-8', { fatal: false }).decode(raw)
   }
 
+  devLog(`handleReadFile completed in ${(performance.now() - startTime).toFixed(2)}ms (commit, ${raw.length} bytes, binary=${binary})`)
   return { id, type: 'ok', data: { binary, text, notFound: false } }
 }
 

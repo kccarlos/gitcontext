@@ -1,5 +1,6 @@
 import { createGitWorkerClient } from '../utils/gitWorkerClient'
 import type { GitEngine } from './types'
+import { readWorkdirFile } from '../utils/workdirReader'
 
 function createIpcClient(onProgress?: (message: string) => void): GitEngine {
   const invoke = (window as any)?.electron?.invoke as ((ch: string, payload?: any) => Promise<any>) | undefined
@@ -71,14 +72,31 @@ function fastPathEnabled(): boolean {
 // Web adapter — thin wrapper to satisfy GitEngine type
 function createWebEngine(onProgress?: (message: string) => void): GitEngine {
   const client = createGitWorkerClient(onProgress)
+  let currentDirHandle: FileSystemDirectoryHandle | null = null
+
+  const WORKDIR_SENTINEL = '__WORKDIR__'
+
   return {
     dispose: () => client.dispose(),
     loadRepo: (repoKey: string, opts: any) => client.loadRepo(repoKey, opts),
     listBranches: () => client.listBranches(),
     diff: (a: string, b: string) => client.diff(a, b),
     listFiles: (ref: string) => client.listFiles(ref),
-    readFile: (ref: string, filepath: string) => client.readFile(ref, filepath),
+    async readFile(ref: string, filepath: string) {
+      // Route WORKDIR reads through main-thread File System Access API
+      if (ref === WORKDIR_SENTINEL) {
+        if (!currentDirHandle) {
+          throw new Error('Cannot read WORKDIR file: directory handle not set')
+        }
+        return await readWorkdirFile(currentDirHandle, filepath)
+      }
+      // For all other refs, use worker
+      return await client.readFile(ref, filepath)
+    },
     resolveRef: (ref: string) => client.resolveRef(ref),
+    setCurrentDir: (dirHandle: FileSystemDirectoryHandle | null) => {
+      currentDirHandle = dirHandle
+    },
   }
 }
 
