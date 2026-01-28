@@ -123,6 +123,10 @@ class LRUCache<K, V> {
 // Diff result cache: keyed by (baseOid, compareOid)
 const diffCache = new LRUCache<string, Array<{ path: string; type: 'modify' | 'add' | 'remove' }>>(16)
 
+// ReadFile result cache: keyed by (commitOid:filepath)
+// Cache value: { binary: boolean, text: string | null, notFound: boolean }
+const readFileCache = new LRUCache<string, { binary: boolean; text: string | null; notFound: boolean }>(64)
+
 // ---------- Helpers ----------
 async function listBranchesFallbackFromFS(): Promise<string[]> {
   if (!pfs) return []
@@ -274,6 +278,7 @@ async function handleLoadRepo(msg: Extract<RequestMessage, { type: 'loadRepo' }>
   pfs = lfs.promises
   gitCache = Object.create(null)
   diffCache.clear() // Clear diff cache on repo reload
+  readFileCache.clear() // Clear readFile cache on repo reload
 
   progress(msg.id, 'Scanning .git directory…')
 
@@ -356,36 +361,8 @@ async function handleListBranches(id: number): Promise<ResOk> {
 async function handleListFiles(id: number, ref: string): Promise<ResOk> {
   if (!pfs) throw new Error('Repository is not initialized in worker')
   if (ref === WORKDIR_SENTINEL) {
-    // Walk working dir and list all files (excluding .git)
-    const out: string[] = []
-    async function walk(path: string) {
-      let entries: string[]
-      try {
-        entries = await pfs.readdir(path)
-      } catch {
-        return
-      }
-      for (const name of entries) {
-        const full = (path === '/' ? '' : path) + '/' + name
-        if (full === '/.git' || full.startsWith('/.git/')) continue
-        try {
-          await pfs.readdir(full)
-          await walk(full)
-        } catch {
-          const filePath = full.slice(1)
-          // Respect .gitignore by consulting git's own ignore logic
-          try {
-            const git = await getGit()
-            const ignored = await (git as any).isIgnored?.({ fs: lfs, dir: '/', filepath: filePath })
-            if (!ignored) out.push(filePath)
-          } catch {
-            out.push(filePath) // graceful fallback
-          }
-        }
-      }
-    }
-    await walk('/')
-    return { id, type: 'ok', data: { files: out.sort() } }
+    // WORKDIR listing is handled by main thread in web mode
+    throw new Error('WORKDIR listing is not supported in worker. Use main-thread File System Access API.')
   }
   const git = await getGit()
   const files = await git.listFiles({ fs: lfs, dir: '/', ref })
@@ -436,6 +413,11 @@ async function handleDiff(
 
   devLog(`handleDiff: base=${base}, compare=${compare}`)
   const startTime = performance.now()
+
+  // WORKDIR diffs are handled by main thread in web mode
+  if (base === WORKDIR_SENTINEL || compare === WORKDIR_SENTINEL) {
+    throw new Error('WORKDIR diff is not supported in worker. Use main-thread computation.')
+  }
 
   if (base === compare) {
     progress(id, 'Base and compare are identical; empty diff.')
@@ -575,8 +557,19 @@ async function handleReadFile(
       return { id, type: 'ok', data: { binary: false, text: null, notFound: true } }
     }
   }
+
+  // For commit refs, resolve OID and check cache
   const git = await getGit()
   const commitOid = await git.resolveRef({ fs: lfs, dir: '/', ref })
+  const cacheKey = `${commitOid}:${filepath}`
+
+  // Check cache
+  const cached = readFileCache.get(cacheKey)
+  if (cached !== undefined) {
+    devLog(`handleReadFile cache hit: ${cacheKey}`)
+    devLog(`handleReadFile completed in ${(performance.now() - startTime).toFixed(2)}ms (cached)`)
+    return { id, type: 'ok', data: cached }
+  }
 
   let raw: Uint8Array | null = null
   try {
@@ -589,8 +582,11 @@ async function handleReadFile(
     raw = blob as Uint8Array
   } catch (e: any) {
     // File does not exist at this ref (e.g. added/removed cases)
+    const result = { binary: false, text: null, notFound: true }
+    readFileCache.set(cacheKey, result)
+    devLog(`handleReadFile cache set: ${cacheKey}`)
     devLog(`handleReadFile completed in ${(performance.now() - startTime).toFixed(2)}ms (commit, not found)`)
-    return { id, type: 'ok', data: { binary: false, text: null, notFound: true } }
+    return { id, type: 'ok', data: result }
   }
 
   const sample = (raw as Uint8Array).subarray(0, SNIFF_BYTES)
@@ -601,8 +597,11 @@ async function handleReadFile(
     text = new TextDecoder('utf-8', { fatal: false }).decode(raw)
   }
 
+  const result = { binary, text, notFound: false }
+  readFileCache.set(cacheKey, result)
+  devLog(`handleReadFile cache set: ${cacheKey}`)
   devLog(`handleReadFile completed in ${(performance.now() - startTime).toFixed(2)}ms (commit, ${raw.length} bytes, binary=${binary})`)
-  return { id, type: 'ok', data: { binary, text, notFound: false } }
+  return { id, type: 'ok', data: result }
 }
 
 self.addEventListener('error', (e: ErrorEvent) => {

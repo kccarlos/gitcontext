@@ -22,7 +22,9 @@ import { countTokens } from './utils/tokenizer'
 // Globally shared token counts
 import { TokenCountsProvider, useTokenCountsContext } from './context/TokenCountsContext'
 import { isBinaryPath } from './utils/binary'
-import { MAX_CONCURRENT_READS } from './utils/constants'
+import { MAX_CONCURRENT_READS, LARGE_REPO_FILE_THRESHOLD, LARGE_SELECTION_THRESHOLD } from './utils/constants'
+import { mapWithConcurrency } from './utils/concurrency'
+import { clearRepositoryCache } from './utils/cache'
 import { logError } from './utils/logger'
 import { debounce } from './utils/debounce'
 
@@ -438,6 +440,8 @@ function App() {
   const {
     isComputing,
     fileTree,
+    statusByPath,
+    totalFileCount,
     showChangedOnly,
     setShowChangedOnly,
     expandedPaths,
@@ -555,18 +559,7 @@ function App() {
     setHideStatus(false)
   }, [appStatus])
 
-  // Build a path -> status map from current file tree (unconditional to satisfy Rules of Hooks)
-  const statusByPath = useMemo<Map<string, FileDiffStatus>>(() => {
-    const m = new Map<string, FileDiffStatus>()
-    const walk = (n: unknown) => {
-      if (!n) return
-      const node = n as { type: 'dir' | 'file'; path: string; status?: FileDiffStatus; children?: unknown[] }
-      if (node.type === 'file') m.set(node.path, node.status ?? 'unchanged')
-      ;(node.children as unknown[] | undefined)?.forEach(walk)
-    }
-    if (fileTree) walk(fileTree)
-    return m
-  }, [fileTree])
+  // statusByPath is now returned directly from useFileTree (no tree traversal needed)
 
   // Token counting is now provided globally via <TokenCountsProvider />.
 
@@ -582,6 +575,7 @@ function App() {
       onSaveWorkspace={() => saveWorkspaceFromHandle(currentDir)}
       onRemoveWorkspace={removeSelected}
       onSelectNewRepo={selectNewRepoAndReset}
+      onClearCache={handleClearCache}
       projectLoaded={projectLoaded}
       currentDir={currentDir}
     />
@@ -641,9 +635,52 @@ function App() {
     )
   }
 
+  // Wrap expandAll with large repo confirmation
+  function handleExpandAll() {
+    if (totalFileCount > LARGE_REPO_FILE_THRESHOLD) {
+      const confirm = window.confirm(
+        `This repository has ${totalFileCount.toLocaleString()} files. Expanding all folders may slow down the UI. Continue?`
+      )
+      if (!confirm) return
+    }
+    expandAll()
+  }
+
+  // Clear repository cache
+  async function handleClearCache() {
+    if (!currentDir) return
+
+    const confirm = window.confirm(
+      'This will clear the local cache for this repository. The next time you open it, all git data will be re-loaded. Continue?'
+    )
+    if (!confirm) return
+
+    try {
+      // Derive repo key from directory name (same as useGitRepository)
+      const repoKey = currentDir.name.replace(/[^a-zA-Z0-9_-]/g, '_')
+      await clearRepositoryCache(repoKey)
+      setNotif('Cache cleared successfully')
+      setTimeout(() => setNotif(null), 3000)
+    } catch (err) {
+      console.error('[cache clear]', err)
+      setNotif('Failed to clear cache. See console.')
+      setTimeout(() => setNotif(null), 3000)
+    }
+  }
+
   // Assemble final context content for the clipboard
   async function copyAllSelected() {
     if (!gitClient || !baseBranch || !compareBranch) return
+
+    // Large selection warning
+    const selectedCount = selectedPathsRef.current.size
+    if (selectedCount > LARGE_SELECTION_THRESHOLD) {
+      const confirm = window.confirm(
+        `You are about to copy ${selectedCount} files. This may take a while and use significant memory. Continue?`
+      )
+      if (!confirm) return
+    }
+
     try {
       const selected = Array.from(selectedPathsRef.current)
       // Resolve refs for display; handle WORKDIR sentinel specially
@@ -680,16 +717,9 @@ function App() {
       const pathsToProcess = includeBinaryNow ? selected : selected.filter((p) => !isBinaryPath(p))
 
       // Process files in batches to avoid overwhelming the worker/memory
-      const fileContents: Array<{
-        path: string
-        status: FileDiffStatus
-        baseRes: any
-        compareRes: any
-      }> = []
-
-      for (let i = 0; i < pathsToProcess.length; i += MAX_CONCURRENT_READS) {
-        const batch = pathsToProcess.slice(i, i + MAX_CONCURRENT_READS)
-        const batchPromises = batch.map(async (path) => {
+      const fileContents = await mapWithConcurrency(
+        pathsToProcess,
+        async (path) => {
           const status = statusByPath.get(path) ?? 'unchanged'
           const needBase = status !== 'add'
           const needCompare = status !== 'remove'
@@ -706,10 +736,9 @@ function App() {
             needCompare ? gitClient.readFile(compareBranch, path) : Promise.resolve(undefined),
           ])
           return { path, status, baseRes, compareRes }
-        })
-        const batchResults = await Promise.all(batchPromises)
-        fileContents.push(...batchResults)
-      }
+        },
+        { limit: MAX_CONCURRENT_READS }
+      )
         for (const { path, status, baseRes, compareRes } of fileContents) {
           const isBinary = (baseRes as { binary?: boolean } | undefined)?.binary || (compareRes as { binary?: boolean } | undefined)?.binary || isBinaryPath(path)
         const header = `## FILE: ${path} (${status.toUpperCase()})\n\n`
@@ -756,14 +785,28 @@ function App() {
         }
       }
 
-      const final = [
-        instrSection,
-        contextLines.join('\n'),
-        treeSection,
-        ...fileSections,
-      ].filter(Boolean).join('\n')
+      // Build final output as Blob to avoid concatenating huge strings
+      // This reduces peak memory usage for large selections
+      const parts: string[] = []
+      if (instrSection) parts.push(instrSection)
+      parts.push(contextLines.join('\n'))
+      if (treeSection) parts.push(treeSection)
+      parts.push(...fileSections)
 
-      await navigator.clipboard.writeText(final)
+      const finalText = parts.filter(Boolean).join('\n')
+
+      // Try modern Clipboard API with Blob first (better for large content)
+      // Fall back to writeText if not supported
+      try {
+        const blob = new Blob([finalText], { type: 'text/plain' })
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'text/plain': blob })
+        ])
+      } catch {
+        // Fallback for browsers that don't support ClipboardItem with text/plain
+        await navigator.clipboard.writeText(finalText)
+      }
+
       setCopyFlash('✅ Copied!')
       setTimeout(() => setCopyFlash(null), 2000)
     } catch (e) {
@@ -1031,7 +1074,7 @@ function App() {
                       value={treeFilterInput}
                       onChange={(e) => setTreeFilterInput(e.target.value)}
                     />
-                    <button type="button" onClick={expandAll} disabled={!fileTree} title="Expand all" className="btn btn-ghost btn-icon"><ChevronsDown size={18} /></button>
+                    <button type="button" onClick={handleExpandAll} disabled={!fileTree} title="Expand all" className="btn btn-ghost btn-icon"><ChevronsDown size={18} /></button>
                     <button type="button" onClick={collapseAll} disabled={!fileTree} title="Collapse all" className="btn btn-ghost btn-icon"><ChevronsUp size={18} /></button>
                     <button type="button" onClick={selectAll} disabled={!fileTree} title="Select all" className="btn btn-ghost btn-icon"><CheckSquare size={16} /></button>
                     <button type="button" onClick={deselectAll} disabled={!fileTree} title="Deselect all" className="btn btn-ghost btn-icon"><Square size={16} /></button>

@@ -11,3 +11,19 @@
  * and resource usage.
  */
 export const MAX_CONCURRENT_READS = 10
+
+/**
+ * Large repo mode thresholds
+ */
+
+/**
+ * Total file count threshold for triggering large repo warnings.
+ * Above this, default to "Filter Changed Files" ON and warn on "Expand All".
+ */
+export const LARGE_REPO_FILE_THRESHOLD = 50000
+
+/**
+ * Selection count threshold for copy confirmation.
+ * Above this, show confirmation dialog before copying.
+ */
+export const LARGE_SELECTION_THRESHOLD = 2000

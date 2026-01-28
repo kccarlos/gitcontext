@@ -2,6 +2,7 @@ import { createGitWorkerClient } from '../utils/gitWorkerClient'
 import type { GitEngine } from './types'
 import { readWorkdirFile } from '../utils/workdirReader'
 import { computeWorkdirDiff } from '../utils/workdirDiff'
+import { listWorkdirFiles } from '../utils/fs'
 
 // Simple LRU cache for readFile results
 class ReadFileCache {
@@ -165,7 +166,18 @@ function createWebEngine(onProgress?: (message: string) => void): GitEngine {
       // For commit-to-commit diffs, use worker
       return client.diff(base, compare)
     },
-    listFiles: (ref: string) => client.listFiles(ref),
+    async listFiles(ref: string) {
+      // Route WORKDIR listing to main thread
+      if (ref === WORKDIR_SENTINEL) {
+        if (!currentDirHandle) {
+          throw new Error('Cannot list WORKDIR files: directory handle not set')
+        }
+        const files = await listWorkdirFiles(currentDirHandle)
+        return { files }
+      }
+      // For commit refs, use worker
+      return client.listFiles(ref)
+    },
     listFilesWithOids: (ref: string) => client.listFilesWithOids(ref),
     async readFile(ref: string, filepath: string) {
       // Generate cache key

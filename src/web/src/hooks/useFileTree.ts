@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import type { GitWorkerClient } from '../utils/gitWorkerClient'
 import type { AppStatus } from '../types/appStatus'
 import { isBinaryPath } from '../utils/binary'
+import { LARGE_REPO_FILE_THRESHOLD } from '../utils/constants'
 
 export type FileDiffStatus = 'modify' | 'add' | 'remove' | 'unchanged'
 
@@ -19,15 +20,18 @@ type ProgressSetter = (update: { message: string; percent: number } | null) => v
 export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
   const [diffFiles, setDiffFiles] = useState<Array<{ path: string; type: 'modify' | 'add' | 'remove' }>>([])
   const [fileTree, setFileTree] = useState<FileTreeNode | null>(null)
+  const [statusByPath, setStatusByPath] = useState<Map<string, FileDiffStatus>>(new Map())
+  const [totalFileCount, setTotalFileCount] = useState<number>(0)
   const [showChangedOnly, setShowChangedOnly] = useState<boolean>(true)
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set())
   const [isComputing, setIsComputing] = useState<boolean>(false)
 
-  const buildTreeFromPaths = useCallback((allPaths: string[], diffMap: Map<string, FileDiffStatus>): FileTreeNode => {
+  const buildTreeFromPaths = useCallback((allPaths: string[], diffMap: Map<string, FileDiffStatus>): { tree: FileTreeNode; statusByPath: Map<string, FileDiffStatus> } => {
     const root: FileTreeNode = { name: '', path: '', type: 'dir', children: [] }
     const dirMap = new Map<string, FileTreeNode>()
     dirMap.set('', root)
+    const statusMap = new Map<string, FileDiffStatus>()
 
     function ensureDir(dirPath: string): FileTreeNode {
       if (dirMap.has(dirPath)) return dirMap.get(dirPath) as FileTreeNode
@@ -48,14 +52,17 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
       const fileName = parts[parts.length - 1]
       const parent = ensureDir(dirPath)
       if (!(parent.children as FileTreeNode[]).some((c) => c.type === 'file' && c.name === fileName)) {
+        const status = (diffMap.get(fullPath) ?? 'unchanged') as FileDiffStatus
         const fileNode: FileTreeNode = {
           name: fileName,
           path: fullPath,
           type: 'file',
-          status: (diffMap.get(fullPath) ?? 'unchanged') as FileDiffStatus,
+          status,
           isLikelyBinary: likelyBinary(fullPath),
         }
         ;(parent.children as FileTreeNode[]).push(fileNode)
+        // Build statusByPath map here during tree construction
+        statusMap.set(fullPath, status)
       }
     }
 
@@ -68,7 +75,7 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
       for (const c of node.children) sort(c)
     }
     sort(root)
-    return root
+    return { tree: root, statusByPath: statusMap }
   }, [])
 
   const computeDiffAndTree = useCallback(
@@ -81,6 +88,8 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
       if (!gitClient || !baseBranch || !compareBranch || baseBranch === compareBranch) {
         setDiffFiles([])
         setFileTree(null)
+        setStatusByPath(new Map())
+        setTotalFileCount(0)
         setSelectedPaths(new Set())
         setExpandedPaths(new Set())
         return
@@ -107,8 +116,18 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
         setProgress?.({ message: 'Building file tree…', percent: 75 })
         setAppStatus?.({ state: 'LOADING', task: 'diff', message: 'Building file tree…', progress: 75 })
         try { console.info('[app-status]', { state: 'LOADING', task: 'diff', message: 'Building file tree…', progress: 75 }) } catch {}
-        const tree = buildTreeFromPaths(Array.from(union), diffMap)
+        const { tree, statusByPath: statusMap } = buildTreeFromPaths(Array.from(union), diffMap)
         setFileTree(tree)
+        setStatusByPath(statusMap)
+
+        // Track total file count for large repo mode
+        const totalFiles = union.size
+        setTotalFileCount(totalFiles)
+
+        // Large repo mode: auto-enable "Filter Changed Files" for repos with many files
+        if (totalFiles > LARGE_REPO_FILE_THRESHOLD) {
+          setShowChangedOnly(true)
+        }
 
         const sel = new Set<string>()
         for (const f of res.files) {
@@ -200,6 +219,8 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
     isComputing,
     diffFiles,
     fileTree,
+    statusByPath,
+    totalFileCount,
     showChangedOnly,
     setShowChangedOnly,
     expandedPaths,

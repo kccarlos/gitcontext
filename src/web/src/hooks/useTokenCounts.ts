@@ -5,6 +5,7 @@ import type { FileDiffStatus } from './useFileTree'
 import { buildUnifiedDiffForStatus } from '../utils/diff'
 import { isBinaryPath } from '../utils/binary'
 import { MAX_CONCURRENT_READS } from '../utils/constants'
+import { mapWithConcurrency } from '../utils/concurrency'
 
 export type TokenCounts = Map<string, number>
 
@@ -38,7 +39,7 @@ export function useTokenCounts({
   const selectedList = useMemo(() => Array.from(selectedPaths), [selectedPaths])
 
   useEffect(() => {
-    let cancelled = false
+    const abortController = new AbortController()
     async function run() {
       if (!gitClient || !baseRef || !compareRef) {
         setCounts(new Map())
@@ -48,77 +49,88 @@ export function useTokenCounts({
       }
       setBusy(true)
       try {
-        const next = new Map<string, number>()
         const totalFiles = selectedList.length
-        let completed = 0
         // initial tick
         try { onBatch?.(totalFiles === 0 ? 1 : 0, totalFiles === 0 ? 1 : totalFiles) } catch {}
-        
+
+        let batchesCompleted = 0
+        const batchSize = MAX_CONCURRENT_READS
+
         // Limit concurrent requests to prevent overwhelming the worker
-        for (let i = 0; i < selectedList.length; i += MAX_CONCURRENT_READS) {
-          if (cancelled) break
+        const results = await mapWithConcurrency(
+          selectedList,
+          async (path) => {
+            const status = statusByPath.get(path) ?? 'unchanged'
+            const looksBinary = isBinaryPath(path)
+            let textForCount = ''
 
-          const batch = selectedList.slice(i, i + MAX_CONCURRENT_READS)
-          await Promise.all(
-            batch.map(async (path) => {
-              const status = statusByPath.get(path) ?? 'unchanged'
-              const looksBinary = isBinaryPath(path)
-              let textForCount = ''
-
-              // Fast path: known-binary files never load content
-              if (looksBinary) {
-                if (includeBinaryPaths) {
-                  // Mirror the exact header we output during copy
-                  const header = `## FILE: ${path} (${(status || 'unchanged').toUpperCase()})\n\n`
-                  textForCount = header
+            // Fast path: known-binary files never load content
+            if (looksBinary) {
+              if (includeBinaryPaths) {
+                // Mirror the exact header we output during copy
+                const header = `## FILE: ${path} (${(status || 'unchanged').toUpperCase()})\n\n`
+                textForCount = header
+              } else {
+                textForCount = ''
+              }
+            } else {
+              // Textual path -> maybe fetch content/diff
+              const needBase = status !== 'add'
+              const needCompare = status !== 'remove'
+              const [baseRes, compareRes] = await Promise.all([
+                needBase && baseRef ? gitClient.readFile(baseRef, path) : Promise.resolve(undefined as any),
+                needCompare && compareRef ? gitClient.readFile(compareRef, path) : Promise.resolve(undefined as any),
+              ])
+              // Mirror final output generation logic
+              const MAX_CONTEXT = 999
+              const ctx = diffContextLines >= MAX_CONTEXT ? Number.MAX_SAFE_INTEGER : diffContextLines
+              if (status === 'modify' || status === 'add' || status === 'remove') {
+                const isBinary = Boolean((baseRes as any)?.binary) || Boolean((compareRes as any)?.binary)
+                if (isBinary) {
+                  // Edge: unknown ext but worker says binary; treat same as looksBinary
+                  if (includeBinaryPaths) {
+                    const header = `## FILE: ${path} (${(status || 'unchanged').toUpperCase()})\n\n`
+                    textForCount = header
+                  } else {
+                    textForCount = ''
+                  }
+                } else if (status === 'add' && ctx === Number.MAX_SAFE_INTEGER) {
+                  textForCount = (compareRes as { text?: string } | undefined)?.text ?? ''
                 } else {
-                  textForCount = ''
+                  textForCount = buildUnifiedDiffForStatus(status, path, baseRes as any, compareRes as any, { context: ctx }) || ''
                 }
               } else {
-                // Textual path -> maybe fetch content/diff
-                const needBase = status !== 'add'
-                const needCompare = status !== 'remove'
-                const [baseRes, compareRes] = await Promise.all([
-                  needBase && baseRef ? gitClient.readFile(baseRef, path) : Promise.resolve(undefined as any),
-                  needCompare && compareRef ? gitClient.readFile(compareRef, path) : Promise.resolve(undefined as any),
-                ])
-                // Mirror final output generation logic
-                const MAX_CONTEXT = 999
-                const ctx = diffContextLines >= MAX_CONTEXT ? Number.MAX_SAFE_INTEGER : diffContextLines
-                if (status === 'modify' || status === 'add' || status === 'remove') {
-                  const isBinary = Boolean((baseRes as any)?.binary) || Boolean((compareRes as any)?.binary)
-                  if (isBinary) {
-                    // Edge: unknown ext but worker says binary; treat same as looksBinary
-                    if (includeBinaryPaths) {
-                      const header = `## FILE: ${path} (${(status || 'unchanged').toUpperCase()})\n\n`
-                      textForCount = header
-                    } else {
-                      textForCount = ''
-                    }
-                  } else if (status === 'add' && ctx === Number.MAX_SAFE_INTEGER) {
-                    textForCount = (compareRes as { text?: string } | undefined)?.text ?? ''
-                  } else {
-                    textForCount = buildUnifiedDiffForStatus(status, path, baseRes as any, compareRes as any, { context: ctx }) || ''
-                  }
-                } else {
-                  const isBinary = Boolean((baseRes as any)?.binary)
-                  const oldText = isBinary || (baseRes as any)?.notFound ? '' : (baseRes as any)?.text ?? ''
-                  textForCount = oldText
-                }
+                const isBinary = Boolean((baseRes as any)?.binary)
+                const oldText = isBinary || (baseRes as any)?.notFound ? '' : (baseRes as any)?.text ?? ''
+                textForCount = oldText
               }
-              const n = textForCount ? await tok.count(textForCount) : 0
-              next.set(path, n)
-            }),
-          )
-          // batch finished; advance progress
-          completed += batch.length
-          try {
-            onBatch?.(Math.min(completed, totalFiles), totalFiles || 1)
-          } catch {}
+            }
+            const n = textForCount ? await tok.count(textForCount) : 0
+
+            // Update progress after each batch
+            batchesCompleted++
+            if (batchesCompleted % batchSize === 0) {
+              try {
+                onBatch?.(Math.min(batchesCompleted, totalFiles), totalFiles || 1)
+              } catch {}
+            }
+
+            return { path, count: n }
+          },
+          { limit: MAX_CONCURRENT_READS, signal: abortController.signal }
+        )
+
+        const next = new Map<string, number>()
+        for (const { path, count } of results) {
+          next.set(path, count)
         }
-        if (!cancelled) setCounts(next)
+        setCounts(next)
+      } catch (err: any) {
+        if (err?.message !== 'Operation cancelled') {
+          throw err
+        }
       } finally {
-        if (!cancelled) setBusy(false)
+        setBusy(false)
         // ensure we always end at 100%
         try {
           onBatch?.(selectedList.length || 1, selectedList.length || 1)
@@ -127,7 +139,7 @@ export function useTokenCounts({
     }
     run()
     return () => {
-      cancelled = true
+      abortController.abort()
     }
   }, [gitClient, baseRef, compareRef, selectedList, statusByPath, diffContextLines])
 

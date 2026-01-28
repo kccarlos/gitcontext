@@ -183,5 +183,3 @@ export function FileTreeView({
     </div>
   )
 }
-
-
