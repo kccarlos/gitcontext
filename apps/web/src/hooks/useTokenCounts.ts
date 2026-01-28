@@ -3,8 +3,7 @@ import type { GitEngine, TokenizerEngine } from '../platform/types'
 import { createTokenizer } from '../platform/tokenizerFactory'
 import type { FileDiffStatus } from './useFileTree'
 import { buildUnifiedDiffForStatus } from '../utils/diff'
-import { isBinaryPath } from '../utils/binary'
-import { MAX_CONCURRENT_READS } from '../utils/constants'
+import { isBinaryPath, MAX_CONCURRENT_READS } from '@gitcontext/core'
 import { mapWithConcurrency } from '../utils/concurrency'
 
 export type TokenCounts = Map<string, number>

@@ -9,7 +9,7 @@
  * - Other files: Read content, sniff first 8KB for binary detection
  */
 
-import { isBinaryPath, detectBinaryByContent, SNIFF_BYTES } from '../shared/binary'
+import { isBinaryPath, detectBinaryByContent, SNIFF_BYTES } from '@gitcontext/core'
 
 export type WorkdirFileResult = {
   binary: boolean

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { ArrowUpDown, Search, X, FilePenLine, FilePlus2, FileMinus2, File as FileIcon, FileArchive } from 'lucide-react'
 import { useTokenCountsContext } from '../context/TokenCountsContext'
 import type { FileDiffStatus } from '../hooks/useFileTree'
-import { isBinaryPath } from '../utils/binary'
+import { isBinaryPath } from '@gitcontext/core'
 
 type SelectedEntry = {
   path: string

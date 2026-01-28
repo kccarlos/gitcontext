@@ -1,8 +1,7 @@
 import { useCallback, useState } from 'react'
 import type { GitWorkerClient } from '../utils/gitWorkerClient'
 import type { AppStatus } from '../types/appStatus'
-import { isBinaryPath } from '../utils/binary'
-import { LARGE_REPO_FILE_THRESHOLD } from '../utils/constants'
+import { isBinaryPath, LARGE_REPO_FILE_THRESHOLD } from '@gitcontext/core'
 
 export type FileDiffStatus = 'modify' | 'add' | 'remove' | 'unchanged'
 

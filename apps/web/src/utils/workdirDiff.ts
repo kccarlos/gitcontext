@@ -9,7 +9,7 @@
  */
 
 import { readWorkdirFile } from './workdirReader'
-import { MAX_CONCURRENT_READS } from './constants'
+import { MAX_CONCURRENT_READS } from '@gitcontext/core'
 
 // Compute Git blob hash (format: "blob <size>\0<content>")
 async function hashGitBlob(data: Uint8Array): Promise<string> {

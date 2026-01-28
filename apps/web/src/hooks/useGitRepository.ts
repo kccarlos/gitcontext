@@ -3,7 +3,7 @@ import { createGitEngine } from '../platform/gitFactory'
 import type { GitEngine } from '../platform/types'
 import { pickDirectory, ensurePermission, verifyGitRepositoryRoot, snapshotGitFiles } from '../utils/fs'
 import type { AppStatus } from '../types/appStatus'
-import { deriveRepoKey } from '../utils/repoKey'
+import { deriveRepoKey } from '@gitcontext/core'
 
 // Foundational repo mode for future expansion (git/plain)
 export type RepoMode = 'git'

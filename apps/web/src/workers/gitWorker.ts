@@ -16,7 +16,7 @@ import LightningFS from '@isomorphic-git/lightning-fs'
 import * as BufferModule from 'buffer'
 import ProcessModule from 'process'
 import * as GIT from 'isomorphic-git'
-import { detectBinaryByContent, SNIFF_BYTES, isBinaryPath } from '../shared/binary'
+import { detectBinaryByContent, SNIFF_BYTES, isBinaryPath } from '@gitcontext/core'
 
 ;(self as any).Buffer = (self as any).Buffer || (BufferModule as any).Buffer
 ;(self as any).process = (self as any).process || (ProcessModule as any)

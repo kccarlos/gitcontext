@@ -21,11 +21,9 @@ import { buildUnifiedDiffForStatus } from './utils/diff'
 import { countTokens } from './utils/tokenizer'
 // Globally shared token counts
 import { TokenCountsProvider, useTokenCountsContext } from './context/TokenCountsContext'
-import { isBinaryPath } from './utils/binary'
-import { MAX_CONCURRENT_READS, LARGE_REPO_FILE_THRESHOLD, LARGE_SELECTION_THRESHOLD } from './utils/constants'
+import { isBinaryPath, MAX_CONCURRENT_READS, LARGE_REPO_FILE_THRESHOLD, LARGE_SELECTION_THRESHOLD, deriveRepoKey } from '@gitcontext/core'
 import { mapWithConcurrency } from './utils/concurrency'
 import { clearRepositoryCache } from './utils/cache'
-import { deriveRepoKey } from './utils/repoKey'
 import { logError } from './utils/logger'
 import { debounce } from './utils/debounce'
 

@@ -16,14 +16,14 @@ export default defineConfig({
     topLevelAwait(),
     ...(isElectron
       ? [
-          // Configure Electron main and preload builds relative to the renderer project root (src/web)
+          // Configure Electron main and preload builds relative to the renderer project root (apps/web)
           electron([
             {
-              entry: '../electron/main.ts',
+              entry: '../../src/electron/main.ts',
               vite: { build: { sourcemap: true } },
             },
             {
-              entry: '../electron/preload.ts',
+              entry: '../../src/electron/preload.ts',
               vite: {
                 build: {
                   rollupOptions: {

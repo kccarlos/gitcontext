@@ -5,7 +5,8 @@
   "license": "MIT",
   "description": "GitContext helps you package local file diffs and code into a single, clean prompt, ensuring your AI chatbot has the precise information it needs — all without your code ever leaving your machine.",
   "workspaces": [
-    "src/web",
+    "apps/*",
+    "packages/*",
     "src/electron"
   ],
   "version": "1.0.0",
@@ -13,18 +14,18 @@
   "type": "module",
   "scripts": {
     "build": "npm -ws run build",
-    "dev": "npm --workspace src/web run dev",
-    "start": "npm --workspace src/web run dev",
+    "dev": "npm --workspace apps/web run dev",
+    "start": "npm --workspace apps/web run dev",
     "lint": "npm -ws run lint",
     "test": "echo 'no tests yet'",
     "ci": "npm ci --audit --omit=dev",
     "prepare": "husky || true",
-    "electron:dev": "GC_DESKTOP_FAST_PATH=1 concurrently -k \"ELECTRON=1 npm --workspace src/web run dev\" \"wait-on tcp:5173 && VITE_DEV_SERVER_URL=http://localhost:5173 electron ./src/web/dist-electron/main.js\"",
-    "electron:build": "(export GC_DESKTOP_FAST_PATH=1; npm install && ELECTRON=1 npm --workspace src/web run build && npx electron-builder --config electron-builder.yml --publish=never)",
-    "web:dev": "npm --workspace src/web run dev",
-    "web:build": "npm --workspace src/web run build",
-    "web:preview": "npm --workspace src/web run preview",
-    "web:lint": "npm --workspace src/web run lint"
+    "electron:dev": "GC_DESKTOP_FAST_PATH=1 concurrently -k \"ELECTRON=1 npm --workspace apps/web run dev\" \"wait-on tcp:5173 && VITE_DEV_SERVER_URL=http://localhost:5173 electron ./apps/web/dist-electron/main.js\"",
+    "electron:build": "(export GC_DESKTOP_FAST_PATH=1; npm install && ELECTRON=1 npm --workspace apps/web run build && npx electron-builder --config electron-builder.yml --publish=never)",
+    "web:dev": "npm --workspace apps/web run dev",
+    "web:build": "npm --workspace apps/web run build",
+    "web:preview": "npm --workspace apps/web run preview",
+    "web:lint": "npm --workspace apps/web run lint"
   },
   "devDependencies": {
     "@commitlint/cli": "19.5.0",
