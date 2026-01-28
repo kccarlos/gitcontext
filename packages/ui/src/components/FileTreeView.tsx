@@ -1,4 +1,4 @@
-import type { FileTreeNode, FileDiffStatus } from '../hooks/useFileTree'
+import type { FileTreeNode, FileDiffStatus } from '@gitcontext/core'
 import { ChevronDown, ChevronRight, Search, FilePenLine, FilePlus2, FileMinus2, File as FileIcon, FileArchive } from 'lucide-react'
 
 type Props = {

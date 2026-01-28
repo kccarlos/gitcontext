@@ -1,4 +1,4 @@
-import type { WorkspaceListItem } from '../hooks/useWorkspaces'
+import type { WorkspaceListItem } from '@gitcontext/core'
 import { Save, Trash2, Folder, Database } from 'lucide-react'
 
 type Props = {

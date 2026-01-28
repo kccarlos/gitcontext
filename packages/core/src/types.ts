@@ -45,6 +45,32 @@ export type FileContent = ReadFileResult
 export type FileDiff = DiffFile
 
 /**
+ * File diff status for UI display
+ */
+export type FileDiffStatus = 'modify' | 'add' | 'remove' | 'unchanged'
+
+/**
+ * File tree node for UI display
+ */
+export type FileTreeNode = {
+  name: string
+  path: string
+  type: 'dir' | 'file'
+  children?: FileTreeNode[]
+  status?: FileDiffStatus
+  isLikelyBinary?: boolean
+}
+
+/**
+ * Workspace list item for UI display
+ */
+export type WorkspaceListItem = {
+  id: number
+  name: string
+  folderName?: string
+}
+
+/**
  * GitService interface - abstraction for git operations
  *
  * This interface decouples the UI from the underlying git implementation.

@@ -1,18 +1,10 @@
 import { useCallback, useState } from 'react'
 import type { GitWorkerClient } from '../utils/gitWorkerClient'
 import type { AppStatus } from '../types/appStatus'
-import { isBinaryPath, LARGE_REPO_FILE_THRESHOLD } from '@gitcontext/core'
+import { isBinaryPath, LARGE_REPO_FILE_THRESHOLD, type FileDiffStatus, type FileTreeNode } from '@gitcontext/core'
 
-export type FileDiffStatus = 'modify' | 'add' | 'remove' | 'unchanged'
-
-export type FileTreeNode = {
-  name: string
-  path: string
-  type: 'dir' | 'file'
-  children?: FileTreeNode[]
-  status?: FileDiffStatus
-  isLikelyBinary?: boolean
-}
+// Re-export types for backward compatibility
+export type { FileDiffStatus, FileTreeNode }
 
 type ProgressSetter = (update: { message: string; percent: number } | null) => void
 

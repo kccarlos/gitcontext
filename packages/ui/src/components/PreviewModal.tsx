@@ -8,7 +8,7 @@ import 'prismjs/components/prism-tsx'
 import 'prismjs/components/prism-json'
 import 'prismjs/components/prism-markdown'
 import 'prismjs/themes/prism.css'
-import type { FileDiffStatus } from '../hooks/useFileTree'
+import type { FileDiffStatus } from '@gitcontext/core'
 
 type Side = { binary: boolean; text: string | null; notFound?: boolean } | undefined
 

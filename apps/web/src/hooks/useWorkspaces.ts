@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { listWorkspaces, saveWorkspace, removeWorkspace, getWorkspace } from '../utils/idb'
 import { reauthorizeIfNeeded } from '../utils/fs'
+import type { WorkspaceListItem } from '@gitcontext/core'
 
-export type WorkspaceListItem = { id: number; name: string; folderName?: string }
+export type { WorkspaceListItem }
 
 export function useWorkspaces(onWorkspaceSelect: (handle: FileSystemDirectoryHandle) => Promise<void> | void) {
   const [workspaces, setWorkspaces] = useState<WorkspaceListItem[]>([])
