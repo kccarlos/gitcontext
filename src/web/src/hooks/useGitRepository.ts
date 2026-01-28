@@ -3,6 +3,7 @@ import { createGitEngine } from '../platform/gitFactory'
 import type { GitEngine } from '../platform/types'
 import { pickDirectory, ensurePermission, verifyGitRepositoryRoot, snapshotGitFiles } from '../utils/fs'
 import type { AppStatus } from '../types/appStatus'
+import { deriveRepoKey } from '../utils/repoKey'
 
 // Foundational repo mode for future expansion (git/plain)
 export type RepoMode = 'git'
@@ -26,7 +27,7 @@ export function useGitRepository(setAppStatus?: (s: AppStatus) => void) {
   useEffect(() => {
     if (!currentDir) return
     if (!baseBranch || !compareBranch) return
-    const repoKey = `repo-${currentDir.name}`
+    const repoKey = deriveRepoKey(currentDir)
     try {
       localStorage.setItem(
         `branchSel:${repoKey}`,
@@ -84,7 +85,7 @@ export function useGitRepository(setAppStatus?: (s: AppStatus) => void) {
     })
     try {
       // Selection persistence helpers (per repo name scope)
-      const repoKey = `repo-${handle.name}`
+      const repoKey = deriveRepoKey(handle)
       const loadSavedSelection = (): { base?: string; compare?: string } => {
         try {
           const raw = localStorage.getItem(`branchSel:${repoKey}`)

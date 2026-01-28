@@ -25,6 +25,7 @@ import { isBinaryPath } from './utils/binary'
 import { MAX_CONCURRENT_READS, LARGE_REPO_FILE_THRESHOLD, LARGE_SELECTION_THRESHOLD } from './utils/constants'
 import { mapWithConcurrency } from './utils/concurrency'
 import { clearRepositoryCache } from './utils/cache'
+import { deriveRepoKey } from './utils/repoKey'
 import { logError } from './utils/logger'
 import { debounce } from './utils/debounce'
 
@@ -656,8 +657,8 @@ function App() {
     if (!confirm) return
 
     try {
-      // Derive repo key from directory name (same as useGitRepository)
-      const repoKey = currentDir.name.replace(/[^a-zA-Z0-9_-]/g, '_')
+      // Derive repo key using centralized utility (same as useGitRepository)
+      const repoKey = deriveRepoKey(currentDir)
       await clearRepositoryCache(repoKey)
       setNotif('Cache cleared successfully')
       setTimeout(() => setNotif(null), 3000)
@@ -785,25 +786,39 @@ function App() {
         }
       }
 
-      // Build final output as Blob to avoid concatenating huge strings
+      // Build final output as Blob parts to avoid concatenating huge strings
       // This reduces peak memory usage for large selections
-      const parts: string[] = []
-      if (instrSection) parts.push(instrSection)
-      parts.push(contextLines.join('\n'))
-      if (treeSection) parts.push(treeSection)
-      parts.push(...fileSections)
+      const blobParts: string[] = []
 
-      const finalText = parts.filter(Boolean).join('\n')
+      if (instrSection) {
+        blobParts.push(instrSection)
+        blobParts.push('\n')
+      }
+
+      blobParts.push(contextLines.join('\n'))
+      blobParts.push('\n')
+
+      if (treeSection) {
+        blobParts.push(treeSection)
+        blobParts.push('\n')
+      }
+
+      for (const section of fileSections) {
+        blobParts.push(section)
+        blobParts.push('\n')
+      }
 
       // Try modern Clipboard API with Blob first (better for large content)
-      // Fall back to writeText if not supported
+      // Use Blob parts directly without joining to avoid peak memory spike
       try {
-        const blob = new Blob([finalText], { type: 'text/plain' })
+        const blob = new Blob(blobParts, { type: 'text/plain' })
         await navigator.clipboard.write([
           new ClipboardItem({ 'text/plain': blob })
         ])
       } catch {
         // Fallback for browsers that don't support ClipboardItem with text/plain
+        // This fallback requires building the string, but it's rarely needed
+        const finalText = blobParts.join('')
         await navigator.clipboard.writeText(finalText)
       }
 
