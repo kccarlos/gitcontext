@@ -20,6 +20,7 @@ export type GitEngine = {
 	listBranches(): Promise<LoadRepoResult>
 	diff(base: string, compare: string): Promise<DiffResult>
 	listFiles(ref: string): Promise<{ files: string[] }>
+	listFilesWithOids(ref: string): Promise<{ files: Array<{ path: string; oid: string }> }>
 	readFile(ref: string, filepath: string): Promise<ReadFileResult>
 	resolveRef(ref: string): Promise<{ oid: string }>
 	// Set the current directory handle for WORKDIR operations (web only)

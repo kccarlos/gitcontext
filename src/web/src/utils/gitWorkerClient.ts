@@ -130,6 +130,10 @@ export function createGitWorkerClient(onProgress?: (message: string) => void) {
     return call<{ files: string[] }>({ type: 'listFiles', ref })
   }
 
+  function listFilesWithOids(ref: string): Promise<{ files: Array<{ path: string; oid: string }> }> {
+    return call<{ files: Array<{ path: string; oid: string }> }>({ type: 'listFilesWithOids', ref })
+  }
+
   function resolveRef(ref: string): Promise<{ oid: string }> {
     return call<{ oid: string }>({ type: 'resolveRef', ref })
   }
@@ -141,6 +145,7 @@ export function createGitWorkerClient(onProgress?: (message: string) => void) {
     diff,
     readFile,
     listFiles,
+    listFilesWithOids,
     resolveRef,
   } as any
 
