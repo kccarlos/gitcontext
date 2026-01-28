@@ -38,7 +38,20 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "capabilities": [
+        {
+          "identifier": "main-capability",
+          "description": "Main window permissions",
+          "windows": ["main"],
+          "permissions": [
+            "core:default",
+            "dialog:allow-open",
+            "fs:allow-read-dir",
+            "fs:allow-read-file"
+          ]
+        }
+      ]
     }
   }
 }
