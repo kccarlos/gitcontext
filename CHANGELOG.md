@@ -1,3 +1,80 @@
+# [2.0.0](https://github.com/kccarlos/gitcontext/compare/v1.3.2...v2.0.0) (2026-02-07)
+
+
+* feat(desktop)!: migrate from Electron to Tauri (feature parity) ([58e58fe](https://github.com/kccarlos/gitcontext/commit/58e58fe6a544ccc4e0e14b4fb88dbecf5add97b0))
+* feat(desktop)!: migrate from Electron to Tauri with full feature parity ([287ad0a](https://github.com/kccarlos/gitcontext/commit/287ad0a7b0d57a17b28389d6e6c54868bec20385))
+
+
+### Bug Fixes
+
+* **ci:** update CI workflow to use new monorepo structure and Tauri ([93908fe](https://github.com/kccarlos/gitcontext/commit/93908feefed44cee3f27f9aa5c35d317ce9a96f8))
+* regenerate package-lock.json to sync with package.json ([3264e1c](https://github.com/kccarlos/gitcontext/commit/3264e1cd7e7fc561301283419b99782e084299d5))
+
+
+### Features
+
+* **core:** add shared core package with GitService interface and migrate utilities ([2ec0779](https://github.com/kccarlos/gitcontext/commit/2ec0779654b9e86a2c7353267b7b44726fd6594d))
+* **desktop/tauri:** add native git backend via git2 ([d54bde8](https://github.com/kccarlos/gitcontext/commit/d54bde8f000bfcea4da1f5a7a6a02267d240ab90))
+* **ui:** extract shared React components into @gitcontext/ui ([241c0cc](https://github.com/kccarlos/gitcontext/commit/241c0ccfef1d167512f448fc4484648aac00f26b))
+
+
+### Performance Improvements
+
+* **workdir:** add guardrails, route reads to main thread, and improve concurrency ([b794563](https://github.com/kccarlos/gitcontext/commit/b794563261237ceabd7f5b64374a0e1be11bf4f1))
+* **workdir:** improve performance ([7387ec4](https://github.com/kccarlos/gitcontext/commit/7387ec4a3a7c1e7a4e5e211673d1465b5a143106))
+* **workdir:** performance & scalability for very large repos ([7c51162](https://github.com/kccarlos/gitcontext/commit/7c51162709a969a61f47e19d200c8cca925d53b8))
+* **workdir:** remove eager snapshotting and compute WORKDIR diffs lazily ([2139e7b](https://github.com/kccarlos/gitcontext/commit/2139e7b055b4cfd72a2a9003fd5734d95ed2a719))
+
+
+### BREAKING CHANGES
+
+* Desktop app now uses Tauri instead of Electron
+
+- Replace Electron with Tauri 2.0 framework for native desktop app
+- Implement native Rust backend using git2 crate for Git operations
+- Remove all Electron code (src/electron/, electron-builder.yml)
+- Add complete feature parity with web app:
+  * Token counting with tiktoken WASM integration
+  * File tree with filtering and selection
+  * Diff generation and preview
+  * Context lines slider
+  * Clipboard integration via tauri-plugin-clipboard-manager
+  * Dark mode with proper CSS variable theming
+- Add landing page with "How it works" guide
+- Add clickable logo at top left (returns to landing)
+- Add GitHub repository links (Star on GitHub, Report a Bug)
+- Add refresh button to update file tree while preserving selection
+- Add "Include binary files as paths" checkbox
+- Fix file tree auto-expansion for directories with changed files
+- Fix double-slash path bug in Rust git2 tree walking
+- Update GitHub Actions workflow for Tauri builds (macOS, Windows, Linux)
+- Update README to reflect new Tauri architecture
+- Remove 245 Electron-related npm packages
+- Merge with workdir performance improvements from main branch
+- Maintain all lazy loading, caching, and main-thread file reading optimizations
+* Desktop app now uses Tauri instead of Electron.
+
+- Replace Electron with Tauri 2.0 for the native desktop app.
+- Add Rust backend (git2) for Git operations.
+- Remove Electron code and tooling (src/electron/, electron-builder.yml).
+- Reach feature parity with web:
+  - Token counting (tiktoken WASM).
+  - File tree filtering/selection + refresh (preserve selection).
+  - Diff generation/preview + context lines slider.
+  - Clipboard via tauri-plugin-clipboard-manager.
+  - Dark mode with CSS variable theming.
+  - Include binaries as paths option.
+- UX/content:
+  - Landing page with "How it works" + clickable logo to return.
+  - GitHub links (Star, Report a Bug).
+- Fixes:
+  - File tree auto-expansion for changed directories.
+  - Double-slash path issue in Rust git2 tree walking.
+- CI/docs:
+  - Update GitHub Actions for Tauri builds (macOS/Windows/Linux).
+  - Update README for Tauri architecture.
+- Cleanup: remove 245 Electron-related npm packages.
+
 ## [1.3.2](https://github.com/kccarlos/gitcontext/compare/v1.3.1...v1.3.2) (2026-01-28)
 
 
