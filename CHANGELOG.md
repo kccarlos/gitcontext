@@ -1,3 +1,14 @@
+## [2.0.2](https://github.com/kccarlos/gitcontext/compare/v2.0.1...v2.0.2) (2026-02-07)
+
+
+### Bug Fixes
+
+* **ci:** checkout main branch instead of version tag in deploy-pages ([27ab5d0](https://github.com/kccarlos/gitcontext/commit/27ab5d020d28fc1b626f55a18c67b391b212db79))
+* resolve 10 critical and quality bugs ([bb9bdde](https://github.com/kccarlos/gitcontext/commit/bb9bdde5f8823bdd9bb006a7ed20ea6851617e70))
+* resolve 10 critical and quality bugs ([7286aaf](https://github.com/kccarlos/gitcontext/commit/7286aafbb29c0046c4316103d4899da2a30a6001))
+* resolve 3 additional critical bugs ([101901d](https://github.com/kccarlos/gitcontext/commit/101901d7ea2f586bc9d65fcac42d5eaa56b7bb23))
+* resolve 3 additional critical bugs ([1a8a5f6](https://github.com/kccarlos/gitcontext/commit/1a8a5f6579b02cdfc4cea5358f7978f8d98f0e0a))
+
 ## [2.0.1](https://github.com/kccarlos/gitcontext/compare/v2.0.0...v2.0.1) (2026-02-07)
 
 
