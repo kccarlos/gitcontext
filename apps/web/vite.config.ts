@@ -2,40 +2,18 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import wasm from 'vite-plugin-wasm'
 import topLevelAwait from 'vite-plugin-top-level-await'
-import electron from 'vite-plugin-electron'
-import renderer from 'vite-plugin-electron-renderer'
+import { fileURLToPath } from 'node:url'
+import { dirname, resolve } from 'node:path'
 
-const isElectron = process.env.ELECTRON === '1'
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: isElectron ? './' : '/',
+  base: '/',
   plugins: [
     react(),
     wasm(),
     topLevelAwait(),
-    ...(isElectron
-      ? [
-          // Configure Electron main and preload builds relative to the renderer project root (apps/web)
-          electron([
-            {
-              entry: '../../src/electron/main.ts',
-              vite: { build: { sourcemap: true } },
-            },
-            {
-              entry: '../../src/electron/preload.ts',
-              vite: {
-                build: {
-                  rollupOptions: {
-                    output: { format: 'cjs', entryFileNames: 'preload.mjs' },
-                  },
-                },
-              },
-            },
-          ]),
-          renderer(),
-        ]
-      : []),
   ],
   build: {
     target: 'esnext',
@@ -53,7 +31,7 @@ export default defineConfig({
       'isomorphic-git$': 'isomorphic-git/index.js',
       // Polyfills for Node built-ins used transitively by isomorphic-git deps
       stream: 'stream-browserify',
-      buffer: 'buffer/index.js',
+      buffer: resolve(__dirname, '../../node_modules/buffer/index.js'),
       util: 'util',
       events: 'events',
       path: 'path-browserify',

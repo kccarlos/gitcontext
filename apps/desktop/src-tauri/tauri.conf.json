@@ -48,7 +48,8 @@
             "core:default",
             "dialog:allow-open",
             "fs:allow-read-dir",
-            "fs:allow-read-file"
+            "fs:allow-read-file",
+            "clipboard-manager:allow-write-text"
           ]
         }
       ]

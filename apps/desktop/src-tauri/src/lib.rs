@@ -30,17 +30,36 @@ fn read_file_blob(path: String, ref_name: String, file_path: String) -> Result<g
     git::read_file_blob(&path, &ref_name, &file_path)
 }
 
+#[tauri::command]
+fn list_files(path: String, ref_name: String) -> Result<git::ListFilesResult, String> {
+    git::list_files(&path, &ref_name)
+}
+
+#[tauri::command]
+fn list_files_with_oids(path: String, ref_name: String) -> Result<git::ListFilesWithOidsResult, String> {
+    git::list_files_with_oids(&path, &ref_name)
+}
+
+#[tauri::command]
+fn resolve_ref(path: String, ref_name: String) -> Result<git::ResolveRefResult, String> {
+    git::resolve_ref(&path, &ref_name)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .invoke_handler(tauri::generate_handler![
             greet,
             open_repo,
             get_branches,
             git_diff,
-            read_file_blob
+            read_file_blob,
+            list_files,
+            list_files_with_oids,
+            resolve_ref
         ])
         .setup(|_app| {
             #[cfg(debug_assertions)]

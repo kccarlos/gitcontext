@@ -73,8 +73,15 @@ export function FileTreeView({
       if (node.type === 'dir') {
         const hasVisibleChildren = node.children?.some(shouldShow) ?? false
         if (!hasVisibleChildren && (showChangedOnly || hasQuery)) return null
-        // Auto-expand during filter to reveal matches
-        const isExpanded = hasQuery || expandedPaths.has(node.path)
+
+        // Check if this directory contains any changed files (recursively)
+        const hasChangedDescendants = (n: FileTreeNode): boolean => {
+          if (n.type === 'file') return (n.status ?? 'unchanged') !== 'unchanged'
+          return (n.children ?? []).some(hasChangedDescendants)
+        }
+
+        // Auto-expand during filter or when showing only changed files with changed descendants
+        const isExpanded = hasQuery || expandedPaths.has(node.path) || (showChangedOnly && hasChangedDescendants(node))
 
         // Gather all descendant file paths (regardless of visibility)
         const gatherFiles = (n: FileTreeNode | undefined): string[] => {

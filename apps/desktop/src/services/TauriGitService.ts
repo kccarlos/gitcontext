@@ -50,15 +50,30 @@ export class TauriGitService implements GitService {
     })
   }
 
-  async listFiles(_ref: string): Promise<{ files: string[] }> {
-    // TODO: Implement in Rust if needed
-    // For now, we can derive this from git_diff against an empty tree
-    throw new Error('listFiles not yet implemented in TauriGitService')
+  async listFiles(ref: string): Promise<{ files: string[] }> {
+    if (!this.repoPath) {
+      throw new Error('No repository loaded')
+    }
+
+    const result = await invoke<{ files: string[] }>('list_files', {
+      path: this.repoPath,
+      refName: ref,
+    })
+
+    return result
   }
 
-  async listFilesWithOids(_ref: string): Promise<{ files: Array<{ path: string; oid: string }> }> {
-    // TODO: Implement in Rust if needed
-    throw new Error('listFilesWithOids not yet implemented in TauriGitService')
+  async listFilesWithOids(ref: string): Promise<{ files: Array<{ path: string; oid: string }> }> {
+    if (!this.repoPath) {
+      throw new Error('No repository loaded')
+    }
+
+    const result = await invoke<{ files: Array<{ path: string; oid: string }> }>('list_files_with_oids', {
+      path: this.repoPath,
+      refName: ref,
+    })
+
+    return result
   }
 
   async readFile(ref: string, path: string): Promise<FileContent> {
@@ -83,9 +98,17 @@ export class TauriGitService implements GitService {
     }
   }
 
-  async resolveRef(_ref: string): Promise<{ oid: string }> {
-    // TODO: Implement in Rust if needed
-    throw new Error('resolveRef not yet implemented in TauriGitService')
+  async resolveRef(ref: string): Promise<{ oid: string }> {
+    if (!this.repoPath) {
+      throw new Error('No repository loaded')
+    }
+
+    const result = await invoke<{ oid: string }>('resolve_ref', {
+      path: this.repoPath,
+      refName: ref,
+    })
+
+    return result
   }
 
   dispose(): void {

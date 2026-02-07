@@ -28,6 +28,27 @@ pub struct ReadFileResult {
     pub not_found: Option<bool>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ListFilesResult {
+    pub files: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FileWithOid {
+    pub path: String,
+    pub oid: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ListFilesWithOidsResult {
+    pub files: Vec<FileWithOid>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ResolveRefResult {
+    pub oid: String,
+}
+
 /// Open a git repository and return branch information
 pub fn open_repo(path: &str) -> Result<LoadRepoResult, String> {
     let repo = Repository::open(path).map_err(|e| format!("Failed to open repository: {}", e))?;
@@ -124,6 +145,97 @@ pub fn git_diff(path: &str, base: &str, compare: &str) -> Result<DiffResult, Str
     .map_err(|e| format!("Failed to iterate diff: {}", e))?;
 
     Ok(DiffResult { files })
+}
+
+/// List all files in a tree at a specific ref
+pub fn list_files(path: &str, ref_name: &str) -> Result<ListFilesResult, String> {
+    let repo = Repository::open(path).map_err(|e| format!("Failed to open repository: {}", e))?;
+
+    // Resolve ref to commit
+    let commit = repo
+        .revparse_single(ref_name)
+        .map_err(|e| format!("Failed to resolve ref '{}': {}", ref_name, e))?
+        .peel_to_commit()
+        .map_err(|e| format!("Failed to peel to commit: {}", e))?;
+
+    // Get tree from commit
+    let tree = commit
+        .tree()
+        .map_err(|e| format!("Failed to get tree: {}", e))?;
+
+    let mut files = Vec::new();
+
+    // Walk the tree recursively
+    tree.walk(git2::TreeWalkMode::PreOrder, |root, entry| {
+        if entry.kind() == Some(git2::ObjectType::Blob) {
+            let path_str = if root.is_empty() {
+                entry.name().unwrap_or("").to_string()
+            } else {
+                // root already includes trailing slash from git2, so trim it
+                let root_trimmed = root.trim_end_matches('/');
+                format!("{}/{}", root_trimmed, entry.name().unwrap_or(""))
+            };
+            files.push(path_str);
+        }
+        git2::TreeWalkResult::Ok
+    })
+    .map_err(|e| format!("Failed to walk tree: {}", e))?;
+
+    Ok(ListFilesResult { files })
+}
+
+/// List all files with their OIDs in a tree at a specific ref
+pub fn list_files_with_oids(path: &str, ref_name: &str) -> Result<ListFilesWithOidsResult, String> {
+    let repo = Repository::open(path).map_err(|e| format!("Failed to open repository: {}", e))?;
+
+    // Resolve ref to commit
+    let commit = repo
+        .revparse_single(ref_name)
+        .map_err(|e| format!("Failed to resolve ref '{}': {}", ref_name, e))?
+        .peel_to_commit()
+        .map_err(|e| format!("Failed to peel to commit: {}", e))?;
+
+    // Get tree from commit
+    let tree = commit
+        .tree()
+        .map_err(|e| format!("Failed to get tree: {}", e))?;
+
+    let mut files = Vec::new();
+
+    // Walk the tree recursively
+    tree.walk(git2::TreeWalkMode::PreOrder, |root, entry| {
+        if entry.kind() == Some(git2::ObjectType::Blob) {
+            let path_str = if root.is_empty() {
+                entry.name().unwrap_or("").to_string()
+            } else {
+                // root already includes trailing slash from git2, so trim it
+                let root_trimmed = root.trim_end_matches('/');
+                format!("{}/{}", root_trimmed, entry.name().unwrap_or(""))
+            };
+            files.push(FileWithOid {
+                path: path_str,
+                oid: entry.id().to_string(),
+            });
+        }
+        git2::TreeWalkResult::Ok
+    })
+    .map_err(|e| format!("Failed to walk tree: {}", e))?;
+
+    Ok(ListFilesWithOidsResult { files })
+}
+
+/// Resolve a ref to its OID
+pub fn resolve_ref(path: &str, ref_name: &str) -> Result<ResolveRefResult, String> {
+    let repo = Repository::open(path).map_err(|e| format!("Failed to open repository: {}", e))?;
+
+    // Resolve ref to object
+    let object = repo
+        .revparse_single(ref_name)
+        .map_err(|e| format!("Failed to resolve ref '{}': {}", ref_name, e))?;
+
+    Ok(ResolveRefResult {
+        oid: object.id().to_string(),
+    })
 }
 
 /// Read file content at a specific ref
