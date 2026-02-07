@@ -1,3 +1,10 @@
+## [2.0.1](https://github.com/kccarlos/gitcontext/compare/v2.0.0...v2.0.1) (2026-02-07)
+
+
+### Bug Fixes
+
+* **ci:** checkout main branch instead of version tag in deploy-pages ([856c59a](https://github.com/kccarlos/gitcontext/commit/856c59a1290d191a961373f8559bcfa4f5dc4a71))
+
 # [2.0.0](https://github.com/kccarlos/gitcontext/compare/v1.3.2...v2.0.0) (2026-02-07)
 
 
