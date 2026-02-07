@@ -23,12 +23,12 @@ jobs:
         run: npm -ws run lint --if-present
         continue-on-error: true
       - name: Build web
-        run: npm --workspace src/web run build
+        run: npm --workspace apps/web run build
       - name: Upload web artifact
         uses: actions/upload-artifact@v4
         with:
           name: web-dist
-          path: src/web/dist
+          path: apps/web/dist
           retention-days: 7
 
   desktop-build:
@@ -45,21 +45,28 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './apps/desktop/src-tauri -> target'
       - name: Install dependencies
         run: npm ci
-      - name: Build renderer and electron bundles
-        run: npm --workspace src/web run build
-        env:
-          ELECTRON: '1'
-      - name: Package desktop app
-        run: npx electron-builder --config electron-builder.yml --publish=never
+      - name: Install Linux dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - name: Build Tauri desktop app
+        uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: apps/desktop
+          tauriScript: npm run tauri --workspace=gitcontext-desktop
       - name: Upload desktop artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: desktop-${{ matrix.os }}
-          path: |
-            dist/*.dmg
-            dist/*.exe
-            dist/*.AppImage
+          path: apps/desktop/src-tauri/target/release/bundle/
           retention-days: 7
