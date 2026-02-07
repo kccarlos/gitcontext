@@ -5,6 +5,7 @@ import type { FileDiffStatus } from './useFileTree'
 import { buildUnifiedDiffForStatus } from '../utils/diff'
 import { isBinaryPath, MAX_CONCURRENT_READS } from '@gitcontext/core'
 import { mapWithConcurrency } from '../utils/concurrency'
+import { logError } from '../utils/logger'
 
 // Helper to infer language from file extension for syntax highlighting
 function inferLangFromPath(p: string): string {
@@ -152,8 +153,10 @@ export function useTokenCounts({
         }
         setCounts(next)
       } catch (err: any) {
+        // Don't throw from effect to avoid unhandled promise rejection
         if (err?.message !== 'Operation cancelled') {
-          throw err
+          logError('tokenCounts', err)
+          setCounts(new Map()) // Reset to empty on error
         }
       } finally {
         setBusy(false)

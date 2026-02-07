@@ -110,9 +110,13 @@ pub fn git_diff(path: &str, base: &str, compare: &str) -> Result<DiffResult, Str
         .map_err(|e| format!("Failed to get compare tree: {}", e))?;
 
     // Compute diff
-    let diff = repo
+    let mut diff = repo
         .diff_tree_to_tree(Some(&base_tree), Some(&compare_tree), None)
         .map_err(|e| format!("Failed to compute diff: {}", e))?;
+
+    // Enable rename and copy detection
+    diff.find_similar(None)
+        .map_err(|e| format!("Failed to find similar files: {}", e))?;
 
     let mut files = Vec::new();
 
