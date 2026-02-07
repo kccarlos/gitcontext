@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useRef } from 'react'
 import type { GitWorkerClient } from '../utils/gitWorkerClient'
 import type { AppStatus } from '../types/appStatus'
 import { isBinaryPath, LARGE_REPO_FILE_THRESHOLD, type FileDiffStatus, type FileTreeNode } from '@gitcontext/core'
@@ -17,6 +17,9 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set())
   const [isComputing, setIsComputing] = useState<boolean>(false)
+
+  // Track diff computation request IDs to prevent race conditions
+  const diffRequestIdRef = useRef(0)
 
   const buildTreeFromPaths = useCallback((allPaths: string[], diffMap: Map<string, FileDiffStatus>): { tree: FileTreeNode; statusByPath: Map<string, FileDiffStatus> } => {
     const root: FileTreeNode = { name: '', path: '', type: 'dir', children: [] }
@@ -85,14 +88,23 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
         setExpandedPaths(new Set())
         return
       }
+
+      // Increment request ID to track this specific diff computation
+      const requestId = ++diffRequestIdRef.current
       setIsComputing(true)
-      
+
       try {
         setAppStatus?.({ state: 'LOADING', task: 'diff', message: 'Computing file differences…', progress: 25 })
         try { console.info('[app-status]', { state: 'LOADING', task: 'diff', message: 'Computing file differences…', progress: 25 }) } catch {}
         setProgress?.({ message: 'Computing file differences…', percent: 25 })
-        
+
         const res = await gitClient.diff(baseBranch, compareBranch)
+
+        // Check if this request is still the latest one (prevent race condition)
+        if (requestId !== diffRequestIdRef.current) {
+          return // A newer diff request has been made, ignore this result
+        }
+
         setDiffFiles(res.files)
 
         setProgress?.({ message: 'Fetching file list…', percent: 50 })
@@ -100,6 +112,11 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
         try { console.info('[app-status]', { state: 'LOADING', task: 'diff', message: 'Fetching file list…', progress: 50 }) } catch {}
         const baseList = await gitClient.listFiles(baseBranch)
         const compareList = await gitClient.listFiles(compareBranch)
+
+        // Check again after async operations
+        if (requestId !== diffRequestIdRef.current) {
+          return
+        }
         const diffMap = new Map<string, FileDiffStatus>()
         for (const f of res.files) diffMap.set(f.path, f.type as FileDiffStatus)
         // Build union from both sides to keep unchanged files present on either side
@@ -108,6 +125,12 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
         setAppStatus?.({ state: 'LOADING', task: 'diff', message: 'Building file tree…', progress: 75 })
         try { console.info('[app-status]', { state: 'LOADING', task: 'diff', message: 'Building file tree…', progress: 75 }) } catch {}
         const { tree, statusByPath: statusMap } = buildTreeFromPaths(Array.from(union), diffMap)
+
+        // Final check before committing all state updates
+        if (requestId !== diffRequestIdRef.current) {
+          return
+        }
+
         setFileTree(tree)
         setStatusByPath(statusMap)
 
