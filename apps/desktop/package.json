@@ -1,0 +1,36 @@
+{
+  "name": "gitcontext-desktop",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
+  },
+  "dependencies": {
+    "@dqbd/tiktoken": "1.0.22",
+    "@gitcontext/core": "*",
+    "@gitcontext/ui": "*",
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-clipboard-manager": "2.3.2",
+    "@tauri-apps/plugin-dialog": "^2.0.0",
+    "@tauri-apps/plugin-fs": "^2.0.0",
+    "diff": "8.0.3",
+    "lucide-react": "0.563.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "@types/react": ">=18 <19",
+    "@types/react-dom": ">=18 <19",
+    "@vitejs/plugin-react": "^4.7.0",
+    "typescript": "~5.8.3",
+    "vite": "^7.1.0",
+    "vite-plugin-top-level-await": "1.6.0",
+    "vite-plugin-wasm": "3.5.0"
+  }
+}

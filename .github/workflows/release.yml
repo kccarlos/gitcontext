@@ -35,28 +35,34 @@ jobs:
           node-version: 20
           cache: 'npm'
 
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './apps/desktop/src-tauri -> target'
+
       - name: Install dependencies
         run: npm ci
 
-      - name: Build renderer and electron bundles for desktop
-        run: npm --workspace src/web run build
-        env:
-          ELECTRON: '1'
-
-      - name: Install Linux build dependencies
+      - name: Install Linux dependencies
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libfuse2
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      - name: Package desktop app
-        run: npx electron-builder --config electron-builder.yml --publish=never
+      - name: Build Tauri desktop app
+        uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: apps/desktop
+          tauriScript: npm run tauri --workspace=gitcontext-desktop
 
-      - name: Upload desktop installer artifact
+      - name: Upload desktop installer artifacts
         uses: actions/upload-artifact@v4
         with:
           name: dist-${{ matrix.os }}
-          path: dist/
+          path: apps/desktop/src-tauri/target/release/bundle/
           retention-days: 1
 
   release:
@@ -127,7 +133,7 @@ jobs:
         run: npm ci
 
       - name: Build web application
-        run: npm --workspace src/web run build
+        run: npm --workspace apps/web run build
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
@@ -135,7 +141,7 @@ jobs:
       - name: Upload web artifact for deployment
         uses: actions/upload-pages-artifact@v3
         with:
-          path: src/web/dist
+          path: apps/web/dist
 
       - name: Deploy to GitHub Pages
         id: deployment

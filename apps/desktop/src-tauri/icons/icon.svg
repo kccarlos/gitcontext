@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="22 64 174 154" role="img" aria-label="GitContext mark">
+  <circle cx="70" cy="170" r="48" fill="#22c55e"/>
+  <path d="M100 140 L160 95" stroke="#22c55e" stroke-width="18" stroke-linecap="round" fill="none"/>
+  <circle cx="175" cy="85" r="14" fill="#ffffff" stroke="#22c55e" stroke-width="14"/>
+  <circle cx="70" cy="170" r="28" fill="#fff"/>
+</svg>

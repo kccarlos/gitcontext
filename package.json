@@ -5,26 +5,26 @@
   "license": "MIT",
   "description": "GitContext helps you package local file diffs and code into a single, clean prompt, ensuring your AI chatbot has the precise information it needs — all without your code ever leaving your machine.",
   "workspaces": [
-    "src/web",
-    "src/electron"
+    "apps/*",
+    "packages/*"
   ],
   "version": "1.0.0",
   "packageManager": "npm@10.8.2",
   "type": "module",
   "scripts": {
     "build": "npm -ws run build",
-    "dev": "npm --workspace src/web run dev",
-    "start": "npm --workspace src/web run dev",
+    "dev": "npm --workspace apps/web run dev",
+    "start": "npm --workspace apps/web run dev",
     "lint": "npm -ws run lint",
     "test": "echo 'no tests yet'",
     "ci": "npm ci --audit --omit=dev",
     "prepare": "husky || true",
-    "electron:dev": "GC_DESKTOP_FAST_PATH=1 concurrently -k \"ELECTRON=1 npm --workspace src/web run dev\" \"wait-on tcp:5173 && VITE_DEV_SERVER_URL=http://localhost:5173 electron ./src/web/dist-electron/main.js\"",
-    "electron:build": "(export GC_DESKTOP_FAST_PATH=1; npm install && ELECTRON=1 npm --workspace src/web run build && npx electron-builder --config electron-builder.yml --publish=never)",
-    "web:dev": "npm --workspace src/web run dev",
-    "web:build": "npm --workspace src/web run build",
-    "web:preview": "npm --workspace src/web run preview",
-    "web:lint": "npm --workspace src/web run lint"
+    "desktop:dev": "npm --workspace apps/desktop run tauri:dev",
+    "desktop:build": "npm --workspace apps/desktop run tauri:build",
+    "web:dev": "npm --workspace apps/web run dev",
+    "web:build": "npm --workspace apps/web run build",
+    "web:preview": "npm --workspace apps/web run preview",
+    "web:lint": "npm --workspace apps/web run lint"
   },
   "devDependencies": {
     "@commitlint/cli": "19.5.0",
@@ -32,32 +32,47 @@
     "@semantic-release/changelog": "6.0.3",
     "@semantic-release/git": "10.0.1",
     "@semantic-release/github": "^10.0.3",
-    "concurrently": "^9.1.0",
-    "electron": "^30.0.0",
+    "buffer": "6.0.3",
     "husky": "9.1.6",
     "semantic-release": "24.2.0",
-    "vite": "^7.1.0",
-    "vite-plugin-electron": "^0.28.7",
-    "vite-plugin-electron-renderer": "^0.14.6",
-    "wait-on": "^8.0.1"
+    "vite": "^7.1.0"
   },
   "release": {
-    "branches": ["main"],
+    "branches": [
+      "main"
+    ],
     "plugins": [
       "@semantic-release/commit-analyzer",
       "@semantic-release/release-notes-generator",
-      ["@semantic-release/github", {
-        "assets": [
-          "dist-all/**/*.dmg",
-          "dist-all/**/*.exe",
-          "dist-all/**/*.AppImage",
-          "dist-all/**/*.blockmap",
-          "dist-all/**/*latest*.yml",
-          "!dist-all/**/builder-debug.yml"
-        ]
-      }],
-      ["@semantic-release/changelog", {"changelogFile": "CHANGELOG.md"}],
-      ["@semantic-release/git", {"assets": ["CHANGELOG.md", "package.json"], "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"}]
+      [
+        "@semantic-release/github",
+        {
+          "assets": [
+            "dist-all/**/*.dmg",
+            "dist-all/**/*.exe",
+            "dist-all/**/*.AppImage",
+            "dist-all/**/*.msi",
+            "dist-all/**/*.deb",
+            "dist-all/**/*.rpm"
+          ]
+        }
+      ],
+      [
+        "@semantic-release/changelog",
+        {
+          "changelogFile": "CHANGELOG.md"
+        }
+      ],
+      [
+        "@semantic-release/git",
+        {
+          "assets": [
+            "CHANGELOG.md",
+            "package.json"
+          ],
+          "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+        }
+      ]
     ]
   }
 }
