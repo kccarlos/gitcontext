@@ -13,7 +13,9 @@ pub struct LoadRepoResult {
 pub struct DiffFile {
     pub path: String,
     #[serde(rename = "type")]
-    pub change_type: String, // "modify" | "add" | "remove"
+    pub change_type: String, // "modify" | "add" | "remove" | "rename" | "copy"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub old_path: Option<String>, // For renames and copies
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -116,24 +118,41 @@ pub fn git_diff(path: &str, base: &str, compare: &str) -> Result<DiffResult, Str
 
     diff.foreach(
         &mut |delta, _progress| {
-            let path = delta.new_file().path()
-                .or_else(|| delta.old_file().path())
+            let new_path = delta.new_file().path()
                 .and_then(|p| p.to_str())
-                .unwrap_or("")
-                .to_string();
+                .map(|s| s.to_string());
 
-            let change_type = match delta.status() {
-                git2::Delta::Added => "add",
-                git2::Delta::Deleted => "remove",
-                git2::Delta::Modified => "modify",
-                git2::Delta::Renamed => "modify",
-                git2::Delta::Copied => "add",
-                _ => "modify",
+            let old_path = delta.old_file().path()
+                .and_then(|p| p.to_str())
+                .map(|s| s.to_string());
+
+            let (path, change_type, stored_old_path) = match delta.status() {
+                git2::Delta::Added => {
+                    (new_path.unwrap_or_default(), "add", None)
+                },
+                git2::Delta::Deleted => {
+                    (old_path.unwrap_or_default(), "remove", None)
+                },
+                git2::Delta::Modified => {
+                    (new_path.unwrap_or_default(), "modify", None)
+                },
+                git2::Delta::Renamed => {
+                    // For renames, store the new path as primary and old path separately
+                    (new_path.clone().unwrap_or_default(), "rename", old_path)
+                },
+                git2::Delta::Copied => {
+                    // For copies, store the new path as primary and old path separately
+                    (new_path.clone().unwrap_or_default(), "copy", old_path)
+                },
+                _ => {
+                    (new_path.or(old_path).unwrap_or_default(), "modify", None)
+                },
             };
 
             files.push(DiffFile {
                 path,
                 change_type: change_type.to_string(),
+                old_path: stored_old_path,
             });
 
             true
@@ -297,9 +316,8 @@ pub fn read_file_blob(path: &str, ref_name: &str, file_path: &str) -> Result<Rea
         });
     }
 
-    // Convert to UTF-8 string
-    let text = String::from_utf8(content.to_vec())
-        .map_err(|_| "Failed to decode file as UTF-8".to_string())?;
+    // Convert to UTF-8 string (use lossy conversion for non-UTF8 encodings like Latin-1)
+    let text = String::from_utf8_lossy(content).into_owned();
 
     Ok(ReadFileResult {
         binary: false,

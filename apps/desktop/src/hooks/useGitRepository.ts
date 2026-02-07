@@ -111,6 +111,8 @@ export function useGitRepository(setAppStatus?: (s: AppStatus) => void) {
   }, [currentDir, loadRepoFromHandle])
 
   const resetRepo = useCallback(() => {
+    // Note: dispose() clears the repo path but the service instance remains
+    // valid and can be reused. This is by design for the singleton pattern.
     gitClient.dispose()
     setRepoStatus({ state: 'idle' })
     setCurrentDir(null)

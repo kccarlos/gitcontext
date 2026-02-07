@@ -6,6 +6,19 @@ import { buildUnifiedDiffForStatus } from '../utils/diff'
 import { isBinaryPath, MAX_CONCURRENT_READS } from '@gitcontext/core'
 import { mapWithConcurrency } from '../utils/concurrency'
 
+// Helper to infer language from file extension for syntax highlighting
+function inferLangFromPath(p: string): string {
+  const ext = p.split('.').pop()?.toLowerCase() || ''
+  const langMap: Record<string, string> = {
+    js: 'javascript', jsx: 'javascript', ts: 'typescript', tsx: 'typescript',
+    py: 'python', rb: 'ruby', go: 'go', rs: 'rust', c: 'c', cpp: 'cpp', java: 'java',
+    kt: 'kotlin', swift: 'swift', php: 'php', cs: 'csharp', sh: 'bash', yaml: 'yaml',
+    yml: 'yaml', json: 'json', xml: 'xml', html: 'html', css: 'css', scss: 'scss',
+    md: 'markdown', sql: 'sql',
+  }
+  return langMap[ext] || ''
+}
+
 export type TokenCounts = Map<string, number>
 
 type Args = {
@@ -80,28 +93,42 @@ export function useTokenCounts({
                 needBase && baseRef ? gitClient.readFile(baseRef, path) : Promise.resolve(undefined as any),
                 needCompare && compareRef ? gitClient.readFile(compareRef, path) : Promise.resolve(undefined as any),
               ])
-              // Mirror final output generation logic
+              // Mirror final output generation logic EXACTLY as in copyAllSelected
+              const header = `## FILE: ${path} (${(status || 'unchanged').toUpperCase()})\n\n`
               const MAX_CONTEXT = 999
               const ctx = diffContextLines >= MAX_CONTEXT ? Number.MAX_SAFE_INTEGER : diffContextLines
+
               if (status === 'modify' || status === 'add' || status === 'remove') {
                 const isBinary = Boolean((baseRes as any)?.binary) || Boolean((compareRes as any)?.binary)
                 if (isBinary) {
                   // Edge: unknown ext but worker says binary; treat same as looksBinary
                   if (includeBinaryPaths) {
-                    const header = `## FILE: ${path} (${(status || 'unchanged').toUpperCase()})\n\n`
-                    textForCount = header
+                    textForCount = header // Just the header, no [Binary file] text
                   } else {
                     textForCount = ''
                   }
-                } else if (status === 'add' && ctx === Number.MAX_SAFE_INTEGER) {
-                  textForCount = (compareRes as { text?: string } | undefined)?.text ?? ''
+                } else if (status === 'add') {
+                  // Include header + markdown fences + content (matches copyAllSelected line 781)
+                  const newTextRaw = (compareRes as { text?: string } | undefined)?.text ?? ''
+                  const newText = newTextRaw.endsWith('\n') ? newTextRaw.slice(0, -1) : newTextRaw
+                  const lang = inferLangFromPath(path)
+                  textForCount = header + '```' + lang + '\n' + newText + '\n```\n\n'
                 } else {
-                  textForCount = buildUnifiedDiffForStatus(status, path, baseRes as any, compareRes as any, { context: ctx }) || ''
+                  // modify/remove: include header + diff fences + diff (matches copyAllSelected line 791)
+                  const diffText = buildUnifiedDiffForStatus(status, path, baseRes as any, compareRes as any, { context: ctx }) || ''
+                  if (diffText) {
+                    textForCount = header + '```diff\n' + diffText + '```\n\n'
+                  } else {
+                    // Fallback: no text (matches copyAllSelected line 794)
+                    textForCount = header + '_No textual content available._\n\n'
+                  }
                 }
               } else {
+                // unchanged: include header + markdown fences + content (matches copyAllSelected line 800)
                 const isBinary = Boolean((baseRes as any)?.binary)
-                const oldText = isBinary || (baseRes as any)?.notFound ? '' : (baseRes as any)?.text ?? ''
-                textForCount = oldText
+                const text = isBinary || (baseRes as any)?.notFound ? '' : (baseRes as any)?.text ?? ''
+                const lang = inferLangFromPath(path)
+                textForCount = header + '```' + lang + '\n' + (text || '') + '\n```\n\n'
               }
             }
             const n = textForCount ? await tok.count(textForCount) : 0
@@ -140,7 +167,7 @@ export function useTokenCounts({
     return () => {
       abortController.abort()
     }
-  }, [gitClient, baseRef, compareRef, selectedList, statusByPath, diffContextLines])
+  }, [gitClient, baseRef, compareRef, selectedList, statusByPath, diffContextLines, includeBinaryPaths, tok, onBatch])
 
   const total = useMemo(() => {
     let sum = 0
