@@ -111,6 +111,11 @@ export class TauriGitService implements GitService {
     return result
   }
 
+  /**
+   * Dispose of resources by clearing the repo path.
+   * Note: This service instance remains valid and can be reused after dispose().
+   * Call loadRepo() again to load a new repository.
+   */
   dispose(): void {
     this.repoPath = null
   }

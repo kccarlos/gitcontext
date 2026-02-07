@@ -21,6 +21,34 @@ import { clearRepositoryCache } from './utils/cache'
 import { logError } from './utils/logger'
 import { debounce } from './utils/debounce'
 
+// Prompt templates (moved outside component to avoid recreation on every render)
+const PROMPT_TEMPLATES = [
+  {
+    id: 'branch-summary',
+    label: 'Summarize branch diff',
+    content:
+      'You are an expert engineer. Summarize the changes between the selected branches and explain the impact of the modifications.',
+  },
+  {
+    id: 'wd-review',
+    label: 'Review working directory changes',
+    content:
+      'You are a code reviewer. Review the current working directory diff for potential issues, bugs, or improvements.',
+  },
+  {
+    id: 'test-plan',
+    label: 'Suggest tests for diff',
+    content:
+      'You are a QA engineer. Based on the provided diff, propose relevant unit or integration tests to cover the changes.',
+  },
+  {
+    id: 'release-notes',
+    label: 'Draft release notes',
+    content:
+      'You are a technical writer. Craft concise release notes that describe the user-facing effects of the diff.',
+  },
+]
+
 function App() {
   const [appStatus, setAppStatus] = useState<AppStatus>({ state: 'IDLE' })
   // note: we will temporarily set task='tokens' while counting, see effect below
@@ -50,6 +78,9 @@ function App() {
     base?: { binary: boolean; text: string | null; notFound?: boolean }
     compare?: { binary: boolean; text: string | null; notFound?: boolean }
   } | null>(null)
+
+  // Track preview request IDs to prevent race conditions
+  const previewRequestIdRef = useRef(0)
 
   const [theme, setTheme] = useState<'light' | 'dark' | null>(() => {
     try {
@@ -270,32 +301,6 @@ function App() {
     return () => { cancelled = true }
   }, [userInstructions])
 
-  const PROMPT_TEMPLATES = [
-    {
-      id: 'branch-summary',
-      label: 'Summarize branch diff',
-      content:
-        'You are an expert engineer. Summarize the changes between the selected branches and explain the impact of the modifications.',
-    },
-    {
-      id: 'wd-review',
-      label: 'Review working directory changes',
-      content:
-        'You are a code reviewer. Review the current working directory diff for potential issues, bugs, or improvements.',
-    },
-    {
-      id: 'test-plan',
-      label: 'Suggest tests for diff',
-      content:
-        'You are a QA engineer. Based on the provided diff, propose relevant unit or integration tests to cover the changes.',
-    },
-    {
-      id: 'release-notes',
-      label: 'Draft release notes',
-      content:
-        'You are a technical writer. Craft concise release notes that describe the user-facing effects of the diff.',
-    },
-  ]
   const [templateId, setTemplateId] = useState<string>('')
 
   // Model selection: fetched dynamically; derive token limit from the selected model
@@ -370,6 +375,14 @@ function App() {
   const diffRangeRef = useRef<HTMLInputElement | null>(null)
   const MAX_CONTEXT = 999
   const debouncedSetDiffContextLines = useMemo(() => debounce(setDiffContextLines, 250), [])
+
+  // Cancel debounced function on unmount to avoid setState after unmount
+  useEffect(() => {
+    return () => {
+      debouncedSetDiffContextLines.cancel()
+    }
+  }, [debouncedSetDiffContextLines])
+
   // Collapsible User Instructions
   const [instructionsOpen, setInstructionsOpen] = useState<boolean>(true)
 
@@ -583,6 +596,10 @@ function App() {
       setNotif('Binary file preview is not supported.')
       return
     }
+
+    // Increment request ID to track this specific preview request
+    const requestId = ++previewRequestIdRef.current
+
     try {
       const toFetchBase = status !== 'add'
       const toFetchCompare = status !== 'remove'
@@ -591,6 +608,11 @@ function App() {
         toFetchBase && baseBranch ? gitClient.readFile(baseBranch, path) : Promise.resolve(undefined),
         toFetchCompare && compareBranch ? gitClient.readFile(compareBranch, path) : Promise.resolve(undefined),
       ])
+
+      // Check if this request is still the latest one (prevent race condition)
+      if (requestId !== previewRequestIdRef.current) {
+        return // A newer preview request has been made, ignore this result
+      }
 
       // If worker reports binary, bail out as well
       const baseBin = (baseRes as any)?.binary
@@ -607,8 +629,11 @@ function App() {
       })
       setPreviewOpen(true)
     } catch (e) {
-      const err = e instanceof Error ? e : new Error(String(e))
-      setNotif(`Failed to read file content: ${err.message}`)
+      // Only show error if this is still the latest request
+      if (requestId === previewRequestIdRef.current) {
+        const err = e instanceof Error ? e : new Error(String(e))
+        setNotif(`Failed to read file content: ${err.message}`)
+      }
     }
   }
 
@@ -1151,9 +1176,24 @@ function App() {
                         value={templateId}
                         onChange={(e) => {
                           const id = e.target.value
-                          setTemplateId(id)
                           const tmpl = PROMPT_TEMPLATES.find((t) => t.id === id)
-                          if (tmpl) setUserInstructions(tmpl.content)
+                          if (tmpl) {
+                            // If user has custom instructions, confirm before overwriting
+                            const hasCustomText = userInstructions.trim() && userInstructions.trim() !== tmpl.content
+                            if (hasCustomText) {
+                              const confirmed = window.confirm(
+                                'This will replace your current instructions. Continue?'
+                              )
+                              if (!confirmed) {
+                                // Reset select to previous value
+                                return
+                              }
+                            }
+                            setTemplateId(id)
+                            setUserInstructions(tmpl.content)
+                          } else {
+                            setTemplateId(id)
+                          }
                         }}
                         style={{ flexGrow: 1 }}
                       >
@@ -1297,7 +1337,6 @@ function App() {
 
               <div className="panel-section">
                 <SelectedFilesPanel
-                  key={`sel-${selectedPaths.size}`}
                   selectedPaths={selectedPaths}
                   statusByPath={statusByPath}
                   onUnselect={(path) => toggleSelect(path)}
