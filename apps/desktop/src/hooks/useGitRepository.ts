@@ -60,51 +60,6 @@ export function useGitRepository(setAppStatus?: (s: AppStatus) => void) {
     []
   )
 
-  // Listen for working directory file changes
-  useEffect(() => {
-    if (!currentDir) return
-
-    let unlisten: UnlistenFn | null = null
-    const setup = async () => {
-      unlisten = await listen<{ repoPath: string; changedFiles: string[] }>(
-        'workdir-changed',
-        (event) => {
-          // Only react if WORKDIR is currently selected
-          if (baseBranch === '__WORKDIR__' || compareBranch === '__WORKDIR__') {
-            console.log('Working directory changed, refreshing diff...', event.payload.changedFiles)
-            triggerDiffRefresh()
-          }
-        }
-      )
-    }
-    void setup()
-
-    return () => {
-      if (unlisten) void unlisten()
-    }
-  }, [currentDir, baseBranch, compareBranch, triggerDiffRefresh])
-
-  // Listen for branch/refs changes
-  useEffect(() => {
-    if (!currentDir) return
-
-    let unlisten: UnlistenFn | null = null
-    const setup = async () => {
-      unlisten = await listen<{ repoPath: string }>(
-        'refs-changed',
-        (event) => {
-          console.log('Git refs changed, refreshing branch list...', event.payload)
-          void refreshRepo()
-        }
-      )
-    }
-    void setup()
-
-    return () => {
-      if (unlisten) void unlisten()
-    }
-  }, [currentDir, refreshRepo])
-
   const loadRepoFromHandle = useCallback(async (path: string) => {
     setRepoStatus({ state: 'loading', message: 'Loading repository...' })
     setAppStatus?.({ state: 'LOADING', task: 'repo', message: 'Loading repository...', progress: 'indeterminate' })
@@ -188,6 +143,52 @@ export function useGitRepository(setAppStatus?: (s: AppStatus) => void) {
     setCompareBranch('')
     setAppStatus?.({ state: 'IDLE' })
   }, [gitClient, setAppStatus])
+
+  // Listen for working directory file changes
+  useEffect(() => {
+    if (!currentDir) return
+
+    let unlisten: UnlistenFn | null = null
+    const setup = async () => {
+      unlisten = await listen<{ repoPath: string; changedFiles: string[] }>(
+        'workdir-changed',
+        (event) => {
+          // Only react if WORKDIR is currently selected
+          if (baseBranch === '__WORKDIR__' || compareBranch === '__WORKDIR__') {
+            console.log('Working directory changed, refreshing diff...', event.payload.changedFiles)
+            triggerDiffRefresh()
+          }
+        }
+      )
+    }
+    void setup()
+
+    return () => {
+      if (unlisten) void unlisten()
+    }
+  }, [currentDir, baseBranch, compareBranch, triggerDiffRefresh])
+
+  // Listen for branch/refs changes
+  useEffect(() => {
+    if (!currentDir) return
+
+    let unlisten: UnlistenFn | null = null
+    const setup = async () => {
+      unlisten = await listen<{ repoPath: string }>(
+        'refs-changed',
+        (event) => {
+          console.log('Git refs changed, refreshing branch list...', event.payload)
+          // Use refreshRepo to reload branches
+          void refreshRepo()
+        }
+      )
+    }
+    void setup()
+
+    return () => {
+      if (unlisten) void unlisten()
+    }
+  }, [currentDir, refreshRepo])
 
   return {
     currentDir,
