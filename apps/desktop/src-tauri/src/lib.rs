@@ -1,7 +1,12 @@
 #[cfg(debug_assertions)]
 use tauri::Manager;
+use std::sync::Mutex;
 
 mod git;
+mod watcher;
+
+// Global watcher state
+static WATCHER: Mutex<Option<watcher::RepoWatcher>> = Mutex::new(None);
 
 // Test command to verify Tauri is working
 #[tauri::command]
@@ -11,8 +16,28 @@ fn greet(name: &str) -> String {
 
 // Git operations commands
 #[tauri::command]
-fn open_repo(path: String) -> Result<git::LoadRepoResult, String> {
-    git::open_repo(&path)
+fn open_repo(app: tauri::AppHandle, path: String) -> Result<git::LoadRepoResult, String> {
+    let result = git::open_repo(&path)?;
+
+    // Stop existing watcher if any
+    if let Ok(mut watcher) = WATCHER.lock() {
+        if let Some(old_watcher) = watcher.take() {
+            old_watcher.stop();
+        }
+
+        // Start new watcher
+        match watcher::RepoWatcher::new(app, path.clone()) {
+            Ok(new_watcher) => {
+                *watcher = Some(new_watcher);
+            }
+            Err(e) => {
+                eprintln!("Warning: Failed to start file watcher: {}", e);
+                // Continue without watcher - not a fatal error
+            }
+        }
+    }
+
+    Ok(result)
 }
 
 #[tauri::command]
@@ -45,6 +70,16 @@ fn resolve_ref(path: String, ref_name: String) -> Result<git::ResolveRefResult, 
     git::resolve_ref(&path, &ref_name)
 }
 
+#[tauri::command]
+fn close_repo() -> Result<(), String> {
+    if let Ok(mut watcher) = WATCHER.lock() {
+        if let Some(old_watcher) = watcher.take() {
+            old_watcher.stop();
+        }
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -59,7 +94,8 @@ pub fn run() {
             read_file_blob,
             list_files,
             list_files_with_oids,
-            resolve_ref
+            resolve_ref,
+            close_repo
         ])
         .setup(|_app| {
             #[cfg(debug_assertions)]

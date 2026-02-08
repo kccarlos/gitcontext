@@ -76,7 +76,7 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
       compareBranch: string,
       setProgress?: ProgressSetter,
     ) => {
-      if (!gitClient || !baseBranch || !compareBranch || baseBranch === compareBranch) {
+      if (!gitClient || !baseBranch || !compareBranch) {
         setDiffFiles([])
         setFileTree(null)
         setStatusByPath(new Map())
@@ -85,6 +85,22 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
         setExpandedPaths(new Set())
         return
       }
+
+      // Handle case where base and compare are the same
+      if (baseBranch === compareBranch) {
+        setDiffFiles([])
+        setFileTree(null)
+        setStatusByPath(new Map())
+        setTotalFileCount(0)
+        setSelectedPaths(new Set())
+        setExpandedPaths(new Set())
+        const msg = baseBranch === '__WORKDIR__'
+          ? 'Cannot compare working directory to itself. Select a different branch.'
+          : 'Base and compare branches are the same. Select different branches to see changes.'
+        setAppStatus?.({ state: 'READY', message: msg })
+        return
+      }
+
       setIsComputing(true)
 
       try {

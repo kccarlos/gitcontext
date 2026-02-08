@@ -1,7 +1,20 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { open } from '@tauri-apps/plugin-dialog'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { TauriGitService } from '../services/TauriGitService'
 import type { AppStatus } from '../types/appStatus'
+
+// Debounce helper
+function debounce<T extends (...args: any[]) => any>(
+  fn: T,
+  delay: number
+): (...args: Parameters<T>) => void {
+  let timeoutId: NodeJS.Timeout | null = null
+  return (...args: Parameters<T>) => {
+    if (timeoutId) clearTimeout(timeoutId)
+    timeoutId = setTimeout(() => fn(...args), delay)
+  }
+}
 
 export type RepoMode = 'git'
 
@@ -18,6 +31,7 @@ export function useGitRepository(setAppStatus?: (s: AppStatus) => void) {
   const [branches, setBranches] = useState<string[]>([])
   const [baseBranch, setBaseBranch] = useState<string>('')
   const [compareBranch, setCompareBranch] = useState<string>('')
+  const [diffTrigger, setDiffTrigger] = useState(0) // Trigger diff refresh
 
   // Persist branch selection in localStorage
   useEffect(() => {
@@ -34,9 +48,62 @@ export function useGitRepository(setAppStatus?: (s: AppStatus) => void) {
 
   useEffect(() => {
     return () => {
-      gitClient?.dispose()
+      void gitClient?.dispose()
     }
   }, [gitClient])
+
+  // Debounced trigger for diff refresh
+  const triggerDiffRefresh = useMemo(
+    () => debounce(() => {
+      setDiffTrigger(prev => prev + 1)
+    }, 300),
+    []
+  )
+
+  // Listen for working directory file changes
+  useEffect(() => {
+    if (!currentDir) return
+
+    let unlisten: UnlistenFn | null = null
+    const setup = async () => {
+      unlisten = await listen<{ repoPath: string; changedFiles: string[] }>(
+        'workdir-changed',
+        (event) => {
+          // Only react if WORKDIR is currently selected
+          if (baseBranch === '__WORKDIR__' || compareBranch === '__WORKDIR__') {
+            console.log('Working directory changed, refreshing diff...', event.payload.changedFiles)
+            triggerDiffRefresh()
+          }
+        }
+      )
+    }
+    void setup()
+
+    return () => {
+      if (unlisten) void unlisten()
+    }
+  }, [currentDir, baseBranch, compareBranch, triggerDiffRefresh])
+
+  // Listen for branch/refs changes
+  useEffect(() => {
+    if (!currentDir) return
+
+    let unlisten: UnlistenFn | null = null
+    const setup = async () => {
+      unlisten = await listen<{ repoPath: string }>(
+        'refs-changed',
+        (event) => {
+          console.log('Git refs changed, refreshing branch list...', event.payload)
+          void refreshRepo()
+        }
+      )
+    }
+    void setup()
+
+    return () => {
+      if (unlisten) void unlisten()
+    }
+  }, [currentDir, refreshRepo])
 
   const loadRepoFromHandle = useCallback(async (path: string) => {
     setRepoStatus({ state: 'loading', message: 'Loading repository...' })
@@ -135,5 +202,6 @@ export function useGitRepository(setAppStatus?: (s: AppStatus) => void) {
     selectNewRepo,
     refreshRepo,
     resetRepo,
+    diffTrigger, // For triggering diff refresh on file changes
   }
 }

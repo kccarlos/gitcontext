@@ -116,7 +116,14 @@ export class TauriGitService implements GitService {
    * Note: This service instance remains valid and can be reused after dispose().
    * Call loadRepo() again to load a new repository.
    */
-  dispose(): void {
+  async dispose(): Promise<void> {
+    if (this.repoPath) {
+      try {
+        await invoke('close_repo')
+      } catch (e) {
+        console.error('Failed to close repo watcher:', e)
+      }
+    }
     this.repoPath = null
   }
 }
