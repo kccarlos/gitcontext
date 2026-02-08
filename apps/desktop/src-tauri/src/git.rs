@@ -2,6 +2,8 @@ use git2::Repository;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+const WORKDIR_SENTINEL: &str = "__WORKDIR__";
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LoadRepoResult {
@@ -55,9 +57,9 @@ pub struct ResolveRefResult {
 pub fn open_repo(path: &str) -> Result<LoadRepoResult, String> {
     let repo = Repository::open(path).map_err(|e| format!("Failed to open repository: {}", e))?;
 
-    // Get all branches
-    let branches = repo
-        .branches(None)
+    // Get local branches only (avoid confusion with remote branches like origin/...)
+    let branches: Vec<String> = repo
+        .branches(Some(git2::BranchType::Local))
         .map_err(|e| format!("Failed to list branches: {}", e))?
         .filter_map(|branch_result| {
             branch_result.ok().and_then(|(branch, _)| {
@@ -72,8 +74,12 @@ pub fn open_repo(path: &str) -> Result<LoadRepoResult, String> {
         .ok()
         .and_then(|head| head.shorthand().map(|s| s.to_string()));
 
+    // Prepend WORKDIR to branch list
+    let mut all_branches = vec![WORKDIR_SENTINEL.to_string()];
+    all_branches.extend(branches);
+
     Ok(LoadRepoResult {
-        branches,
+        branches: all_branches,
         default_branch,
     })
 }
@@ -87,38 +93,73 @@ pub fn get_branches(path: &str) -> Result<LoadRepoResult, String> {
 pub fn git_diff(path: &str, base: &str, compare: &str) -> Result<DiffResult, String> {
     let repo = Repository::open(path).map_err(|e| format!("Failed to open repository: {}", e))?;
 
-    // Resolve base and compare to commits
-    let base_commit = repo
-        .revparse_single(base)
-        .map_err(|e| format!("Failed to resolve base ref '{}': {}", base, e))?
-        .peel_to_commit()
-        .map_err(|e| format!("Failed to peel base to commit: {}", e))?;
+    // Handle WORKDIR sentinel
+    let mut diff = if compare == WORKDIR_SENTINEL {
+        // Compare base tree to working directory
+        let base_commit = repo
+            .revparse_single(base)
+            .map_err(|e| format!("Failed to resolve base ref '{}': {}", base, e))?
+            .peel_to_commit()
+            .map_err(|e| format!("Failed to peel base to commit: {}", e))?;
 
-    let compare_commit = repo
-        .revparse_single(compare)
-        .map_err(|e| format!("Failed to resolve compare ref '{}': {}", compare, e))?
-        .peel_to_commit()
-        .map_err(|e| format!("Failed to peel compare to commit: {}", e))?;
+        let base_tree = base_commit
+            .tree()
+            .map_err(|e| format!("Failed to get base tree: {}", e))?;
 
-    // Get trees from commits
-    let base_tree = base_commit
-        .tree()
-        .map_err(|e| format!("Failed to get base tree: {}", e))?;
+        let mut opts = git2::DiffOptions::new();
+        opts.include_untracked(false); // Only show tracked files
 
-    let compare_tree = compare_commit
-        .tree()
-        .map_err(|e| format!("Failed to get compare tree: {}", e))?;
+        repo.diff_tree_to_workdir(Some(&base_tree), Some(&mut opts))
+            .map_err(|e| format!("Failed to compute diff to workdir: {}", e))?
+    } else if base == WORKDIR_SENTINEL {
+        // Compare working directory to compare tree (reverse diff)
+        let compare_commit = repo
+            .revparse_single(compare)
+            .map_err(|e| format!("Failed to resolve compare ref '{}': {}", compare, e))?
+            .peel_to_commit()
+            .map_err(|e| format!("Failed to peel compare to commit: {}", e))?;
 
-    // Compute diff
-    let mut diff = repo
-        .diff_tree_to_tree(Some(&base_tree), Some(&compare_tree), None)
-        .map_err(|e| format!("Failed to compute diff: {}", e))?;
+        let compare_tree = compare_commit
+            .tree()
+            .map_err(|e| format!("Failed to get compare tree: {}", e))?;
+
+        let mut opts = git2::DiffOptions::new();
+        opts.include_untracked(false); // Only show tracked files
+
+        repo.diff_tree_to_workdir(Some(&compare_tree), Some(&mut opts))
+            .map_err(|e| format!("Failed to compute diff to workdir: {}", e))?
+    } else {
+        // Normal tree-to-tree diff
+        let base_commit = repo
+            .revparse_single(base)
+            .map_err(|e| format!("Failed to resolve base ref '{}': {}", base, e))?
+            .peel_to_commit()
+            .map_err(|e| format!("Failed to peel base to commit: {}", e))?;
+
+        let compare_commit = repo
+            .revparse_single(compare)
+            .map_err(|e| format!("Failed to resolve compare ref '{}': {}", compare, e))?
+            .peel_to_commit()
+            .map_err(|e| format!("Failed to peel compare to commit: {}", e))?;
+
+        let base_tree = base_commit
+            .tree()
+            .map_err(|e| format!("Failed to get base tree: {}", e))?;
+
+        let compare_tree = compare_commit
+            .tree()
+            .map_err(|e| format!("Failed to get compare tree: {}", e))?;
+
+        repo.diff_tree_to_tree(Some(&base_tree), Some(&compare_tree), None)
+            .map_err(|e| format!("Failed to compute diff: {}", e))?
+    };
 
     // Enable rename and copy detection
     diff.find_similar(None)
         .map_err(|e| format!("Failed to find similar files: {}", e))?;
 
     let mut files = Vec::new();
+    let invert_changes = base == WORKDIR_SENTINEL; // Invert change types when base is WORKDIR
 
     diff.foreach(
         &mut |delta, _progress| {
@@ -132,10 +173,18 @@ pub fn git_diff(path: &str, base: &str, compare: &str) -> Result<DiffResult, Str
 
             let (path, change_type, stored_old_path) = match delta.status() {
                 git2::Delta::Added => {
-                    (new_path.unwrap_or_default(), "add", None)
+                    if invert_changes {
+                        (new_path.unwrap_or_default(), "remove", None)
+                    } else {
+                        (new_path.unwrap_or_default(), "add", None)
+                    }
                 },
                 git2::Delta::Deleted => {
-                    (old_path.unwrap_or_default(), "remove", None)
+                    if invert_changes {
+                        (old_path.unwrap_or_default(), "add", None)
+                    } else {
+                        (old_path.unwrap_or_default(), "remove", None)
+                    }
                 },
                 git2::Delta::Modified => {
                     (new_path.unwrap_or_default(), "modify", None)
@@ -170,8 +219,47 @@ pub fn git_diff(path: &str, base: &str, compare: &str) -> Result<DiffResult, Str
     Ok(DiffResult { files })
 }
 
+/// List all files in working directory (respecting .gitignore)
+fn list_workdir_files(path: &str) -> Result<ListFilesResult, String> {
+    use ignore::WalkBuilder;
+
+    let mut files = Vec::new();
+    let walker = WalkBuilder::new(path)
+        .hidden(false) // Show hidden files
+        .git_ignore(true) // Respect .gitignore
+        .git_exclude(true) // Respect .git/info/exclude
+        .build();
+
+    for entry in walker {
+        match entry {
+            Ok(entry) => {
+                if entry.file_type().map(|ft| ft.is_file()).unwrap_or(false) {
+                    // Get path relative to repo root
+                    if let Ok(rel_path) = entry.path().strip_prefix(path) {
+                        let path_str = rel_path.to_string_lossy().to_string();
+                        // Exclude .git directory files
+                        if !path_str.starts_with(".git/") && !path_str.starts_with(".git\\") {
+                            // Normalize path separators to forward slashes
+                            let normalized = path_str.replace('\\', "/");
+                            files.push(normalized);
+                        }
+                    }
+                }
+            }
+            Err(_) => continue, // Skip errors (permission issues, etc.)
+        }
+    }
+
+    Ok(ListFilesResult { files })
+}
+
 /// List all files in a tree at a specific ref
 pub fn list_files(path: &str, ref_name: &str) -> Result<ListFilesResult, String> {
+    // Handle WORKDIR sentinel
+    if ref_name == WORKDIR_SENTINEL {
+        return list_workdir_files(path);
+    }
+
     let repo = Repository::open(path).map_err(|e| format!("Failed to open repository: {}", e))?;
 
     // Resolve ref to commit
@@ -263,7 +351,47 @@ pub fn resolve_ref(path: &str, ref_name: &str) -> Result<ResolveRefResult, Strin
 
 /// Read file content at a specific ref
 pub fn read_file_blob(path: &str, ref_name: &str, file_path: &str) -> Result<ReadFileResult, String> {
-    let repo = Repository::open(path).map_err(|e| format!("Failed to open repository: {}", e))?;
+    // Handle WORKDIR sentinel - read from filesystem
+    if ref_name == WORKDIR_SENTINEL {
+        use std::fs;
+        use std::path::PathBuf;
+
+        let full_path = PathBuf::from(path).join(file_path);
+
+        match fs::read(&full_path) {
+            Ok(content) => {
+                // Check if binary (scan first 8KB for null bytes)
+                let check_len = content.len().min(8192);
+                let is_binary = content[..check_len].iter().any(|&b| b == 0);
+
+                if is_binary {
+                    return Ok(ReadFileResult {
+                        binary: true,
+                        text: None,
+                        not_found: None,
+                    });
+                }
+
+                // Convert to UTF-8 string (use lossy conversion for non-UTF8 files)
+                let text = String::from_utf8_lossy(&content).into_owned();
+
+                Ok(ReadFileResult {
+                    binary: false,
+                    text: Some(text),
+                    not_found: None,
+                })
+            }
+            Err(_) => {
+                Ok(ReadFileResult {
+                    binary: false,
+                    text: None,
+                    not_found: Some(true),
+                })
+            }
+        }
+    } else {
+        // Normal Git blob reading
+        let repo = Repository::open(path).map_err(|e| format!("Failed to open repository: {}", e))?;
 
     // Resolve ref to commit
     let commit = repo
@@ -323,11 +451,12 @@ pub fn read_file_blob(path: &str, ref_name: &str, file_path: &str) -> Result<Rea
     // Convert to UTF-8 string (use lossy conversion for non-UTF8 encodings like Latin-1)
     let text = String::from_utf8_lossy(content).into_owned();
 
-    Ok(ReadFileResult {
-        binary: false,
-        text: Some(text),
-        not_found: None,
-    })
+        Ok(ReadFileResult {
+            binary: false,
+            text: Some(text),
+            not_found: None,
+        })
+    }
 }
 
 #[cfg(test)]

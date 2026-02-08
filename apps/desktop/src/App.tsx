@@ -33,6 +33,7 @@ function AppContent() {
     selectNewRepo,
     refreshRepo,
     resetRepo,
+    diffTrigger,
   } = useGitRepository(setAppStatus)
 
   const [notif, setNotif] = useState<string | null>(null)
@@ -177,12 +178,12 @@ function AppContent() {
     }
   }, [baseBranch, compareBranch, setBaseBranch, setCompareBranch])
 
-  // Compute diff when branches change
+  // Compute diff when branches change or file watcher triggers
   useEffect(() => {
     if (repoStatus.state === 'ready' && baseBranch && compareBranch) {
       computeDiffAndTree(gitClient, baseBranch, compareBranch)
     }
-  }, [repoStatus, baseBranch, compareBranch, gitClient, computeDiffAndTree])
+  }, [repoStatus, baseBranch, compareBranch, gitClient, computeDiffAndTree, diffTrigger])
 
   // Preview file
   const previewFile = useCallback(async (path: string, status: FileDiffStatus) => {
@@ -527,7 +528,9 @@ function AppContent() {
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px', color: '#666' }}>Base Branch</label>
                     <select value={baseBranch} onChange={(e) => setBaseBranch(e.target.value)} className="gc-select" style={{ width: '100%' }}>
                       {branches.map((branch) => (
-                        <option key={branch} value={branch}>{branch}</option>
+                        <option key={branch} value={branch}>
+                          {branch === '__WORKDIR__' ? 'My Working Directory' : branch}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -547,7 +550,9 @@ function AppContent() {
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px', color: '#666' }}>Compare Branch</label>
                     <select value={compareBranch} onChange={(e) => setCompareBranch(e.target.value)} className="gc-select" style={{ width: '100%' }}>
                       {branches.map((branch) => (
-                        <option key={branch} value={branch}>{branch}</option>
+                        <option key={branch} value={branch}>
+                          {branch === '__WORKDIR__' ? 'My Working Directory' : branch}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -681,16 +686,6 @@ function AppContent() {
                   fileTreeTokens={includeFileTree ? fileTreeTokens : 0}
                   limit={tokenLimit}
                 />
-
-                {/* Copy button */}
-                <button
-                  onClick={copyAllSelected}
-                  disabled={selectedPaths.size === 0 || !!copyFlash}
-                  className="gc-button gc-button-primary"
-                  style={{ width: '100%', marginTop: '12px' }}
-                >
-                  {copyFlash ? copyFlash : (<><Copy size={16} /> COPY ALL SELECTED</>)}
-                </button>
               </div>
 
               {/* Selected files list */}
@@ -713,6 +708,23 @@ function AppContent() {
 
         {renderPreview()}
       </div>
+
+      {/* Fixed Copy Button Footer */}
+      {selectedPaths.size > 0 && gitClient && (
+        <div
+          className="copy-button-fixed"
+          style={{ bottom: copyFlash ? '1rem' : '5rem' }}
+        >
+          <button
+            onClick={copyAllSelected}
+            disabled={selectedPaths.size === 0 || !!copyFlash}
+            className="gc-button gc-button-primary"
+            style={{ minWidth: '200px', fontSize: '1rem', padding: 'var(--space-3) var(--space-5)' }}
+          >
+            {copyFlash ? copyFlash : (<><Copy size={18} /> COPY ALL SELECTED</>)}
+          </button>
+        </div>
+      )}
 
       {/* Status bar */}
       <div style={{ padding: '0 1rem 1rem 1rem' }}>

@@ -79,13 +79,26 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
       compareBranch: string,
       setProgress?: ProgressSetter,
     ) => {
-      if (!gitClient || !baseBranch || !compareBranch || baseBranch === compareBranch) {
+      if (!gitClient || !baseBranch || !compareBranch) {
         setDiffFiles([])
         setFileTree(null)
         setStatusByPath(new Map())
         setTotalFileCount(0)
         setSelectedPaths(new Set())
         setExpandedPaths(new Set())
+        return
+      }
+
+      // Handle case where base and compare are the same
+      if (baseBranch === compareBranch) {
+        setDiffFiles([])
+        setFileTree(null)
+        setStatusByPath(new Map())
+        setTotalFileCount(0)
+        setSelectedPaths(new Set())
+        setExpandedPaths(new Set())
+        setAppStatus?.({ state: 'READY', message: 'Base and compare branches are the same. Select different branches to see changes.' })
+        try { console.info('[app-status]', { state: 'READY', message: 'Same branch selected' }) } catch {}
         return
       }
 
@@ -118,7 +131,11 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
           return
         }
         const diffMap = new Map<string, FileDiffStatus>()
-        for (const f of res.files) diffMap.set(f.path, f.type as FileDiffStatus)
+        for (const f of res.files) {
+          // Map rename/copy to modify for UI consistency (they represent modified files)
+          const status = (f.type === 'rename' || f.type === 'copy') ? 'modify' : f.type
+          diffMap.set(f.path, status as FileDiffStatus)
+        }
         // Build union from both sides to keep unchanged files present on either side
         const union = new Set<string>([...baseList.files, ...compareList.files])
         setProgress?.({ message: 'Building file tree…', percent: 75 })
@@ -145,8 +162,10 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
 
         const sel = new Set<string>()
         for (const f of res.files) {
-          // Reset selection to reflect new diff context: select modified and added files
-          if (f.type === 'modify' || f.type === 'add') sel.add(f.path)
+          // Reset selection to reflect new diff context: select modified, added, renamed, and copied files
+          if (f.type === 'modify' || f.type === 'add' || f.type === 'rename' || f.type === 'copy') {
+            sel.add(f.path)
+          }
         }
         setSelectedPaths(sel)
 

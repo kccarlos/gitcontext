@@ -1279,17 +1279,6 @@ function App() {
                       />
                       Include Binary as Paths
                     </label>
-                    <div className="row ml-auto">
-                      <button
-                        data-testid="copy-all-selected"
-                        type="button"
-                        className="btn btn-primary"
-                        onClick={() => { void copyAllSelected() }}
-                        disabled={selectedPaths.size === 0 || !gitClient}
-                      >
-                        {copyFlash ? copyFlash : (<><Copy size={16} /> COPY ALL SELECTED</>)}
-                      </button>
-                    </div>
                   </div>
 
                   <div className="row" style={{ width: '100%' }}>
@@ -1357,6 +1346,25 @@ function App() {
           <div className="hint" style={{ color: 'crimson' }}>{repoStatus.error}</div>
         )}
         {notif && <div className="hint" style={{ color: 'green' }}>{notif}</div>}
+
+        {/* Fixed Copy Button Footer */}
+        {selectedPaths.size > 0 && gitClient && (
+          <div
+            className="copy-button-fixed"
+            style={{ bottom: copyFlash ? '1rem' : hideStatus && appStatus.state === 'READY' ? '1rem' : '5rem' }}
+          >
+            <button
+              data-testid="copy-all-selected"
+              type="button"
+              className="btn btn-primary"
+              onClick={() => { void copyAllSelected() }}
+              disabled={selectedPaths.size === 0 || !gitClient}
+              style={{ minWidth: '200px', fontSize: '1rem', padding: 'var(--space-3) var(--space-5)' }}
+            >
+              {copyFlash ? copyFlash : (<><Copy size={18} /> COPY ALL SELECTED</>)}
+            </button>
+          </div>
+        )}
 
         {!copyFlash && (
           <div
