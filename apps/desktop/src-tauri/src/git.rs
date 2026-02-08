@@ -55,9 +55,9 @@ pub struct ResolveRefResult {
 pub fn open_repo(path: &str) -> Result<LoadRepoResult, String> {
     let repo = Repository::open(path).map_err(|e| format!("Failed to open repository: {}", e))?;
 
-    // Get all branches
+    // Get local branches only (avoid confusion with remote branches like origin/...)
     let branches = repo
-        .branches(None)
+        .branches(Some(git2::BranchType::Local))
         .map_err(|e| format!("Failed to list branches: {}", e))?
         .filter_map(|branch_result| {
             branch_result.ok().and_then(|(branch, _)| {
