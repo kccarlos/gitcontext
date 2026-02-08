@@ -1,3 +1,19 @@
+# [2.1.0](https://github.com/kccarlos/gitcontext/compare/v2.0.2...v2.1.0) (2026-02-08)
+
+
+### Bug Fixes
+
+* resolve 3 additional bugs ([448bfc6](https://github.com/kccarlos/gitcontext/commit/448bfc6806624044a8bdb52ac7343cf058e072d2))
+* resolve useEffect dependency order issue in useGitRepository ([9436833](https://github.com/kccarlos/gitcontext/commit/94368336f1c62a0c210bc8a69b7c2a99cf5567c3))
+
+
+### Features
+
+* add responsive breakpoints and mobile support ([fca8f99](https://github.com/kccarlos/gitcontext/commit/fca8f99d82bdbd8227eee19003b479965b42cbf7))
+* add working directory support with file watching in desktop app ([2d2e9a6](https://github.com/kccarlos/gitcontext/commit/2d2e9a61094b271c3691cb12b45a229fc5ed8492))
+* implement unified spacing scale and design tokens ([b8bd4ce](https://github.com/kccarlos/gitcontext/commit/b8bd4ce6f1b8996c46a72c19418f82d7e1da2520))
+* move Copy button to fixed footer position ([b7ea6ac](https://github.com/kccarlos/gitcontext/commit/b7ea6acf64be61ff4b9d2cbda08e2774e231cba7))
+
 ## [2.0.2](https://github.com/kccarlos/gitcontext/compare/v2.0.1...v2.0.2) (2026-02-07)
 
 
