@@ -2,9 +2,7 @@
 
 /* =============== Design tokens & utilities =============== */
 :root {
-  --radius: 10px;
-  --radius-sm: 8px;
-  --radius-lg: 14px;
+  /* Color tokens */
   --shadow-1: 0 1px 2px rgba(0,0,0,.05), 0 8px 24px rgba(0,0,0,.06);
   --shadow-2: 0 2px 8px rgba(0,0,0,.08), 0 12px 28px rgba(0,0,0,.12);
   --surface-1: color-mix(in oklab, Canvas 96%, transparent);
@@ -24,15 +22,15 @@
 
 :where(button,[role="button"],a,input,select,textarea):focus-visible {
   outline: 2px solid var(--ring);
-  outline-offset: 2px;
+  outline-offset: var(--space-1);
   border-radius: var(--radius-sm);
 }
 
 /* Buttons & inputs */
 .btn {
   --_bg: transparent; --_fg: inherit; --_bd: var(--border-col);
-  display:inline-flex; align-items:center; justify-content:center; gap:.5rem;
-  padding:.5rem .75rem; border:1px solid var(--_bd); border-radius:var(--radius-sm);
+  display:inline-flex; align-items:center; justify-content:center; gap: var(--space-2);
+  padding: var(--space-2) var(--space-3); border:1px solid var(--_bd); border-radius: var(--radius-sm);
   background:var(--_bg); color:var(--_fg); cursor:pointer;
   transition: background .2s ease, border-color .2s ease, transform .05s ease;
 }
@@ -41,29 +39,29 @@
 .btn:disabled { opacity:.55; cursor:not-allowed; }
 .btn-primary { --_bg: var(--primary); --_fg: var(--primary-contrast); --_bd: color-mix(in oklab, var(--primary) 85%, black); }
 .btn-ghost { --_bg: transparent; --_bd: var(--border-col); }
-.btn-icon { padding:.5rem; width:36px; height:36px; }
+.btn-icon { padding: var(--space-2); width:36px; height:36px; }
 
 .input, .select, .textarea {
-  padding:.4rem .55rem; border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
   border:1px solid var(--border-col); background: transparent; color: inherit;
 }
-.select { padding-right:1.75rem; }
+.select { padding-right: var(--space-6); }
 .textarea { resize: vertical; }
 
 .badge {
-  display:inline-flex; align-items:center; gap:.35rem;
-  font-size:.8rem; padding:.2rem .45rem; border:1px solid var(--border-col);
-  border-radius: 999px; background: var(--surface-1);
+  display:inline-flex; align-items:center; gap: var(--space-1);
+  font-size: var(--text-sm); padding: var(--space-1) var(--space-2); border:1px solid var(--border-col);
+  border-radius: var(--radius-full); background: var(--surface-1);
 }
 .badge.m { color:#e5c07b; border-color: currentColor; }
 .badge.a { color:#7cc37f; border-color: currentColor; }
 .badge.d { color:#e06c75; border-color: currentColor; }
 
-.row { display:flex; align-items:center; gap:.5rem; }
-.row-between { display:flex; align-items:center; justify-content:space-between; gap:.5rem; }
+.row { display:flex; align-items:center; gap: var(--space-2); }
+.row-between { display:flex; align-items:center; justify-content:space-between; gap: var(--space-2); }
 .ml-auto { margin-left:auto; }
 .v-divider { border-left:1px solid var(--border-col); height:22px; }
-.img-rounded { border-radius: 8px; display:block; }
+.img-rounded { border-radius: var(--radius-lg); display:block; }
 
 #root {
   max-width: 1440px;
@@ -73,14 +71,14 @@
 .container {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: var(--space-5);
 }
 
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: var(--space-3);
   grid-area: header;
   position: sticky;
   top: 0;
@@ -88,7 +86,7 @@
   backdrop-filter: blur(6px);
 }
 
-.brand { display:flex; align-items:center; gap:.75rem; }
+.brand { display:flex; align-items:center; gap: var(--space-3); }
 
 .header h1 {
   margin: 0;
@@ -97,9 +95,9 @@
 }
 
 .tag {
-  font-size: 0.85rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: 6px;
+  font-size: var(--text-sm);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
   border: 1px solid color-mix(in hsl, currentColor 20%, transparent);
   opacity: 0.85;
 }
@@ -112,27 +110,27 @@
 
 .panel {
   border: 1px solid var(--border-col);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   background: var(--surface-1);
   box-shadow: var(--shadow-1);
-  padding: 1rem 1.25rem;
+  padding: var(--space-4) var(--space-5);
 }
 
 .panel h2 {
-  margin: 0 0 0.5rem 0;
-  font-size: 1.15rem;
+  margin: 0 0 var(--space-2) 0;
+  font-size: var(--text-lg);
 }
 
 .panel ul {
-  padding-left: 1.25rem;
-  margin: 0.25rem 0 0.75rem 0;
+  padding-left: var(--space-5);
+  margin: var(--space-1) 0 var(--space-3) 0;
   display: grid;
-  gap: 0.25rem;
+  gap: var(--space-1);
 }
 
 .hint {
-  margin: 0.25rem 0 0 0;
-  font-size: 0.9rem;
+  margin: var(--space-1) 0 0 0;
+  font-size: var(--text-sm);
   opacity: 0.8;
 }
 
@@ -148,14 +146,14 @@ a.hint:active {
 .landing-grid {
   display: grid;
   grid-template-columns: 1.1fr 0.9fr;
-  gap: 1.25rem;
+  gap: var(--space-5);
   align-items: start;
 }
 
 .landing-visual {
   border: 1px solid var(--border-col);
-  border-radius: var(--radius);
-  padding: 0.75rem;
+  border-radius: var(--radius-lg);
+  padding: var(--space-3);
   background: var(--surface-1);
   box-shadow: var(--shadow-1);
 }
@@ -176,37 +174,37 @@ a.hint:active {
 
 .landing-visual-overlay {
   position: absolute;
-  inset: 0.75rem; /* match the container padding so the border radius aligns */
+  inset: var(--space-3); /* match the container padding so the border radius aligns */
 }
 
 .landing-visual-button:focus-visible {
   outline: 2px solid #646cff;
   outline-offset: 2px;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
 }
 
 .example-output {
   max-height: 360px;
   overflow: auto;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--border-col);
   background: Canvas;
   color: CanvasText;
-  padding: 0.75rem;
+  padding: var(--space-3);
 }
 
 .how-list {
   list-style: none;
   padding: 0;
-  margin: 0.5rem 0 0 0;
+  margin: var(--space-2) 0 0 0;
   display: grid;
-  gap: 0.75rem; /* increase vertical spacing between rows */
+  gap: var(--space-3); /* increase vertical spacing between rows */
 }
 
 .how-item {
   display: grid;
   grid-template-columns: 24px 1fr;
-  gap: 0.75rem; /* increase spacing between icon and text */
+  gap: var(--space-3); /* increase spacing between icon and text */
   align-items: start;
 }
 
@@ -220,7 +218,7 @@ a.hint:active {
 button {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
 .icon-only { padding: 0.6em; gap: 0; } /* legacy (kept for compatibility) */
@@ -231,7 +229,7 @@ button {
   inset: 0;
   display: grid;
   place-items: center;
-  padding: 1rem;
+  padding: var(--space-4);
   background:
     linear-gradient(
       to bottom,
@@ -251,11 +249,11 @@ button {
   /* Clamp the left column so saved px widths don't break on smaller viewports */
   grid-template-columns: clamp(240px, var(--left-col, 40%), 55%) 6px 1fr;
   grid-template-rows: auto 1fr;
-  gap: 1.25rem;
+  gap: var(--space-5);
   /* Mobile browser chrome friendly */
   height: 100vh;
   height: 100dvh;
-  padding: 2rem;
+  padding: var(--space-8);
   padding-bottom: 4.5rem; /* space for fixed status footer */
   box-sizing: border-box;
 }
@@ -272,10 +270,10 @@ button {
 .right-panel {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: var(--space-5);
   /* Make columns themselves not scroll; inner lists handle overflow */
   overflow: visible;
-  padding: 0.25rem;
+  padding: var(--space-1);
   min-height: 0;
 }
 
@@ -299,7 +297,7 @@ button {
   align-self: stretch;
   justify-self: center;
   background: color-mix(in hsl, currentColor 16%, transparent);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   /* Ensure the element can receive pointer events for dragging */
   touch-action: none;
   -webkit-user-select: none;
@@ -319,7 +317,7 @@ button {
 .column-resizer:focus-visible {
   outline: 2px solid #646cff;
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .column-resizer:hover { background: color-mix(in hsl, currentColor 24%, transparent); }
@@ -332,24 +330,24 @@ button {
 
 .panel-section {
   border: 1px solid var(--border-col);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   background: var(--surface-2);
-  padding: 1rem 1.25rem;
+  padding: var(--space-4) var(--space-5);
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--space-3);
 }
 
 .panel-section h2 {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   font-weight: 600;
   text-transform: uppercase;
   opacity: 0.9;
   /* remove underline separator under section titles */
   border-bottom: none;
   padding-bottom: 0;
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--space-2);
 }
 
 .instructions-textarea {
@@ -357,8 +355,8 @@ button {
   min-height: 100px;
   background-color: transparent;
   border: 1px solid var(--border-col);
-  border-radius: 6px;
-  padding: 0.5rem;
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
   font-family: inherit;
   color: inherit;
 }
@@ -416,11 +414,11 @@ button {
 .status-bar {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
 .status-bar-text {
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   opacity: 0.9;
 }
 
@@ -428,14 +426,14 @@ button {
   width: 100%;
   height: 8px;
   background-color: color-mix(in hsl, currentColor 15%, transparent);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
 .status-bar-fill {
   height: 100%;
   background-color: var(--primary);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   transition: width 0.3s ease-in-out;
 }
 
@@ -471,27 +469,27 @@ button {
 .gc-overlay-card {
   max-width: 680px;
   width: 100%;
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   border: 1px solid color-mix(in hsl, currentColor 20%, transparent);
   background: Canvas;
   color: CanvasText;
   box-shadow:
     0 10px 30px rgba(0, 0, 0, 0.08),
     0 2px 10px rgba(0, 0, 0, 0.04);
-  padding: 1.25rem 1.5rem;
+  padding: var(--space-5) var(--space-6);
 }
 
 .gc-overlay-card h2 {
-  margin: 0 0 0.5rem 0;
+  margin: 0 0 var(--space-2) 0;
   font-size: 1.35rem;
 }
 
 .gc-overlay-card p {
-  margin: 0.25rem 0;
+  margin: var(--space-1) 0;
 }
 
 .gc-small {
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   opacity: 0.85;
 }
 
@@ -508,24 +506,24 @@ button {
 }
 .gc-modal {
   background: Canvas; color: CanvasText; border:1px solid var(--border-col);
-  border-radius: var(--radius); width: min(1200px, 96vw); max-height: 86vh;
+  border-radius: var(--radius-lg); width: min(1200px, 96vw); max-height: 86vh;
   display:flex; flex-direction:column; box-shadow: var(--shadow-2);
 }
 .gc-modal-header {
-  position: sticky; top:0; display:flex; align-items:center; gap:.5rem;
-  padding:.75rem 1rem; border-bottom:1px solid var(--border-col); background: var(--surface-1);
+  position: sticky; top:0; display:flex; align-items:center; gap: var(--space-2);
+  padding: var(--space-3) var(--space-4); border-bottom:1px solid var(--border-col); background: var(--surface-1);
 }
-.gc-modal-body { padding:.75rem 1rem; overflow:auto; }
+.gc-modal-body { padding: var(--space-3) var(--space-4); overflow:auto; }
 
 /* Header controls */
 .header-controls {
   display:grid; grid-template-columns: minmax(280px,1fr) auto auto;
-  gap:.5rem; align-items:center; min-width:0;
+  gap: var(--space-2); align-items:center; min-width:0;
 }
 .ws-wrap { position:relative; min-width:0; }
 .ws-card {
   border:1px solid var(--border-col); border-radius: var(--radius-sm);
-  padding:.5rem .75rem; background: var(--surface-2);
+  padding: var(--space-2) var(--space-3); background: var(--surface-2);
 }
 .ws-select-overlay {
   position:absolute; inset:0; opacity:0; width:100%; height:100%; cursor:pointer;
@@ -533,7 +531,7 @@ button {
 
 /* Selected files */
 .selected-files { width:100%; display:flex; flex-direction:column; min-height:0; }
-.selected-files-list { border: 1px solid var(--border-col); border-radius: 8px; padding:.5rem; flex:1; min-height:0; overflow-y:auto; }
+.selected-files-list { border: 1px solid var(--border-col); border-radius: var(--radius-lg); padding: var(--space-2); flex:1; min-height:0; overflow-y:auto; }
 
 /* ---------- Responsiveness ---------- */
 /* Stack columns on narrower screens; hide the resizer */
@@ -557,10 +555,10 @@ button {
 /* Tighten padding and let header wrap nicely on small devices */
 @media (max-width: 700px) {
   .app-container {
-    padding: 1rem;
+    padding: var(--space-4);
     padding-bottom: 4.5rem;
   }
-  .header { flex-wrap: wrap; gap: 0.5rem; }
+  .header { flex-wrap: wrap; gap: var(--space-2); }
   .header img[alt="GitContext"] { height: 40px; }
 }
 
