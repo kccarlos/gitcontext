@@ -658,6 +658,15 @@ button {
   100% { transform: translateX(120%); }
 }
 
+/* Fixed copy button footer */
+.copy-button-fixed {
+  position: fixed;
+  right: var(--space-8);
+  bottom: 1rem;
+  z-index: 101;
+  transition: bottom 0.2s ease;
+}
+
 /* Footer progress bar container pinned to bottom padding area */
 .status-footer-fixed {
   position: fixed;
@@ -673,6 +682,19 @@ button {
   backdrop-filter: blur(3px);
   border-top: 1px solid color-mix(in hsl, currentColor 20%, transparent);
   z-index: 100;
+}
+
+/* Mobile: center the copy button */
+@media (max-width: 600px) {
+  .copy-button-fixed {
+    left: var(--space-3);
+    right: var(--space-3);
+    bottom: 1rem;
+  }
+
+  .copy-button-fixed button {
+    width: 100%;
+  }
 }
 
 .gc-overlay-card {

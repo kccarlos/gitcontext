@@ -681,16 +681,6 @@ function AppContent() {
                   fileTreeTokens={includeFileTree ? fileTreeTokens : 0}
                   limit={tokenLimit}
                 />
-
-                {/* Copy button */}
-                <button
-                  onClick={copyAllSelected}
-                  disabled={selectedPaths.size === 0 || !!copyFlash}
-                  className="gc-button gc-button-primary"
-                  style={{ width: '100%', marginTop: '12px' }}
-                >
-                  {copyFlash ? copyFlash : (<><Copy size={16} /> COPY ALL SELECTED</>)}
-                </button>
               </div>
 
               {/* Selected files list */}
@@ -713,6 +703,23 @@ function AppContent() {
 
         {renderPreview()}
       </div>
+
+      {/* Fixed Copy Button Footer */}
+      {selectedPaths.size > 0 && gitClient && (
+        <div
+          className="copy-button-fixed"
+          style={{ bottom: copyFlash ? '1rem' : '5rem' }}
+        >
+          <button
+            onClick={copyAllSelected}
+            disabled={selectedPaths.size === 0 || !!copyFlash}
+            className="gc-button gc-button-primary"
+            style={{ minWidth: '200px', fontSize: '1rem', padding: 'var(--space-3) var(--space-5)' }}
+          >
+            {copyFlash ? copyFlash : (<><Copy size={18} /> COPY ALL SELECTED</>)}
+          </button>
+        </div>
+      )}
 
       {/* Status bar */}
       <div style={{ padding: '0 1rem 1rem 1rem' }}>
