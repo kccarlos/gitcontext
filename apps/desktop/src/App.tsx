@@ -532,8 +532,8 @@ function AppContent() {
                 <div className="tree-action-buttons">
                   <button onClick={expandAll} className="btn btn-ghost btn-icon" title="Expand All" disabled={!fileTree}><ChevronsDown size={14} /></button>
                   <button onClick={collapseAll} className="btn btn-ghost btn-icon" title="Collapse All" disabled={!fileTree}><ChevronsUp size={14} /></button>
-                  <button onClick={selectAll} className="btn btn-ghost btn-icon" title="Select All" disabled={!fileTree}><CheckSquare size={14} /></button>
-                  <button onClick={deselectAll} className="btn btn-ghost btn-icon" title="Deselect All" disabled={!fileTree}><Square size={14} /></button>
+                  <button onClick={() => selectAll(treeFilter)} className="btn btn-ghost btn-icon" title="Select All" disabled={!fileTree}><CheckSquare size={14} /></button>
+                  <button onClick={() => deselectAll(treeFilter)} className="btn btn-ghost btn-icon" title="Deselect All" disabled={!fileTree}><Square size={14} /></button>
                 </div>
 
                 <div className="tree-filter-controls">
@@ -587,7 +587,6 @@ function AppContent() {
                       onPreview={(path, status) => previewFile(path, status)}
                       onReveal={revealPath}
                       refreshing={false}
-                      filterText={treeFilter}
                     />
                   </div>
                 ) : (

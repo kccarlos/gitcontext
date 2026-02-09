@@ -21,10 +21,9 @@ type Props = {
   onPreview: (path: string, status: FileDiffStatus) => void
   onReveal?: (path: string) => void
   refreshing?: boolean
-  filterText?: string
 }
 
-export function SelectedFilesPanel({ selectedPaths, statusByPath, onUnselect, onPreview, onReveal, refreshing, filterText }: Props) {
+export function SelectedFilesPanel({ selectedPaths, statusByPath, onUnselect, onPreview, onReveal, refreshing }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>('tokens-desc')
   const { counts, busy } = useTokenCountsContext()
   const effectiveBusy = !!refreshing || busy
@@ -38,22 +37,18 @@ export function SelectedFilesPanel({ selectedPaths, statusByPath, onUnselect, on
       const isLikelyBinary = isBinaryPath(path)
       entries.push({ path, name, status: st, tokens, isLikelyBinary })
     }
-    const q = (filterText || '').trim().toLowerCase()
-    const filtered = q
-      ? entries.filter((it) => it.path.toLowerCase().includes(q) || it.name.toLowerCase().includes(q))
-      : entries
     switch (sortKey) {
       case 'tokens-asc':
-        return filtered.sort((a, b) => a.tokens - b.tokens)
+        return entries.sort((a, b) => a.tokens - b.tokens)
       case 'name-asc':
-        return filtered.sort((a, b) => a.name.localeCompare(b.name))
+        return entries.sort((a, b) => a.name.localeCompare(b.name))
       case 'name-desc':
-        return filtered.sort((a, b) => b.name.localeCompare(a.name))
+        return entries.sort((a, b) => b.name.localeCompare(a.name))
       case 'tokens-desc':
       default:
-        return filtered.sort((a, b) => b.tokens - a.tokens)
+        return entries.sort((a, b) => b.tokens - a.tokens)
     }
-  }, [selectedPaths, statusByPath, sortKey, counts, filterText])
+  }, [selectedPaths, statusByPath, sortKey, counts])
 
   // total retained for hooks; totalTokens previously displayed in header moved to Output Settings
 

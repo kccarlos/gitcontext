@@ -204,13 +204,34 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
     setExpandedPaths(new Set())
   }, [])
 
-  const selectAll = useCallback(() => {
+  const selectAll = useCallback((filterText?: string) => {
     if (!fileTree) return
+
+    // Match the filtering logic from FileTreeView
+    const q = (filterText || '').trim().toLowerCase()
+    const hasQuery = q.length > 0
+
+    function matchesFilter(node: FileTreeNode): boolean {
+      if (!hasQuery) return true
+      const path = (node.path || '').toLowerCase()
+      const name = (node.name || '').toLowerCase()
+      if (path.includes(q) || name.includes(q)) return true
+      if (node.type === 'dir') return (node.children ?? []).some(matchesFilter)
+      return false
+    }
+
+    function shouldShow(node: FileTreeNode): boolean {
+      if (!matchesFilter(node)) return false
+      if (!showChangedOnly) return true
+      if (node.type === 'file') return (node.status ?? 'unchanged') !== 'unchanged'
+      return (node.children ?? []).some(shouldShow)
+    }
+
     const paths: string[] = []
     const walk = (n: FileTreeNode) => {
-      if (n.type === 'file') {
-        if (!showChangedOnly || (n.status ?? 'unchanged') !== 'unchanged') paths.push(n.path)
-      } else {
+      if (n.type === 'file' && shouldShow(n)) {
+        paths.push(n.path)
+      } else if (n.type === 'dir') {
         n.children?.forEach(walk)
       }
     }
@@ -218,9 +239,47 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
     setSelectedPaths(new Set(paths))
   }, [fileTree, showChangedOnly])
 
-  const deselectAll = useCallback(() => {
-    setSelectedPaths(new Set())
-  }, [])
+  const deselectAll = useCallback((filterText?: string) => {
+    if (!fileTree) return
+
+    // Match the filtering logic from FileTreeView
+    const q = (filterText || '').trim().toLowerCase()
+    const hasQuery = q.length > 0
+
+    function matchesFilter(node: FileTreeNode): boolean {
+      if (!hasQuery) return true
+      const path = (node.path || '').toLowerCase()
+      const name = (node.name || '').toLowerCase()
+      if (path.includes(q) || name.includes(q)) return true
+      if (node.type === 'dir') return (node.children ?? []).some(matchesFilter)
+      return false
+    }
+
+    function shouldShow(node: FileTreeNode): boolean {
+      if (!matchesFilter(node)) return false
+      if (!showChangedOnly) return true
+      if (node.type === 'file') return (node.status ?? 'unchanged') !== 'unchanged'
+      return (node.children ?? []).some(shouldShow)
+    }
+
+    const pathsToDeselect: string[] = []
+    const walk = (n: FileTreeNode) => {
+      if (n.type === 'file' && shouldShow(n)) {
+        pathsToDeselect.push(n.path)
+      } else if (n.type === 'dir') {
+        n.children?.forEach(walk)
+      }
+    }
+    walk(fileTree)
+
+    setSelectedPaths((prev) => {
+      const next = new Set(prev)
+      for (const path of pathsToDeselect) {
+        next.delete(path)
+      }
+      return next
+    })
+  }, [fileTree, showChangedOnly])
 
   const revealPath = useCallback((path: string) => {
     if (!fileTree) return
