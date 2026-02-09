@@ -1028,59 +1028,8 @@ button {
   min-height: 0;
 }
 
-/* Enhanced FileTreeView styling */
-/* Sticky directory headers - removed to fix collapse issue */
-/* Can be re-enabled with proper z-index management if needed */
-
-/* Status dot indicators */
-.tree-row[data-status="modify"]::before,
-.tree-row[data-status="add"]::before,
-.tree-row[data-status="remove"]::before {
-  content: '';
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-right: var(--space-2);
-  flex-shrink: 0;
-}
-
-.tree-row[data-status="modify"]::before {
-  background: #f59e0b; /* yellow for modified */
-}
-
-.tree-row[data-status="add"]::before {
-  background: #10b981; /* green for added */
-}
-
-.tree-row[data-status="remove"]::before {
-  background: #ef4444; /* red for removed */
-}
-
-/* Hover-only preview button */
-.tree-row .btn-preview {
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-
-.tree-row:hover .btn-preview {
-  opacity: 1;
-}
-
-/* Consistent row height */
-.tree-row {
-  min-height: 28px;
-  display: flex;
-  align-items: center;
-  padding: var(--space-1) var(--space-2);
-  gap: var(--space-2);
-}
-
-/* Directory headers with better contrast */
-.tree-row strong {
-  font-weight: 600;
-  padding: var(--space-1) 0;
-}
+/* Enhanced FileTreeView styling removed to restore original tree design */
+/* The original tree connector lines and styling from main branch work better */
 
 /* =============== Phase 3: Right Panel Tabs=============== */
 
