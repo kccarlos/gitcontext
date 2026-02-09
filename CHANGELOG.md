@@ -1,3 +1,20 @@
+# [2.2.0](https://github.com/kccarlos/gitcontext/compare/v2.1.0...v2.2.0) (2026-02-09)
+
+
+### Bug Fixes
+
+* resolve TypeScript build errors after removing copy functionality ([cafe86e](https://github.com/kccarlos/gitcontext/commit/cafe86e14d2c1cde6b9f62f84356006621d823b0))
+
+
+### Features
+
+* add search clear button and remove Selected Files title ([7708d0e](https://github.com/kccarlos/gitcontext/commit/7708d0e9c122ad6801413228f83e91c9551392ec))
+* implement left panel enhancements ([4b73db4](https://github.com/kccarlos/gitcontext/commit/4b73db484f36152812f08bf1395183024761c87c))
+* implement reveal path functionality and empty state improvements ([aa599d7](https://github.com/kccarlos/gitcontext/commit/aa599d7d9e8158efe9ba479ebd83a656510c476c))
+* implement right panel tabs and context footer improvement ([fcd5dea](https://github.com/kccarlos/gitcontext/commit/fcd5deae43ae1d98d3f81eb39db5cb7bd2a90533))
+* improve Select All/Deselect All to respect filters and use set operations ([cae19fb](https://github.com/kccarlos/gitcontext/commit/cae19fbc991d48374a9d744def15e063ba87ba76))
+* refactor desktop app to CSS Grid layout ([88b7b57](https://github.com/kccarlos/gitcontext/commit/88b7b5727bed238635055ec0b1cc5ffddd708392))
+
 # [2.1.0](https://github.com/kccarlos/gitcontext/compare/v2.0.2...v2.1.0) (2026-02-08)
 
 
