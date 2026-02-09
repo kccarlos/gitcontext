@@ -27,8 +27,9 @@ export function DiffControlBar({
   return (
     <div className="gc-diff-bar">
       <div className="diff-bar-branch-selector">
-        <label className="diff-bar-label">Base</label>
+        <label htmlFor="base-branch-select" className="diff-bar-label">Base</label>
         <select
+          id="base-branch-select"
           value={baseBranch}
           onChange={(e) => onBaseBranchChange(e.target.value)}
           className="gc-select diff-bar-select"
@@ -54,8 +55,9 @@ export function DiffControlBar({
       <div className="diff-bar-arrow">→</div>
 
       <div className="diff-bar-branch-selector">
-        <label className="diff-bar-label">Compare</label>
+        <label htmlFor="compare-branch-select" className="diff-bar-label">Compare</label>
         <select
+          id="compare-branch-select"
           value={compareBranch}
           onChange={(e) => onCompareBranchChange(e.target.value)}
           className="gc-select diff-bar-select"
