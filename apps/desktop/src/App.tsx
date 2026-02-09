@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
-import { ChevronsDown, ChevronsUp, CheckSquare, Square, Copy, Sun, Moon, ArrowLeftRight, RefreshCw, Folder, FolderGit2, ListChecks } from 'lucide-react'
-import { FileTreeView, PreviewModal, StatusBar, TokenUsage, GitHubStarIconButton, BugIconButton } from '@gitcontext/ui'
+import { ChevronsDown, ChevronsUp, CheckSquare, Square, Sun, Moon, ArrowLeftRight, RefreshCw, Folder, FolderGit2, ListChecks } from 'lucide-react'
+import { FileTreeView, PreviewModal, TokenUsage, GitHubStarIconButton, BugIconButton } from '@gitcontext/ui'
 import { type FileDiffStatus } from '@gitcontext/core'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { useGitRepository } from './hooks/useGitRepository'
 import { useFileTree } from './hooks/useFileTree'
 import { SelectedFilesPanel } from './components/SelectedFilesPanel'
+import { TopProgressBar } from './components/TopProgressBar'
+import { ErrorBanner } from './components/ErrorBanner'
+import { DiffControlBar } from './components/DiffControlBar'
 import { getModels } from './utils/models'
 import type { ModelInfo } from './types/models'
 import type { AppStatus } from './types/appStatus'
@@ -20,6 +23,7 @@ import { debounce } from './utils/debounce'
 
 function AppContent() {
   const [appStatus, setAppStatus] = useState<AppStatus>({ state: 'IDLE' })
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const {
     currentDir,
@@ -36,7 +40,6 @@ function AppContent() {
     diffTrigger,
   } = useGitRepository(setAppStatus)
 
-  const [notif, setNotif] = useState<string | null>(null)
   const [copyFlash, setCopyFlash] = useState<string | null>(null)
   const [previewPath, setPreviewPath] = useState<string | null>(null)
   const [previewStatus, setPreviewStatus] = useState<FileDiffStatus>('unchanged')
@@ -73,7 +76,6 @@ function AppContent() {
       else localStorage.removeItem('gc.theme')
     } catch (e) {
       logError('themePersistence', e)
-      setNotif('Your browser blocked saving theme preference.')
     }
   }, [theme])
   const toggleTheme = () => setTheme(effectiveTheme === 'dark' ? 'light' : 'dark')
@@ -87,7 +89,6 @@ function AppContent() {
       if (typeof saved === 'string') setUserInstructions(saved)
     } catch (e) {
       logError('instructionsLoad', e)
-      setNotif('Unable to load saved instructions.')
     }
   }, [])
   useEffect(() => {
@@ -425,6 +426,14 @@ function AppContent() {
 
   const isReady = repoStatus.state === 'ready'
   const isLoading = repoStatus.state === 'loading'
+  const isComputing = fileTree === null && isReady
+
+  // Update error message when repo status changes
+  useEffect(() => {
+    if (repoStatus.state === 'error') {
+      setErrorMessage(repoStatus.error)
+    }
+  }, [repoStatus])
 
   return (
     <TokenCountsProvider
@@ -437,6 +446,8 @@ function AppContent() {
       includeBinaryPaths={includeBinaryAsPaths}
     >
       <div id="gc-app" className="gc-app">
+      <TopProgressBar visible={isLoading || isComputing} />
+
       {/* Header */}
       <div className="gc-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -462,20 +473,17 @@ function AppContent() {
           <button onClick={toggleTheme} className="btn btn-ghost btn-icon" title="Toggle theme">
             {effectiveTheme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
-          {isReady && (
-            <button onClick={refreshRepo} disabled={isLoading} className="btn btn-ghost" title="Refresh repository">
-              <RefreshCw size={16} /> Refresh
-            </button>
-          )}
           <button onClick={selectNewRepo} disabled={isLoading} className="btn btn-primary">
             <Folder size={16} /> {isReady ? 'Change Repository' : 'Open Repository'}
           </button>
         </div>
       </div>
 
+      <ErrorBanner error={errorMessage} onDismiss={() => setErrorMessage(null)} />
+
       {/* Main content */}
-      <div className="gc-content" style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-        {!isReady ? (
+      {!isReady ? (
+        <div className="gc-content" style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
           <div style={{ flex: 1, overflow: 'auto', padding: '2rem' }}>
             <div className="panel" style={{ maxWidth: '800px', margin: '0 auto' }}>
               <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>Build Perfect Context of Your Codebase for Your AI Chatbot</h2>
@@ -517,46 +525,25 @@ function AppContent() {
               </div>
             </div>
           </div>
-        ) : (
-          <div style={{ display: 'flex', flex: 1, overflow: 'hidden', gap: '1rem', padding: '1rem' }}>
+        </div>
+      ) : (
+        <>
+          <DiffControlBar
+            branches={branches}
+            baseBranch={baseBranch}
+            compareBranch={compareBranch}
+            onBaseBranchChange={setBaseBranch}
+            onCompareBranchChange={setCompareBranch}
+            onFlip={flipBranches}
+            onRefresh={refreshRepo}
+            disabled={isLoading}
+          />
+
+          <div className="gc-main-content">
             {/* Left panel: File tree */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid var(--border-col)', borderRadius: '4px', background: 'var(--surface-1)' }}>
-              {/* Branch selection */}
+            <div className="gc-left-panel">
+              {/* Tree controls */}
               <div style={{ padding: '16px', borderBottom: '1px solid var(--border-col)' }}>
-                <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '12px' }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px', color: '#666' }}>Base Branch</label>
-                    <select value={baseBranch} onChange={(e) => setBaseBranch(e.target.value)} className="gc-select" style={{ width: '100%' }}>
-                      {branches.map((branch) => (
-                        <option key={branch} value={branch}>
-                          {branch === '__WORKDIR__' ? 'My Working Directory' : branch}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div style={{ paddingTop: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                    <div style={{ fontSize: '20px', color: '#999' }}>→</div>
-                    <button
-                      onClick={flipBranches}
-                      className="btn btn-ghost btn-icon"
-                      style={{ padding: '4px' }}
-                      title="Swap branches"
-                      disabled={!baseBranch || !compareBranch}
-                    >
-                      <ArrowLeftRight size={16} />
-                    </button>
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px', color: '#666' }}>Compare Branch</label>
-                    <select value={compareBranch} onChange={(e) => setCompareBranch(e.target.value)} className="gc-select" style={{ width: '100%' }}>
-                      {branches.map((branch) => (
-                        <option key={branch} value={branch}>
-                          {branch === '__WORKDIR__' ? 'My Working Directory' : branch}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
 
                 {/* File tree controls */}
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -602,7 +589,7 @@ function AppContent() {
             </div>
 
             {/* Right panel: Output settings and selected files */}
-            <div style={{ width: '400px', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid var(--border-col)', borderRadius: '4px', background: 'var(--surface-1)', minHeight: 0 }}>
+            <div className="gc-right-panel">
               {/* Output settings */}
               <div style={{ padding: '16px', borderBottom: '1px solid var(--border-col)', flexShrink: 0, overflowY: 'auto', maxHeight: '60%' }}>
                 <h3 style={{ margin: 0, marginBottom: '12px' }}>Output Settings</h3>
@@ -704,60 +691,11 @@ function AppContent() {
               </div>
             </div>
           </div>
-        )}
+        </>
+      )}
 
         {renderPreview()}
       </div>
-
-      {/* Fixed Copy Button Footer */}
-      {selectedPaths.size > 0 && gitClient && (
-        <div
-          className="copy-button-fixed"
-          style={{ bottom: copyFlash ? '1rem' : '5rem' }}
-        >
-          <button
-            onClick={copyAllSelected}
-            disabled={selectedPaths.size === 0 || !!copyFlash}
-            className="gc-button gc-button-primary"
-            style={{ minWidth: '200px', fontSize: '1rem', padding: 'var(--space-3) var(--space-5)' }}
-          >
-            {copyFlash ? copyFlash : (<><Copy size={18} /> COPY ALL SELECTED</>)}
-          </button>
-        </div>
-      )}
-
-      {/* Status bar */}
-      <div style={{ padding: '0 1rem 1rem 1rem' }}>
-        {repoStatus.state === 'error' && (
-          <div style={{ padding: '8px', background: 'color-mix(in oklab, #e06c75 15%, transparent)', border: '1px solid color-mix(in oklab, #e06c75 30%, transparent)', borderRadius: '4px', color: '#e06c75', marginBottom: '8px' }}>
-            ❌ {repoStatus.error}
-          </div>
-        )}
-        {notif && (
-          <div style={{ padding: '8px', background: 'color-mix(in oklab, #7cc37f 15%, transparent)', border: '1px solid color-mix(in oklab, #7cc37f 30%, transparent)', borderRadius: '4px', color: '#7cc37f', marginBottom: '8px' }}>
-            {notif}
-          </div>
-        )}
-
-        {!copyFlash && (
-          <StatusBar
-            message={
-              appStatus.state === 'LOADING' || appStatus.state === 'READY' || appStatus.state === 'ERROR'
-                ? appStatus.message
-                : 'Idle. Select a repository to begin.'
-            }
-            percent={
-              appStatus.state === 'LOADING'
-                ? (typeof appStatus.progress === 'number' ? appStatus.progress : 0)
-                : appStatus.state === 'READY'
-                ? 100
-                : 0
-            }
-            indeterminate={appStatus.state === 'LOADING' && appStatus.progress === 'indeterminate'}
-          />
-        )}
-      </div>
-    </div>
     </TokenCountsProvider>
   )
 }
