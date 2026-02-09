@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ArrowUpDown, Search, X, FilePenLine, FilePlus2, FileMinus2, File as FileIcon, FileArchive } from 'lucide-react'
+import { ArrowUpDown, Search, X, FilePenLine, FilePlus2, FileMinus2, File as FileIcon, FileArchive, Target, ListChecks } from 'lucide-react'
 import { useTokenCountsContext } from '../context/TokenCountsContext'
 import type { FileDiffStatus } from '@gitcontext/core'
 import { isBinaryPath } from '@gitcontext/core'
@@ -19,11 +19,11 @@ type Props = {
   statusByPath: Map<string, FileDiffStatus>
   onUnselect: (path: string) => void
   onPreview: (path: string, status: FileDiffStatus) => void
+  onReveal?: (path: string) => void
   refreshing?: boolean
-  filterText?: string
 }
 
-export function SelectedFilesPanel({ selectedPaths, statusByPath, onUnselect, onPreview, refreshing, filterText }: Props) {
+export function SelectedFilesPanel({ selectedPaths, statusByPath, onUnselect, onPreview, onReveal, refreshing }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>('tokens-desc')
   const { counts, busy } = useTokenCountsContext()
   const effectiveBusy = !!refreshing || busy
@@ -37,22 +37,18 @@ export function SelectedFilesPanel({ selectedPaths, statusByPath, onUnselect, on
       const isLikelyBinary = isBinaryPath(path)
       entries.push({ path, name, status: st, tokens, isLikelyBinary })
     }
-    const q = (filterText || '').trim().toLowerCase()
-    const filtered = q
-      ? entries.filter((it) => it.path.toLowerCase().includes(q) || it.name.toLowerCase().includes(q))
-      : entries
     switch (sortKey) {
       case 'tokens-asc':
-        return filtered.sort((a, b) => a.tokens - b.tokens)
+        return entries.sort((a, b) => a.tokens - b.tokens)
       case 'name-asc':
-        return filtered.sort((a, b) => a.name.localeCompare(b.name))
+        return entries.sort((a, b) => a.name.localeCompare(b.name))
       case 'name-desc':
-        return filtered.sort((a, b) => b.name.localeCompare(a.name))
+        return entries.sort((a, b) => b.name.localeCompare(a.name))
       case 'tokens-desc':
       default:
-        return filtered.sort((a, b) => b.tokens - a.tokens)
+        return entries.sort((a, b) => b.tokens - a.tokens)
     }
-  }, [selectedPaths, statusByPath, sortKey, counts, filterText])
+  }, [selectedPaths, statusByPath, sortKey, counts])
 
   // total retained for hooks; totalTokens previously displayed in header moved to Output Settings
 
@@ -85,24 +81,25 @@ export function SelectedFilesPanel({ selectedPaths, statusByPath, onUnselect, on
   return (
     <div className="selected-files">
       <div className="row-between">
-        <h2 style={{ margin: 0 }}>Selected Files</h2>
+        <span className="tag" style={{ visibility: effectiveBusy ? 'visible' : 'hidden' }}>{effectiveBusy ? 'Recalculating…' : ''}</span>
         <div className="row">
-          <span className="tag" style={{ visibility: effectiveBusy ? 'visible' : 'hidden' }}>{effectiveBusy ? 'Recalculating…' : ''}</span>
-          <div className="row">
-            <ArrowUpDown size={16} />
-            <select className="select" value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} title="Sort by">
-              <option value="tokens-desc">Tokens: High to Low</option>
-              <option value="tokens-asc">Tokens: Low to High</option>
-              <option value="name-asc">Name: A → Z</option>
-              <option value="name-desc">Name: Z → A</option>
-            </select>
-          </div>
+          <ArrowUpDown size={16} />
+          <select className="select" value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} title="Sort by">
+            <option value="tokens-desc">Tokens: High to Low</option>
+            <option value="tokens-asc">Tokens: Low to High</option>
+            <option value="name-asc">Name: A → Z</option>
+            <option value="name-desc">Name: Z → A</option>
+          </select>
         </div>
       </div>
 
 
       {items.length === 0 ? (
-        <div className="hint">No files selected.</div>
+        <div className="empty-state">
+          <ListChecks size={48} style={{ opacity: 0.3 }} />
+          <h3>No Files Selected</h3>
+          <p>Select files from the tree on the left to include them in your context.</p>
+        </div>
       ) : (
         <div className="selected-files-list">
           {items.map((it) => (
@@ -119,6 +116,17 @@ export function SelectedFilesPanel({ selectedPaths, statusByPath, onUnselect, on
                 </span>
               </span>
               <span className="tokens"><span className="badge">{it.tokens.toLocaleString()}</span></span>
+              {onReveal && (
+                <button
+                  type="button"
+                  onClick={() => onReveal(it.path)}
+                  title="Reveal in tree"
+                  aria-label="Reveal in tree"
+                  className="btn btn-ghost btn-icon"
+                >
+                  <Target size={14} />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => onPreview(it.path, it.status)}

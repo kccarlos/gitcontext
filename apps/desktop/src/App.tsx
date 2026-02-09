@@ -1,25 +1,30 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
-import { ChevronsDown, ChevronsUp, CheckSquare, Square, Copy, Sun, Moon, ArrowLeftRight, RefreshCw, Folder, FolderGit2, ListChecks } from 'lucide-react'
-import { FileTreeView, PreviewModal, StatusBar, TokenUsage, GitHubStarIconButton, BugIconButton } from '@gitcontext/ui'
-import { type FileDiffStatus } from '@gitcontext/core'
+import { ChevronsDown, ChevronsUp, CheckSquare, Square, Sun, Moon, Folder, FolderGit2, ListChecks, Copy, ArrowLeftRight } from 'lucide-react'
+import { FileTreeView, PreviewModal, GitHubStarIconButton, BugIconButton } from '@gitcontext/ui'
+import { type FileDiffStatus, isBinaryPath, MAX_CONCURRENT_READS } from '@gitcontext/core'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { useGitRepository } from './hooks/useGitRepository'
 import { useFileTree } from './hooks/useFileTree'
 import { SelectedFilesPanel } from './components/SelectedFilesPanel'
+import { TopProgressBar } from './components/TopProgressBar'
+import { ErrorBanner } from './components/ErrorBanner'
+import { DiffControlBar } from './components/DiffControlBar'
+import { RightPanelTabs, type TabId } from './components/RightPanelTabs'
+import { ContextFooter } from './components/ContextFooter'
 import { getModels } from './utils/models'
 import type { ModelInfo } from './types/models'
 import type { AppStatus } from './types/appStatus'
 import { buildUnifiedDiffForStatus } from './utils/diff'
 import { countTokens } from './utils/tokenizer'
-import { TokenCountsProvider, useTokenCountsContext } from './context/TokenCountsContext'
-import { isBinaryPath, MAX_CONCURRENT_READS } from '@gitcontext/core'
+import { TokenCountsProvider } from './context/TokenCountsContext'
 import { mapWithConcurrency } from './utils/concurrency'
 import { logError } from './utils/logger'
 import { debounce } from './utils/debounce'
 
 function AppContent() {
-  const [appStatus, setAppStatus] = useState<AppStatus>({ state: 'IDLE' })
+  const [, setAppStatus] = useState<AppStatus>({ state: 'IDLE' })
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const {
     currentDir,
@@ -36,7 +41,7 @@ function AppContent() {
     diffTrigger,
   } = useGitRepository(setAppStatus)
 
-  const [notif, setNotif] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<TabId>('files')
   const [copyFlash, setCopyFlash] = useState<string | null>(null)
   const [previewPath, setPreviewPath] = useState<string | null>(null)
   const [previewStatus, setPreviewStatus] = useState<FileDiffStatus>('unchanged')
@@ -73,7 +78,6 @@ function AppContent() {
       else localStorage.removeItem('gc.theme')
     } catch (e) {
       logError('themePersistence', e)
-      setNotif('Your browser blocked saving theme preference.')
     }
   }, [theme])
   const toggleTheme = () => setTheme(effectiveTheme === 'dark' ? 'light' : 'dark')
@@ -87,7 +91,6 @@ function AppContent() {
       if (typeof saved === 'string') setUserInstructions(saved)
     } catch (e) {
       logError('instructionsLoad', e)
-      setNotif('Unable to load saved instructions.')
     }
   }, [])
   useEffect(() => {
@@ -149,9 +152,12 @@ function AppContent() {
     collapseAll,
     selectAll,
     deselectAll,
+    revealPath,
   } = useFileTree(setAppStatus)
 
   const [treeFilter, setTreeFilter] = useState('')
+  const [treeFilterInput, setTreeFilterInput] = useState('')
+  const treeFilterInputRef = useRef<HTMLInputElement>(null)
   const debouncedSetTreeFilter = useMemo(() => debounce(setTreeFilter, 150), [])
 
   // Diff context lines
@@ -404,27 +410,16 @@ function AppContent() {
     return () => { cancelled = true }
   }, [includeFileTree, fileTree, showChangedOnly, selectedPaths])
 
-  // Token usage component with context
-  const TokenUsageWithContext = ({ filesCount, instructionsTokens, fileTreeTokens, limit }: {
-    filesCount: number
-    instructionsTokens: number
-    fileTreeTokens: number
-    limit: number
-  }) => {
-    const { total } = useTokenCountsContext()
-    return (
-      <TokenUsage
-        fileTokensTotalSource={() => total}
-        filesCount={filesCount}
-        instructionsTokens={instructionsTokens}
-        fileTreeTokens={fileTreeTokens}
-        limit={limit}
-      />
-    )
-  }
-
   const isReady = repoStatus.state === 'ready'
   const isLoading = repoStatus.state === 'loading'
+  const isComputing = fileTree === null && isReady
+
+  // Update error message when repo status changes
+  useEffect(() => {
+    if (repoStatus.state === 'error') {
+      setErrorMessage(repoStatus.error)
+    }
+  }, [repoStatus])
 
   return (
     <TokenCountsProvider
@@ -437,6 +432,8 @@ function AppContent() {
       includeBinaryPaths={includeBinaryAsPaths}
     >
       <div id="gc-app" className="gc-app">
+      <TopProgressBar visible={isLoading || isComputing} />
+
       {/* Header */}
       <div className="gc-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -462,20 +459,17 @@ function AppContent() {
           <button onClick={toggleTheme} className="btn btn-ghost btn-icon" title="Toggle theme">
             {effectiveTheme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
-          {isReady && (
-            <button onClick={refreshRepo} disabled={isLoading} className="btn btn-ghost" title="Refresh repository">
-              <RefreshCw size={16} /> Refresh
-            </button>
-          )}
           <button onClick={selectNewRepo} disabled={isLoading} className="btn btn-primary">
             <Folder size={16} /> {isReady ? 'Change Repository' : 'Open Repository'}
           </button>
         </div>
       </div>
 
+      <ErrorBanner error={errorMessage} onDismiss={() => setErrorMessage(null)} />
+
       {/* Main content */}
-      <div className="gc-content" style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-        {!isReady ? (
+      {!isReady ? (
+        <div className="gc-content" style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
           <div style={{ flex: 1, overflow: 'auto', padding: '2rem' }}>
             <div className="panel" style={{ maxWidth: '800px', margin: '0 auto' }}>
               <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>Build Perfect Context of Your Codebase for Your AI Chatbot</h2>
@@ -517,75 +511,72 @@ function AppContent() {
               </div>
             </div>
           </div>
-        ) : (
-          <div style={{ display: 'flex', flex: 1, overflow: 'hidden', gap: '1rem', padding: '1rem' }}>
+        </div>
+      ) : (
+        <>
+          <DiffControlBar
+            branches={branches}
+            baseBranch={baseBranch}
+            compareBranch={compareBranch}
+            onBaseBranchChange={setBaseBranch}
+            onCompareBranchChange={setCompareBranch}
+            onFlip={flipBranches}
+            onRefresh={refreshRepo}
+            disabled={isLoading}
+            projectName={currentDir ? currentDir.split('/').pop() || currentDir : undefined}
+            projectPath={currentDir || undefined}
+          />
+
+          <div className="gc-main-content">
             {/* Left panel: File tree */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid var(--border-col)', borderRadius: '4px', background: 'var(--surface-1)' }}>
-              {/* Branch selection */}
-              <div style={{ padding: '16px', borderBottom: '1px solid var(--border-col)' }}>
-                <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '12px' }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px', color: '#666' }}>Base Branch</label>
-                    <select value={baseBranch} onChange={(e) => setBaseBranch(e.target.value)} className="gc-select" style={{ width: '100%' }}>
-                      {branches.map((branch) => (
-                        <option key={branch} value={branch}>
-                          {branch === '__WORKDIR__' ? 'My Working Directory' : branch}
-                        </option>
-                      ))}
-                    </select>
+            <div className="gc-left-panel">
+              {/* Tree controls - sticky */}
+              <div className="left-panel-controls">
+                {/* File tree controls and filter checkbox in one row */}
+                <div className="tree-controls-row">
+                  <div className="tree-action-buttons">
+                    <button onClick={expandAll} className="btn btn-ghost btn-icon" title="Expand All" disabled={!fileTree}><ChevronsDown size={14} /></button>
+                    <button onClick={collapseAll} className="btn btn-ghost btn-icon" title="Collapse All" disabled={!fileTree}><ChevronsUp size={14} /></button>
+                    <button onClick={() => selectAll(treeFilter)} className="btn btn-ghost btn-icon" title="Select All" disabled={!fileTree}><CheckSquare size={14} /></button>
+                    <button onClick={() => deselectAll(treeFilter)} className="btn btn-ghost btn-icon" title="Deselect All" disabled={!fileTree}><Square size={14} /></button>
                   </div>
-                  <div style={{ paddingTop: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                    <div style={{ fontSize: '20px', color: '#999' }}>→</div>
-                    <button
-                      onClick={flipBranches}
-                      className="btn btn-ghost btn-icon"
-                      style={{ padding: '4px' }}
-                      title="Swap branches"
-                      disabled={!baseBranch || !compareBranch}
-                    >
-                      <ArrowLeftRight size={16} />
-                    </button>
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px', color: '#666' }}>Compare Branch</label>
-                    <select value={compareBranch} onChange={(e) => setCompareBranch(e.target.value)} className="gc-select" style={{ width: '100%' }}>
-                      {branches.map((branch) => (
-                        <option key={branch} value={branch}>
-                          {branch === '__WORKDIR__' ? 'My Working Directory' : branch}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* File tree controls */}
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <button onClick={expandAll} className="btn btn-ghost" disabled={!fileTree}><ChevronsDown size={14} /> Expand All</button>
-                  <button onClick={collapseAll} className="btn btn-ghost" disabled={!fileTree}><ChevronsUp size={14} /> Collapse All</button>
-                  <button onClick={selectAll} className="btn btn-ghost" disabled={!fileTree}><CheckSquare size={14} /> Select All</button>
-                  <button onClick={deselectAll} className="btn btn-ghost" disabled={!fileTree}><Square size={14} /> Deselect All</button>
-                </div>
-
-                <div style={{ marginTop: '8px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px' }}>
+                  <label className="tree-filter-checkbox">
                     <input type="checkbox" checked={showChangedOnly} onChange={(e) => setShowChangedOnly(e.target.checked)} />
                     Filter changed files only
                   </label>
                 </div>
 
-                <div style={{ marginTop: '8px' }}>
+                <div className="tree-search-input">
                   <input
+                    ref={treeFilterInputRef}
                     type="text"
                     placeholder="Filter files..."
-                    onChange={(e) => debouncedSetTreeFilter(e.target.value)}
+                    value={treeFilterInput}
+                    onChange={(e) => {
+                      setTreeFilterInput(e.target.value)
+                      debouncedSetTreeFilter(e.target.value)
+                    }}
                     className="gc-input"
-                    style={{ width: '100%', fontSize: '13px' }}
                   />
+                  {treeFilterInput && (
+                    <button
+                      type="button"
+                      className="search-clear-btn"
+                      onClick={() => {
+                        setTreeFilterInput('')
+                        setTreeFilter('')
+                        treeFilterInputRef.current?.focus()
+                      }}
+                      aria-label="Clear search"
+                    >
+                      ×
+                    </button>
+                  )}
                 </div>
               </div>
 
               {/* File tree */}
-              <div style={{ flex: 1, overflow: 'auto', padding: '8px', minHeight: 0 }}>
+              <div className="left-panel-tree-container">
                 {fileTree && (
                   <FileTreeView
                     tree={fileTree}
@@ -601,163 +592,115 @@ function AppContent() {
               </div>
             </div>
 
-            {/* Right panel: Output settings and selected files */}
-            <div style={{ width: '400px', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid var(--border-col)', borderRadius: '4px', background: 'var(--surface-1)', minHeight: 0 }}>
-              {/* Output settings */}
-              <div style={{ padding: '16px', borderBottom: '1px solid var(--border-col)', flexShrink: 0, overflowY: 'auto', maxHeight: '60%' }}>
-                <h3 style={{ margin: 0, marginBottom: '12px' }}>Output Settings</h3>
-
-                {/* Model selection */}
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>Target Model</label>
-                  <select value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)} className="gc-select" style={{ width: '100%' }}>
-                    <option value="">Select a model...</option>
-                    {models?.map((m) => (
-                      <option key={m.id} value={m.id}>{m.name} ({(m.context_length ?? 0).toLocaleString()} tokens)</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* User instructions */}
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>Prompt / Instructions</label>
-                  <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} className="gc-select" style={{ width: '100%', marginBottom: '4px' }}>
-                    <option value="">Custom prompt...</option>
-                    {PROMPT_TEMPLATES.map((t) => (
-                      <option key={t.id} value={t.id}>{t.label}</option>
-                    ))}
-                  </select>
-                  <textarea
-                    value={userInstructions}
-                    onChange={(e) => setUserInstructions(e.target.value)}
-                    className="gc-textarea"
-                    placeholder="Enter custom instructions for the LLM..."
-                    rows={4}
-                    style={{ width: '100%', fontSize: '13px' }}
-                  />
-                </div>
-
-                {/* Options */}
-                <div style={{ marginBottom: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px' }}>
-                    <input type="checkbox" checked={includeFileTree} onChange={(e) => setIncludeFileTree(e.target.checked)} />
-                    Include file tree structure
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px' }}>
-                    <input type="checkbox" checked={includeBinaryAsPaths} onChange={(e) => setIncludeBinaryAsPaths(e.target.checked)} />
-                    Include binary files as paths
-                  </label>
-                </div>
-
-                {/* Context lines */}
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ whiteSpace: 'nowrap', fontSize: '12px', fontWeight: 600 }}>Context lines:</span>
-                    <input
-                      ref={diffRangeRef}
-                      type="range"
-                      min={0}
-                      max={MAX_CONTEXT}
-                      step={1}
-                      value={diffContextImmediate}
-                      onInput={(e) => {
-                        const v = Number((e.target as HTMLInputElement).value)
-                        diffContextImmediateRef.current = v
-                        setDiffContextImmediate(v)
-                      }}
-                      onChange={(e) => {
-                        const v = Number(e.target.value)
-                        diffContextImmediateRef.current = v
-                        setDiffContextImmediate(v)
-                        debouncedSetDiffContextLines(v)
-                      }}
-                      style={{ flex: 1, minWidth: '120px' }}
+            {/* Right panel: Tabbed interface */}
+            <div className="gc-right-panel">
+              <RightPanelTabs
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                filesCount={selectedPaths.size}
+              >
+                {activeTab === 'files' ? (
+                  <div className="selected-files-container">
+                    <SelectedFilesPanel
+                      selectedPaths={selectedPaths}
+                      statusByPath={statusByPath}
+                      onUnselect={(path) => toggleSelect(path)}
+                      onPreview={(path, status) => previewFile(path, status)}
+                      onReveal={revealPath}
+                      refreshing={false}
                     />
-                    <span style={{ width: 36, textAlign: 'right', fontSize: '12px' }}>
-                      {diffContextImmediate >= MAX_CONTEXT ? '∞' : diffContextImmediate}
-                    </span>
-                  </label>
-                </div>
+                  </div>
+                ) : (
+                  <div className="settings-container">
+                    {/* Model selection */}
+                    <div className="settings-section">
+                      <label className="settings-label">Target Model</label>
+                      <select value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)} className="gc-select">
+                        <option value="">Select a model...</option>
+                        {models?.map((m) => (
+                          <option key={m.id} value={m.id}>{m.name} ({(m.context_length ?? 0).toLocaleString()} tokens)</option>
+                        ))}
+                      </select>
+                    </div>
 
-                {/* Token usage */}
-                <TokenUsageWithContext
-                  filesCount={selectedPaths.size}
-                  instructionsTokens={userInstructionsTokens}
-                  fileTreeTokens={includeFileTree ? fileTreeTokens : 0}
-                  limit={tokenLimit}
-                />
-              </div>
+                    {/* User instructions */}
+                    <div className="settings-section">
+                      <label className="settings-label">Prompt / Instructions</label>
+                      <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} className="gc-select">
+                        <option value="">Custom prompt...</option>
+                        {PROMPT_TEMPLATES.map((t) => (
+                          <option key={t.id} value={t.id}>{t.label}</option>
+                        ))}
+                      </select>
+                      <textarea
+                        value={userInstructions}
+                        onChange={(e) => setUserInstructions(e.target.value)}
+                        className="gc-textarea"
+                        placeholder="Enter custom instructions for the LLM..."
+                        rows={4}
+                      />
+                    </div>
 
-              {/* Selected files list */}
-              <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', borderTop: '1px solid #e0e0e0', minHeight: 0 }}>
-                <div style={{ flex: 1, overflow: 'auto', padding: '16px', minHeight: 0 }}>
-                  <SelectedFilesPanel
-                    key={`sel-${selectedPaths.size}`}
-                    selectedPaths={selectedPaths}
-                    statusByPath={statusByPath}
-                    onUnselect={(path) => toggleSelect(path)}
-                    onPreview={(path, status) => previewFile(path, status)}
-                    refreshing={false}
-                    filterText={treeFilter}
-                  />
-                </div>
-              </div>
+                    {/* Options */}
+                    <div className="settings-section">
+                      <label className="settings-checkbox">
+                        <input type="checkbox" checked={includeFileTree} onChange={(e) => setIncludeFileTree(e.target.checked)} />
+                        Include file tree structure
+                      </label>
+                      <label className="settings-checkbox">
+                        <input type="checkbox" checked={includeBinaryAsPaths} onChange={(e) => setIncludeBinaryAsPaths(e.target.checked)} />
+                        Include binary files as paths
+                      </label>
+                    </div>
+
+                    {/* Context lines */}
+                    <div className="settings-section">
+                      <label className="settings-label">Context lines:</label>
+                      <div className="context-slider">
+                        <input
+                          ref={diffRangeRef}
+                          type="range"
+                          min={0}
+                          max={MAX_CONTEXT}
+                          step={1}
+                          value={diffContextImmediate}
+                          onInput={(e) => {
+                            const v = Number((e.target as HTMLInputElement).value)
+                            diffContextImmediateRef.current = v
+                            setDiffContextImmediate(v)
+                          }}
+                          onChange={(e) => {
+                            const v = Number(e.target.value)
+                            diffContextImmediateRef.current = v
+                            setDiffContextImmediate(v)
+                            debouncedSetDiffContextLines(v)
+                          }}
+                        />
+                        <span className="context-value">
+                          {diffContextImmediate >= MAX_CONTEXT ? '∞' : diffContextImmediate}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </RightPanelTabs>
+
+              <ContextFooter
+                filesCount={selectedPaths.size}
+                instructionsTokens={userInstructionsTokens}
+                fileTreeTokens={includeFileTree ? fileTreeTokens : 0}
+                limit={tokenLimit}
+                onCopy={copyAllSelected}
+                copyFlash={copyFlash}
+                disabled={!gitClient || selectedPaths.size === 0}
+              />
             </div>
           </div>
-        )}
+        </>
+      )}
 
         {renderPreview()}
       </div>
-
-      {/* Fixed Copy Button Footer */}
-      {selectedPaths.size > 0 && gitClient && (
-        <div
-          className="copy-button-fixed"
-          style={{ bottom: copyFlash ? '1rem' : '5rem' }}
-        >
-          <button
-            onClick={copyAllSelected}
-            disabled={selectedPaths.size === 0 || !!copyFlash}
-            className="gc-button gc-button-primary"
-            style={{ minWidth: '200px', fontSize: '1rem', padding: 'var(--space-3) var(--space-5)' }}
-          >
-            {copyFlash ? copyFlash : (<><Copy size={18} /> COPY ALL SELECTED</>)}
-          </button>
-        </div>
-      )}
-
-      {/* Status bar */}
-      <div style={{ padding: '0 1rem 1rem 1rem' }}>
-        {repoStatus.state === 'error' && (
-          <div style={{ padding: '8px', background: 'color-mix(in oklab, #e06c75 15%, transparent)', border: '1px solid color-mix(in oklab, #e06c75 30%, transparent)', borderRadius: '4px', color: '#e06c75', marginBottom: '8px' }}>
-            ❌ {repoStatus.error}
-          </div>
-        )}
-        {notif && (
-          <div style={{ padding: '8px', background: 'color-mix(in oklab, #7cc37f 15%, transparent)', border: '1px solid color-mix(in oklab, #7cc37f 30%, transparent)', borderRadius: '4px', color: '#7cc37f', marginBottom: '8px' }}>
-            {notif}
-          </div>
-        )}
-
-        {!copyFlash && (
-          <StatusBar
-            message={
-              appStatus.state === 'LOADING' || appStatus.state === 'READY' || appStatus.state === 'ERROR'
-                ? appStatus.message
-                : 'Idle. Select a repository to begin.'
-            }
-            percent={
-              appStatus.state === 'LOADING'
-                ? (typeof appStatus.progress === 'number' ? appStatus.progress : 0)
-                : appStatus.state === 'READY'
-                ? 100
-                : 0
-            }
-            indeterminate={appStatus.state === 'LOADING' && appStatus.progress === 'indeterminate'}
-          />
-        )}
-      </div>
-    </div>
     </TokenCountsProvider>
   )
 }

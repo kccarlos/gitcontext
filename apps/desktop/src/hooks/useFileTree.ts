@@ -204,13 +204,34 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
     setExpandedPaths(new Set())
   }, [])
 
-  const selectAll = useCallback(() => {
+  const selectAll = useCallback((filterText?: string) => {
     if (!fileTree) return
+
+    // Match the filtering logic from FileTreeView
+    const q = (filterText || '').trim().toLowerCase()
+    const hasQuery = q.length > 0
+
+    function matchesFilter(node: FileTreeNode): boolean {
+      if (!hasQuery) return true
+      const path = (node.path || '').toLowerCase()
+      const name = (node.name || '').toLowerCase()
+      if (path.includes(q) || name.includes(q)) return true
+      if (node.type === 'dir') return (node.children ?? []).some(matchesFilter)
+      return false
+    }
+
+    function shouldShow(node: FileTreeNode): boolean {
+      if (!matchesFilter(node)) return false
+      if (!showChangedOnly) return true
+      if (node.type === 'file') return (node.status ?? 'unchanged') !== 'unchanged'
+      return (node.children ?? []).some(shouldShow)
+    }
+
     const paths: string[] = []
     const walk = (n: FileTreeNode) => {
-      if (n.type === 'file') {
-        if (!showChangedOnly || (n.status ?? 'unchanged') !== 'unchanged') paths.push(n.path)
-      } else {
+      if (n.type === 'file' && shouldShow(n)) {
+        paths.push(n.path)
+      } else if (n.type === 'dir') {
         n.children?.forEach(walk)
       }
     }
@@ -218,9 +239,88 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
     setSelectedPaths(new Set(paths))
   }, [fileTree, showChangedOnly])
 
-  const deselectAll = useCallback(() => {
-    setSelectedPaths(new Set())
-  }, [])
+  const deselectAll = useCallback((filterText?: string) => {
+    if (!fileTree) return
+
+    // Match the filtering logic from FileTreeView
+    const q = (filterText || '').trim().toLowerCase()
+    const hasQuery = q.length > 0
+
+    function matchesFilter(node: FileTreeNode): boolean {
+      if (!hasQuery) return true
+      const path = (node.path || '').toLowerCase()
+      const name = (node.name || '').toLowerCase()
+      if (path.includes(q) || name.includes(q)) return true
+      if (node.type === 'dir') return (node.children ?? []).some(matchesFilter)
+      return false
+    }
+
+    function shouldShow(node: FileTreeNode): boolean {
+      if (!matchesFilter(node)) return false
+      if (!showChangedOnly) return true
+      if (node.type === 'file') return (node.status ?? 'unchanged') !== 'unchanged'
+      return (node.children ?? []).some(shouldShow)
+    }
+
+    const pathsToDeselect: string[] = []
+    const walk = (n: FileTreeNode) => {
+      if (n.type === 'file' && shouldShow(n)) {
+        pathsToDeselect.push(n.path)
+      } else if (n.type === 'dir') {
+        n.children?.forEach(walk)
+      }
+    }
+    walk(fileTree)
+
+    setSelectedPaths((prev) => {
+      const next = new Set(prev)
+      for (const path of pathsToDeselect) {
+        next.delete(path)
+      }
+      return next
+    })
+  }, [fileTree, showChangedOnly])
+
+  const revealPath = useCallback((path: string) => {
+    if (!fileTree) return
+
+    // Expand all parent directories
+    const parts = path.split('/')
+    const dirsToExpand: string[] = []
+    for (let i = 0; i < parts.length - 1; i++) {
+      dirsToExpand.push(parts.slice(0, i + 1).join('/'))
+    }
+
+    setExpandedPaths((prev) => {
+      const next = new Set(prev)
+      for (const dir of dirsToExpand) {
+        next.add(dir)
+      }
+      return next
+    })
+
+    // Wait for next tick to allow DOM to update with expanded paths
+    setTimeout(() => {
+      // Find element by data-full-path attribute (exists on hidden span in FileTreeView)
+      const element = document.querySelector(`[data-full-path="${path}"]`)
+      if (element) {
+        // Get the parent row element to highlight and scroll to
+        const rowElement = element.closest('.tree-row')
+        if (rowElement) {
+          // Scroll into view
+          rowElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+
+          // Add highlight class
+          rowElement.classList.add('file-highlight')
+
+          // Remove highlight after 2 seconds
+          setTimeout(() => {
+            rowElement.classList.remove('file-highlight')
+          }, 2000)
+        }
+      }
+    }, 100)
+  }, [fileTree])
 
   return {
     isComputing,
@@ -239,5 +339,6 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
     collapseAll,
     selectAll,
     deselectAll,
+    revealPath,
   }
 }
