@@ -1,4 +1,4 @@
-import { ArrowLeftRight, RefreshCw } from 'lucide-react'
+import { ArrowLeftRight, RefreshCw, Folder } from 'lucide-react'
 
 type DiffControlBarProps = {
   branches: string[]
@@ -9,6 +9,8 @@ type DiffControlBarProps = {
   onFlip: () => void
   onRefresh: () => void
   disabled?: boolean
+  projectName?: string
+  projectPath?: string
 }
 
 export function DiffControlBar({
@@ -20,12 +22,22 @@ export function DiffControlBar({
   onFlip,
   onRefresh,
   disabled = false,
+  projectName,
+  projectPath,
 }: DiffControlBarProps) {
   const formatBranchLabel = (branch: string) =>
     branch === '__WORKDIR__' ? 'My Working Directory' : branch
 
   return (
     <div className="gc-diff-bar">
+      {projectName && (
+        <div className="diff-bar-project-info">
+          <Folder size={16} style={{ opacity: 0.6 }} />
+          <span className="diff-bar-project-name" title={projectPath || projectName}>
+            {projectName}
+          </span>
+        </div>
+      )}
       <div className="diff-bar-branch-selector">
         <label htmlFor="base-branch-select" className="diff-bar-label">Base</label>
         <select
@@ -51,8 +63,6 @@ export function DiffControlBar({
       >
         <ArrowLeftRight size={18} />
       </button>
-
-      <div className="diff-bar-arrow">→</div>
 
       <div className="diff-bar-branch-selector">
         <label htmlFor="compare-branch-select" className="diff-bar-label">Compare</label>

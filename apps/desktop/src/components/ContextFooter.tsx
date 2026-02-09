@@ -20,7 +20,7 @@ export function ContextFooter({
   copyFlash,
   disabled = false,
 }: ContextFooterProps) {
-  const { total: filesTokens } = useTokenCountsContext()
+  const { total: filesTokens, busy } = useTokenCountsContext()
   const totalTokens = filesTokens + instructionsTokens + fileTreeTokens
   const percentage = limit > 0 ? Math.min((totalTokens / limit) * 100, 100) : 0
   const isOverLimit = totalTokens > limit
@@ -48,7 +48,11 @@ export function ContextFooter({
         <div className="token-row token-total">
           <span className="token-label">Total Tokens:</span>
           <span className={`token-value ${isOverLimit ? 'over-limit' : ''}`}>
-            {totalTokens.toLocaleString()} / {limit.toLocaleString()}
+            {busy ? (
+              <span style={{ opacity: 0.7 }}>calculating...</span>
+            ) : (
+              `${totalTokens.toLocaleString()} / ${limit.toLocaleString()}`
+            )}
           </span>
         </div>
       </div>

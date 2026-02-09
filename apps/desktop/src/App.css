@@ -39,7 +39,15 @@
 .btn:hover { background: color-mix(in oklab, currentColor 10%, transparent); }
 .btn:active { transform: translateY(1px); }
 .btn:disabled { opacity:.55; cursor:not-allowed; }
-.btn-primary { --_bg: var(--primary); --_fg: var(--primary-contrast); --_bd: color-mix(in oklab, var(--primary) 85%, black); }
+.btn-primary {
+  --_bg: color-mix(in oklab, var(--primary) 15%, var(--surface-2));
+  --_fg: color-mix(in oklab, var(--primary) 90%, currentColor);
+  --_bd: color-mix(in oklab, var(--primary) 40%, transparent);
+  font-weight: 500;
+}
+.btn-primary:hover {
+  --_bg: color-mix(in oklab, var(--primary) 25%, var(--surface-2));
+}
 .btn-ghost { --_bg: transparent; --_bd: var(--border-col); }
 .btn-icon { padding: var(--space-2); width:36px; height:36px; }
 
@@ -128,8 +136,8 @@
   grid-template-rows: auto auto 1fr;
   grid-template-columns: 1fr;
   height: 100vh;
-  width: 100vw;
-  overflow: hidden;
+  width: 100%;
+  min-height: 0;
 }
 
 .gc-header {
@@ -176,44 +184,56 @@
   overflow: hidden;
 }
 
-.diff-bar-arrow {
-  font-size: 1.25rem;
-  color: var(--border-col);
-  padding: 0 var(--space-2);
+.diff-bar-project-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: color-mix(in oklab, var(--surface-1) 50%, transparent);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  color: inherit;
+  opacity: 0.8;
+}
+
+.diff-bar-project-name {
+  font-weight: 500;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .gc-main-content {
   display: grid;
-  grid-template-columns: 1fr 400px;
+  grid-template-columns: minmax(320px, 1fr) clamp(280px, 32vw, 460px);
   gap: var(--space-4);
   padding: var(--space-4);
-  overflow: hidden;
   min-height: 0;
 }
 
 .gc-left-panel {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   border: 1px solid var(--border-col);
   border-radius: var(--radius-lg);
   background: var(--surface-1);
   min-height: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .gc-right-panel {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   border: 1px solid var(--border-col);
   border-radius: var(--radius-lg);
   background: var(--surface-1);
   min-height: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .gc-content {
-  flex: 1;
-  overflow: hidden;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -223,6 +243,26 @@
   .gc-main-content {
     grid-template-columns: 1fr;
     grid-template-rows: auto auto;
+  }
+}
+
+@media (max-width: 900px) {
+  .gc-main-content {
+    padding: var(--space-3);
+    gap: var(--space-3);
+  }
+}
+
+/* Height-based media query for short desktop windows */
+@media (max-height: 700px) {
+  .gc-header {
+    padding: var(--space-2) var(--space-4);
+  }
+  .gc-diff-bar {
+    padding: var(--space-2) var(--space-4);
+  }
+  .left-panel-controls {
+    padding: var(--space-3);
   }
 }
 
@@ -306,6 +346,8 @@
   flex-direction: column;
   gap: var(--space-1);
   overflow-y: auto;
+  min-height: 0;
+  overscroll-behavior: contain;
 }
 
 .selected-file-row {
@@ -744,8 +786,16 @@ button {
 }
 
 /* Rows & hovers */
-.tree-row, .selected-file-row { border-radius: var(--radius-sm); }
-.tree-row:hover, .selected-file-row:hover { background: color-mix(in oklab, currentColor 8%, transparent); }
+.tree-row, .selected-file-row {
+  border-radius: var(--radius-sm);
+  transition: background 0.1s ease, transform 0.05s ease;
+}
+.tree-row:hover, .selected-file-row:hover {
+  background: color-mix(in oklab, currentColor 8%, transparent);
+}
+.tree-row:active, .selected-file-row:active {
+  transform: translateY(1px);
+}
 
 /* Status bar */
 .status-bar {
@@ -983,32 +1033,36 @@ button {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: var(--surface-1);
-  padding: var(--space-4);
+  background: color-mix(in oklab, var(--surface-1) 95%, transparent);
+  backdrop-filter: blur(8px);
+  padding: var(--space-3);
   border-bottom: 1px solid var(--border-col);
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 
-.tree-action-buttons {
+.tree-controls-row {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--space-2);
   flex-wrap: wrap;
 }
 
-.tree-filter-controls {
+.tree-action-buttons {
   display: flex;
-  align-items: center;
+  gap: var(--space-1);
 }
 
 .tree-filter-checkbox {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
   user-select: none;
+  white-space: nowrap;
 }
 
 .tree-filter-checkbox input[type="checkbox"] {
@@ -1017,13 +1071,13 @@ button {
 
 .tree-search-input {
   position: relative;
-  width: 100%;
 }
 
 .tree-search-input input {
   width: 100%;
   font-size: 13px;
   padding-right: var(--space-8);
+  box-sizing: border-box;
 }
 
 /* Search clear button */
@@ -1058,8 +1112,9 @@ button {
 .left-panel-tree-container {
   flex: 1;
   overflow: auto;
-  padding: var(--space-2);
+  padding: var(--space-3);
   min-height: 0;
+  overscroll-behavior: contain;
 }
 
 /* Enhanced FileTreeView styling removed to restore original tree design */
@@ -1106,7 +1161,8 @@ button {
 
 .tab-nav-item.active {
   opacity: 1;
-  border-bottom-color: var(--primary);
+  border-bottom-color: color-mix(in oklab, var(--primary) 80%, currentColor);
+  color: color-mix(in oklab, var(--primary) 70%, currentColor);
 }
 
 .tab-badge {
@@ -1117,16 +1173,18 @@ button {
   height: 20px;
   padding: 0 var(--space-2);
   border-radius: 10px;
-  background: var(--primary);
-  color: var(--primary-contrast);
+  background: color-mix(in oklab, var(--primary) 20%, var(--surface-2));
+  color: color-mix(in oklab, var(--primary) 80%, currentColor);
   font-size: 11px;
   font-weight: 600;
+  border: 1px solid color-mix(in oklab, var(--primary) 30%, transparent);
 }
 
 .tab-content {
   flex: 1;
   overflow: auto;
   min-height: 0;
+  overscroll-behavior: contain;
 }
 
 /* Selected files container */
@@ -1241,13 +1299,13 @@ button {
 
 .token-progress-fill {
   height: 100%;
-  background: var(--primary);
+  background: color-mix(in oklab, var(--primary) 60%, var(--surface-2));
   transition: width 0.3s ease;
   border-radius: 2px;
 }
 
 .token-progress-fill.over-limit {
-  background: #ef4444;
+  background: color-mix(in oklab, #ef4444 70%, var(--surface-2));
 }
 
 .copy-button {

@@ -40,24 +40,19 @@
   --text-2xl: 1.5rem;   /* 24px */
 }
 
-/* Lock the page to a single viewport and prevent body scroll */
+/* Let the page flow naturally */
 html,
 body,
 #root {
-  height: 100vh;
-  width: 100vw;
+  height: 100%;
+  width: 100%;
   margin: 0;
   padding: 0;
-  overflow: hidden;
 }
 
-/* Allow scrolling on narrow screens when content exceeds viewport */
-@media (max-width: 1000px) {
-  html,
-  body,
-  #root {
-    overflow: auto;
-  }
+/* Let the page scroll when it needs to. Avoid global overflow hidden. */
+body {
+  overflow: auto;
 }
 
 a {
@@ -81,22 +76,11 @@ h1 {
 }
 
 button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
   cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
 }
 
 @media (prefers-color-scheme: light) {
@@ -106,9 +90,6 @@ button:focus-visible {
   }
   a:hover {
     color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
   }
 }
 
@@ -120,9 +101,6 @@ button:focus-visible {
 :root[data-theme='dark'] a:hover {
   color: #535bf2;
 }
-:root[data-theme='dark'] button {
-  background-color: #1a1a1a;
-}
 
 :root[data-theme='light'] {
   color: #213547;
@@ -131,7 +109,4 @@ button:focus-visible {
 }
 :root[data-theme='light'] a:hover {
   color: #747bff;
-}
-:root[data-theme='light'] button {
-  background-color: #f9f9f9;
 }

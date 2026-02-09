@@ -169,16 +169,13 @@ export function FileTreeView({
     <div
       className="file-tree-view"
       style={{
-        border: '1px solid color-mix(in hsl, currentColor 20%, transparent)',
-        borderRadius: 8,
-        padding: '0.5rem',
         display: 'flex',
         flexDirection: 'column',
         flex: 1,
         minHeight: 0,
       }}
     >
-      <ul style={{ paddingLeft: 0, flex: 1, overflowY: 'auto' }}>
+      <ul style={{ paddingLeft: 0, flex: 1 }}>
         {tree.children && renderTreeNodes(tree.children)}
       </ul>
     </div>

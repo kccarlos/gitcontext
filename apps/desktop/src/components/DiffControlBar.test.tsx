@@ -159,6 +159,6 @@ describe('DiffControlBar', () => {
 
     expect(container.querySelector('.gc-diff-bar')).toBeInTheDocument()
     expect(container.querySelector('.diff-bar-branch-selector')).toBeInTheDocument()
-    expect(container.querySelector('.diff-bar-arrow')).toBeInTheDocument()
+    // Arrow removed - swap button is sufficient visual indicator
   })
 })
