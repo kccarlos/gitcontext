@@ -1086,3 +1086,196 @@ button {
   font-weight: 600;
   padding: var(--space-1) 0;
 }
+
+/* =============== Phase 3: Right Panel Tabs=============== */
+
+/* Right panel tabs */
+.right-panel-tabs {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.tab-nav {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border-col);
+  background: var(--surface-2);
+  padding: 0 var(--space-4);
+}
+
+.tab-nav-item {
+  padding: var(--space-3) var(--space-4);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: inherit;
+  opacity: 0.7;
+  transition: opacity 0.2s ease, border-color 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tab-nav-item:hover {
+  opacity: 1;
+  background: color-mix(in oklab, currentColor 5%, transparent);
+}
+
+.tab-nav-item.active {
+  opacity: 1;
+  border-bottom-color: var(--primary);
+}
+
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 var(--space-2);
+  border-radius: 10px;
+  background: var(--primary);
+  color: var(--primary-contrast);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.tab-content {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+/* Selected files container */
+.selected-files-container {
+  padding: var(--space-4);
+  height: 100%;
+  overflow: auto;
+}
+
+/* Settings container */
+.settings-container {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  overflow: auto;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.settings-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: var(--space-1);
+}
+
+.settings-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.settings-checkbox input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.context-slider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.context-slider input[type="range"] {
+  flex: 1;
+  min-width: 120px;
+}
+
+.context-value {
+  width: 36px;
+  text-align: right;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Context Footer */
+.context-footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-top: 1px solid var(--border-col);
+  background: var(--surface-2);
+}
+
+.token-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: 12px;
+}
+
+.token-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.token-label {
+  color: inherit;
+  opacity: 0.8;
+}
+
+.token-value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.token-total {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-col);
+  font-size: 13px;
+}
+
+.token-value.over-limit {
+  color: #ef4444;
+}
+
+.token-progress-bar {
+  height: 4px;
+  background: color-mix(in oklab, currentColor 10%, transparent);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.token-progress-fill {
+  height: 100%;
+  background: var(--primary);
+  transition: width 0.3s ease;
+  border-radius: 2px;
+}
+
+.token-progress-fill.over-limit {
+  background: #ef4444;
+}
+
+.copy-button {
+  width: 100%;
+  min-height: 44px;
+  font-size: 15px;
+  font-weight: 600;
+  justify-content: center;
+}

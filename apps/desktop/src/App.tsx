@@ -1,19 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import { ChevronsDown, ChevronsUp, CheckSquare, Square, Sun, Moon, Folder, FolderGit2, ListChecks, Copy, ArrowLeftRight } from 'lucide-react'
-import { FileTreeView, PreviewModal, TokenUsage, GitHubStarIconButton, BugIconButton } from '@gitcontext/ui'
-import { type FileDiffStatus } from '@gitcontext/core'
+import { FileTreeView, PreviewModal, GitHubStarIconButton, BugIconButton } from '@gitcontext/ui'
+import { type FileDiffStatus, isBinaryPath, MAX_CONCURRENT_READS } from '@gitcontext/core'
+import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { useGitRepository } from './hooks/useGitRepository'
 import { useFileTree } from './hooks/useFileTree'
 import { SelectedFilesPanel } from './components/SelectedFilesPanel'
 import { TopProgressBar } from './components/TopProgressBar'
 import { ErrorBanner } from './components/ErrorBanner'
 import { DiffControlBar } from './components/DiffControlBar'
+import { RightPanelTabs, type TabId } from './components/RightPanelTabs'
+import { ContextFooter } from './components/ContextFooter'
 import { getModels } from './utils/models'
 import type { ModelInfo } from './types/models'
 import type { AppStatus } from './types/appStatus'
+import { buildUnifiedDiffForStatus } from './utils/diff'
 import { countTokens } from './utils/tokenizer'
-import { TokenCountsProvider, useTokenCountsContext } from './context/TokenCountsContext'
+import { TokenCountsProvider } from './context/TokenCountsContext'
+import { mapWithConcurrency } from './utils/concurrency'
 import { logError } from './utils/logger'
 import { debounce } from './utils/debounce'
 
@@ -22,6 +27,7 @@ function AppContent() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const {
+    currentDir,
     repoStatus,
     gitClient,
     branches,
@@ -35,6 +41,8 @@ function AppContent() {
     diffTrigger,
   } = useGitRepository(setAppStatus)
 
+  const [activeTab, setActiveTab] = useState<TabId>('files')
+  const [copyFlash, setCopyFlash] = useState<string | null>(null)
   const [previewPath, setPreviewPath] = useState<string | null>(null)
   const [previewStatus, setPreviewStatus] = useState<FileDiffStatus>('unchanged')
   const [previewOpen, setPreviewOpen] = useState(false)
@@ -221,6 +229,130 @@ function AppContent() {
     )
   }
 
+  // Copy all selected files
+  const copyAllSelected = useCallback(async () => {
+    if (!gitClient || !baseBranch || !compareBranch || selectedPaths.size === 0) return
+    setCopyFlash('⏳ Copying...')
+    try {
+      const paths = Array.from(selectedPaths)
+      const MAX_CTX = 999
+      const ctx = diffContextLines >= MAX_CTX ? Number.MAX_SAFE_INTEGER : diffContextLines
+
+      // Generate file tree if requested (only for selected files)
+      let fileTreeText = ''
+      if (includeFileTree && fileTree && selectedPaths.size > 0) {
+        const lines: string[] = ['```', '📦 Repository Structure', '']
+
+        // Helper to check if a directory contains any selected files
+        const hasSelectedFiles = (node: any): boolean => {
+          if (node.type === 'file') {
+            return selectedPaths.has(node.path)
+          }
+          if (node.children) {
+            return node.children.some((child: any) => hasSelectedFiles(child))
+          }
+          return false
+        }
+
+        const walk = (node: any, depth: number) => {
+          // Only include directories that contain selected files, or files that are selected
+          if (node.type === 'file' && !selectedPaths.has(node.path)) {
+            return
+          }
+          if (node.type === 'dir' && !hasSelectedFiles(node)) {
+            return
+          }
+
+          if (depth > 0) {
+            const indent = '  '.repeat(depth - 1)
+            const icon = node.type === 'dir' ? '📁' : '📄'
+            const status = node.status ? ` [${node.status.toUpperCase()}]` : ''
+            lines.push(`${indent}${icon} ${node.name}${status}`)
+          }
+
+          if (node.children) {
+            for (const child of node.children) {
+              walk(child, depth + 1)
+            }
+          }
+        }
+        walk(fileTree, 0)
+        lines.push('```', '')
+        fileTreeText = lines.join('\n')
+      }
+
+      // Build header
+      const header = [
+        `# Git Diff Context: ${baseBranch} → ${compareBranch}`,
+        '',
+        `Repository: ${currentDir || 'Unknown'}`,
+        `Base: ${baseBranch}`,
+        `Compare: ${compareBranch}`,
+        `Files: ${paths.length}`,
+        '',
+      ]
+
+      if (userInstructions.trim()) {
+        header.push('## Instructions', '', userInstructions.trim(), '')
+      }
+
+      if (fileTreeText) {
+        header.push('## File Tree', '', fileTreeText)
+      }
+
+      header.push('## Diffs', '')
+
+      const output = [header.join('\n')]
+
+      // Fetch file contents with bounded concurrency
+      const results = await mapWithConcurrency(
+        paths,
+        async (path) => {
+          const status = statusByPath.get(path) ?? 'unchanged'
+          const looksBinary = isBinaryPath(path)
+
+          if (looksBinary) {
+            return `## FILE: ${path} (${status.toUpperCase()})\n\n[Binary file]\n\n`
+          }
+
+          const needBase = status !== 'add'
+          const needCompare = status !== 'remove'
+          const [baseRes, compareRes] = await Promise.all([
+            needBase ? gitClient.readFile(baseBranch, path) : Promise.resolve(undefined),
+            needCompare ? gitClient.readFile(compareBranch, path) : Promise.resolve(undefined),
+          ])
+
+          if (status === 'modify' || status === 'add' || status === 'remove') {
+            const isBinary = Boolean((baseRes as any)?.binary) || Boolean((compareRes as any)?.binary)
+            if (isBinary) {
+              return `## FILE: ${path} (${status.toUpperCase()})\n\n[Binary file]\n\n`
+            }
+            if (status === 'add' && ctx === Number.MAX_SAFE_INTEGER) {
+              return `## FILE: ${path} (ADD)\n\n\`\`\`\n${(compareRes as any)?.text ?? ''}\n\`\`\`\n\n`
+            }
+            const diffText = buildUnifiedDiffForStatus(status, path, baseRes as any, compareRes as any, { context: ctx })
+            return diffText ? `## FILE: ${path} (${status.toUpperCase()})\n\n\`\`\`diff\n${diffText}\n\`\`\`\n\n` : ''
+          } else {
+            const isBinary = Boolean((baseRes as any)?.binary)
+            const text = isBinary || (baseRes as any)?.notFound ? '' : (baseRes as any)?.text ?? ''
+            return text ? `## FILE: ${path} (UNCHANGED)\n\n\`\`\`\n${text}\n\`\`\`\n\n` : ''
+          }
+        },
+        { limit: MAX_CONCURRENT_READS }
+      )
+
+      output.push(...results)
+
+      await writeText(output.join(''))
+      setCopyFlash('✓ Copied to clipboard!')
+      setTimeout(() => setCopyFlash(null), 2000)
+    } catch (err) {
+      logError('copy', err)
+      setCopyFlash('❌ Failed to copy')
+      setTimeout(() => setCopyFlash(null), 2000)
+    }
+  }, [gitClient, baseBranch, compareBranch, selectedPaths, diffContextLines, statusByPath, userInstructions, fileTree, includeFileTree, showChangedOnly, currentDir])
+
   // Calculate file tree tokens
   useEffect(() => {
     if (!includeFileTree || !fileTree || selectedPaths.size === 0) {
@@ -274,25 +406,6 @@ function AppContent() {
     })()
     return () => { cancelled = true }
   }, [includeFileTree, fileTree, showChangedOnly, selectedPaths])
-
-  // Token usage component with context
-  const TokenUsageWithContext = ({ filesCount, instructionsTokens, fileTreeTokens, limit }: {
-    filesCount: number
-    instructionsTokens: number
-    fileTreeTokens: number
-    limit: number
-  }) => {
-    const { total } = useTokenCountsContext()
-    return (
-      <TokenUsage
-        fileTokensTotalSource={() => total}
-        filesCount={filesCount}
-        instructionsTokens={instructionsTokens}
-        fileTreeTokens={fileTreeTokens}
-        limit={limit}
-      />
-    )
-  }
 
   const isReady = repoStatus.state === 'ready'
   const isLoading = repoStatus.state === 'loading'
@@ -456,107 +569,109 @@ function AppContent() {
               </div>
             </div>
 
-            {/* Right panel: Output settings and selected files */}
+            {/* Right panel: Tabbed interface */}
             <div className="gc-right-panel">
-              {/* Output settings */}
-              <div style={{ padding: '16px', borderBottom: '1px solid var(--border-col)', flexShrink: 0, overflowY: 'auto', maxHeight: '60%' }}>
-                <h3 style={{ margin: 0, marginBottom: '12px' }}>Output Settings</h3>
-
-                {/* Model selection */}
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>Target Model</label>
-                  <select value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)} className="gc-select" style={{ width: '100%' }}>
-                    <option value="">Select a model...</option>
-                    {models?.map((m) => (
-                      <option key={m.id} value={m.id}>{m.name} ({(m.context_length ?? 0).toLocaleString()} tokens)</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* User instructions */}
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>Prompt / Instructions</label>
-                  <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} className="gc-select" style={{ width: '100%', marginBottom: '4px' }}>
-                    <option value="">Custom prompt...</option>
-                    {PROMPT_TEMPLATES.map((t) => (
-                      <option key={t.id} value={t.id}>{t.label}</option>
-                    ))}
-                  </select>
-                  <textarea
-                    value={userInstructions}
-                    onChange={(e) => setUserInstructions(e.target.value)}
-                    className="gc-textarea"
-                    placeholder="Enter custom instructions for the LLM..."
-                    rows={4}
-                    style={{ width: '100%', fontSize: '13px' }}
-                  />
-                </div>
-
-                {/* Options */}
-                <div style={{ marginBottom: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px' }}>
-                    <input type="checkbox" checked={includeFileTree} onChange={(e) => setIncludeFileTree(e.target.checked)} />
-                    Include file tree structure
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px' }}>
-                    <input type="checkbox" checked={includeBinaryAsPaths} onChange={(e) => setIncludeBinaryAsPaths(e.target.checked)} />
-                    Include binary files as paths
-                  </label>
-                </div>
-
-                {/* Context lines */}
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ whiteSpace: 'nowrap', fontSize: '12px', fontWeight: 600 }}>Context lines:</span>
-                    <input
-                      ref={diffRangeRef}
-                      type="range"
-                      min={0}
-                      max={MAX_CONTEXT}
-                      step={1}
-                      value={diffContextImmediate}
-                      onInput={(e) => {
-                        const v = Number((e.target as HTMLInputElement).value)
-                        diffContextImmediateRef.current = v
-                        setDiffContextImmediate(v)
-                      }}
-                      onChange={(e) => {
-                        const v = Number(e.target.value)
-                        diffContextImmediateRef.current = v
-                        setDiffContextImmediate(v)
-                        debouncedSetDiffContextLines(v)
-                      }}
-                      style={{ flex: 1, minWidth: '120px' }}
+              <RightPanelTabs
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                filesCount={selectedPaths.size}
+              >
+                {activeTab === 'files' ? (
+                  <div className="selected-files-container">
+                    <SelectedFilesPanel
+                      key={`sel-${selectedPaths.size}`}
+                      selectedPaths={selectedPaths}
+                      statusByPath={statusByPath}
+                      onUnselect={(path) => toggleSelect(path)}
+                      onPreview={(path, status) => previewFile(path, status)}
+                      refreshing={false}
+                      filterText={treeFilter}
                     />
-                    <span style={{ width: 36, textAlign: 'right', fontSize: '12px' }}>
-                      {diffContextImmediate >= MAX_CONTEXT ? '∞' : diffContextImmediate}
-                    </span>
-                  </label>
-                </div>
+                  </div>
+                ) : (
+                  <div className="settings-container">
+                    {/* Model selection */}
+                    <div className="settings-section">
+                      <label className="settings-label">Target Model</label>
+                      <select value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)} className="gc-select">
+                        <option value="">Select a model...</option>
+                        {models?.map((m) => (
+                          <option key={m.id} value={m.id}>{m.name} ({(m.context_length ?? 0).toLocaleString()} tokens)</option>
+                        ))}
+                      </select>
+                    </div>
 
-                {/* Token usage */}
-                <TokenUsageWithContext
-                  filesCount={selectedPaths.size}
-                  instructionsTokens={userInstructionsTokens}
-                  fileTreeTokens={includeFileTree ? fileTreeTokens : 0}
-                  limit={tokenLimit}
-                />
-              </div>
+                    {/* User instructions */}
+                    <div className="settings-section">
+                      <label className="settings-label">Prompt / Instructions</label>
+                      <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} className="gc-select">
+                        <option value="">Custom prompt...</option>
+                        {PROMPT_TEMPLATES.map((t) => (
+                          <option key={t.id} value={t.id}>{t.label}</option>
+                        ))}
+                      </select>
+                      <textarea
+                        value={userInstructions}
+                        onChange={(e) => setUserInstructions(e.target.value)}
+                        className="gc-textarea"
+                        placeholder="Enter custom instructions for the LLM..."
+                        rows={4}
+                      />
+                    </div>
 
-              {/* Selected files list */}
-              <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', borderTop: '1px solid #e0e0e0', minHeight: 0 }}>
-                <div style={{ flex: 1, overflow: 'auto', padding: '16px', minHeight: 0 }}>
-                  <SelectedFilesPanel
-                    key={`sel-${selectedPaths.size}`}
-                    selectedPaths={selectedPaths}
-                    statusByPath={statusByPath}
-                    onUnselect={(path) => toggleSelect(path)}
-                    onPreview={(path, status) => previewFile(path, status)}
-                    refreshing={false}
-                    filterText={treeFilter}
-                  />
-                </div>
-              </div>
+                    {/* Options */}
+                    <div className="settings-section">
+                      <label className="settings-checkbox">
+                        <input type="checkbox" checked={includeFileTree} onChange={(e) => setIncludeFileTree(e.target.checked)} />
+                        Include file tree structure
+                      </label>
+                      <label className="settings-checkbox">
+                        <input type="checkbox" checked={includeBinaryAsPaths} onChange={(e) => setIncludeBinaryAsPaths(e.target.checked)} />
+                        Include binary files as paths
+                      </label>
+                    </div>
+
+                    {/* Context lines */}
+                    <div className="settings-section">
+                      <label className="settings-label">Context lines:</label>
+                      <div className="context-slider">
+                        <input
+                          ref={diffRangeRef}
+                          type="range"
+                          min={0}
+                          max={MAX_CONTEXT}
+                          step={1}
+                          value={diffContextImmediate}
+                          onInput={(e) => {
+                            const v = Number((e.target as HTMLInputElement).value)
+                            diffContextImmediateRef.current = v
+                            setDiffContextImmediate(v)
+                          }}
+                          onChange={(e) => {
+                            const v = Number(e.target.value)
+                            diffContextImmediateRef.current = v
+                            setDiffContextImmediate(v)
+                            debouncedSetDiffContextLines(v)
+                          }}
+                        />
+                        <span className="context-value">
+                          {diffContextImmediate >= MAX_CONTEXT ? '∞' : diffContextImmediate}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </RightPanelTabs>
+
+              <ContextFooter
+                filesCount={selectedPaths.size}
+                instructionsTokens={userInstructionsTokens}
+                fileTreeTokens={includeFileTree ? fileTreeTokens : 0}
+                limit={tokenLimit}
+                onCopy={copyAllSelected}
+                copyFlash={copyFlash}
+                disabled={!gitClient || selectedPaths.size === 0}
+              />
             </div>
           </div>
         </>
