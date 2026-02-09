@@ -152,6 +152,7 @@ function AppContent() {
     collapseAll,
     selectAll,
     deselectAll,
+    revealPath,
   } = useFileTree(setAppStatus)
 
   const [treeFilter, setTreeFilter] = useState('')
@@ -584,6 +585,7 @@ function AppContent() {
                       statusByPath={statusByPath}
                       onUnselect={(path) => toggleSelect(path)}
                       onPreview={(path, status) => previewFile(path, status)}
+                      onReveal={revealPath}
                       refreshing={false}
                       filterText={treeFilter}
                     />

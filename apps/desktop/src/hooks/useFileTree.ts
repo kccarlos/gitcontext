@@ -222,6 +222,47 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
     setSelectedPaths(new Set())
   }, [])
 
+  const revealPath = useCallback((path: string) => {
+    if (!fileTree) return
+
+    // Expand all parent directories
+    const parts = path.split('/')
+    const dirsToExpand: string[] = []
+    for (let i = 0; i < parts.length - 1; i++) {
+      dirsToExpand.push(parts.slice(0, i + 1).join('/'))
+    }
+
+    setExpandedPaths((prev) => {
+      const next = new Set(prev)
+      for (const dir of dirsToExpand) {
+        next.add(dir)
+      }
+      return next
+    })
+
+    // Wait for next tick to allow DOM to update with expanded paths
+    setTimeout(() => {
+      // Find element by data-full-path attribute (exists on hidden span in FileTreeView)
+      const element = document.querySelector(`[data-full-path="${path}"]`)
+      if (element) {
+        // Get the parent row element to highlight and scroll to
+        const rowElement = element.closest('.tree-row')
+        if (rowElement) {
+          // Scroll into view
+          rowElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+
+          // Add highlight class
+          rowElement.classList.add('file-highlight')
+
+          // Remove highlight after 2 seconds
+          setTimeout(() => {
+            rowElement.classList.remove('file-highlight')
+          }, 2000)
+        }
+      }
+    }, 100)
+  }, [fileTree])
+
   return {
     isComputing,
     diffFiles,
@@ -239,5 +280,6 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
     collapseAll,
     selectAll,
     deselectAll,
+    revealPath,
   }
 }

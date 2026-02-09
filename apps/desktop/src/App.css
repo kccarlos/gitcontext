@@ -1029,13 +1029,8 @@ button {
 }
 
 /* Enhanced FileTreeView styling */
-/* Sticky directory headers */
-.file-tree li:has(> .tree-row strong) {
-  position: sticky;
-  top: 0;
-  z-index: 4;
-  background: var(--surface-1);
-}
+/* Sticky directory headers - removed to fix collapse issue */
+/* Can be re-enabled with proper z-index management if needed */
 
 /* Status dot indicators */
 .tree-row[data-status="modify"]::before,
@@ -1278,4 +1273,46 @@ button {
   font-size: 15px;
   font-weight: 600;
   justify-content: center;
+}
+
+/* =============== Phase 4: Advanced Interactions =============== */
+
+/* File highlight animation for reveal feature */
+@keyframes file-highlight {
+  0%, 100% {
+    background: transparent;
+  }
+  50% {
+    background: color-mix(in oklab, var(--primary) 20%, transparent);
+  }
+}
+
+.file-highlight {
+  animation: file-highlight 2s ease;
+}
+
+/* Empty state */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-8) var(--space-4);
+  text-align: center;
+  opacity: 0.7;
+}
+
+.empty-state h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 14px;
+  color: inherit;
+  opacity: 0.8;
+  max-width: 300px;
 }

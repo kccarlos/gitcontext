@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ArrowUpDown, Search, X, FilePenLine, FilePlus2, FileMinus2, File as FileIcon, FileArchive } from 'lucide-react'
+import { ArrowUpDown, Search, X, FilePenLine, FilePlus2, FileMinus2, File as FileIcon, FileArchive, Target, ListChecks } from 'lucide-react'
 import { useTokenCountsContext } from '../context/TokenCountsContext'
 import type { FileDiffStatus } from '@gitcontext/core'
 import { isBinaryPath } from '@gitcontext/core'
@@ -19,11 +19,12 @@ type Props = {
   statusByPath: Map<string, FileDiffStatus>
   onUnselect: (path: string) => void
   onPreview: (path: string, status: FileDiffStatus) => void
+  onReveal?: (path: string) => void
   refreshing?: boolean
   filterText?: string
 }
 
-export function SelectedFilesPanel({ selectedPaths, statusByPath, onUnselect, onPreview, refreshing, filterText }: Props) {
+export function SelectedFilesPanel({ selectedPaths, statusByPath, onUnselect, onPreview, onReveal, refreshing, filterText }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>('tokens-desc')
   const { counts, busy } = useTokenCountsContext()
   const effectiveBusy = !!refreshing || busy
@@ -102,7 +103,11 @@ export function SelectedFilesPanel({ selectedPaths, statusByPath, onUnselect, on
 
 
       {items.length === 0 ? (
-        <div className="hint">No files selected.</div>
+        <div className="empty-state">
+          <ListChecks size={48} style={{ opacity: 0.3 }} />
+          <h3>No Files Selected</h3>
+          <p>Select files from the tree on the left to include them in your context.</p>
+        </div>
       ) : (
         <div className="selected-files-list">
           {items.map((it) => (
@@ -119,6 +124,17 @@ export function SelectedFilesPanel({ selectedPaths, statusByPath, onUnselect, on
                 </span>
               </span>
               <span className="tokens"><span className="badge">{it.tokens.toLocaleString()}</span></span>
+              {onReveal && (
+                <button
+                  type="button"
+                  onClick={() => onReveal(it.path)}
+                  title="Reveal in tree"
+                  aria-label="Reveal in tree"
+                  className="btn btn-ghost btn-icon"
+                >
+                  <Target size={14} />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => onPreview(it.path, it.status)}
