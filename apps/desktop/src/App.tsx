@@ -156,6 +156,8 @@ function AppContent() {
   } = useFileTree(setAppStatus)
 
   const [treeFilter, setTreeFilter] = useState('')
+  const [treeFilterInput, setTreeFilterInput] = useState('')
+  const treeFilterInputRef = useRef<HTMLInputElement>(null)
   const debouncedSetTreeFilter = useMemo(() => debounce(setTreeFilter, 150), [])
 
   // Diff context lines
@@ -545,11 +547,30 @@ function AppContent() {
 
                 <div className="tree-search-input">
                   <input
+                    ref={treeFilterInputRef}
                     type="text"
                     placeholder="Filter files..."
-                    onChange={(e) => debouncedSetTreeFilter(e.target.value)}
+                    value={treeFilterInput}
+                    onChange={(e) => {
+                      setTreeFilterInput(e.target.value)
+                      debouncedSetTreeFilter(e.target.value)
+                    }}
                     className="gc-input"
                   />
+                  {treeFilterInput && (
+                    <button
+                      type="button"
+                      className="search-clear-btn"
+                      onClick={() => {
+                        setTreeFilterInput('')
+                        setTreeFilter('')
+                        treeFilterInputRef.current?.focus()
+                      }}
+                      aria-label="Clear search"
+                    >
+                      ×
+                    </button>
+                  )}
                 </div>
               </div>
 

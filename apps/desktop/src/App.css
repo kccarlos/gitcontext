@@ -1015,9 +1015,43 @@ button {
   cursor: pointer;
 }
 
+.tree-search-input {
+  position: relative;
+  width: 100%;
+}
+
 .tree-search-input input {
   width: 100%;
   font-size: 13px;
+  padding-right: var(--space-8);
+}
+
+/* Search clear button */
+.search-clear-btn {
+  position: absolute;
+  right: var(--space-2);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  opacity: 0.5;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  padding: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.search-clear-btn:hover {
+  opacity: 1;
+  background: color-mix(in oklab, currentColor 10%, transparent);
 }
 
 /* Tree container with proper scrolling */

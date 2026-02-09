@@ -81,18 +81,15 @@ export function SelectedFilesPanel({ selectedPaths, statusByPath, onUnselect, on
   return (
     <div className="selected-files">
       <div className="row-between">
-        <h2 style={{ margin: 0 }}>Selected Files</h2>
+        <span className="tag" style={{ visibility: effectiveBusy ? 'visible' : 'hidden' }}>{effectiveBusy ? 'Recalculating…' : ''}</span>
         <div className="row">
-          <span className="tag" style={{ visibility: effectiveBusy ? 'visible' : 'hidden' }}>{effectiveBusy ? 'Recalculating…' : ''}</span>
-          <div className="row">
-            <ArrowUpDown size={16} />
-            <select className="select" value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} title="Sort by">
-              <option value="tokens-desc">Tokens: High to Low</option>
-              <option value="tokens-asc">Tokens: Low to High</option>
-              <option value="name-asc">Name: A → Z</option>
-              <option value="name-desc">Name: Z → A</option>
-            </select>
-          </div>
+          <ArrowUpDown size={16} />
+          <select className="select" value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} title="Sort by">
+            <option value="tokens-desc">Tokens: High to Low</option>
+            <option value="tokens-asc">Tokens: Low to High</option>
+            <option value="name-asc">Name: A → Z</option>
+            <option value="name-desc">Name: Z → A</option>
+          </select>
         </div>
       </div>
 
