@@ -412,37 +412,35 @@ function AppContent() {
           <div className="gc-main-content">
             {/* Left panel: File tree */}
             <div className="gc-left-panel">
-              {/* Tree controls */}
-              <div style={{ padding: '16px', borderBottom: '1px solid var(--border-col)' }}>
-
+              {/* Tree controls - sticky */}
+              <div className="left-panel-controls">
                 {/* File tree controls */}
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <button onClick={expandAll} className="btn btn-ghost" disabled={!fileTree}><ChevronsDown size={14} /> Expand All</button>
-                  <button onClick={collapseAll} className="btn btn-ghost" disabled={!fileTree}><ChevronsUp size={14} /> Collapse All</button>
-                  <button onClick={selectAll} className="btn btn-ghost" disabled={!fileTree}><CheckSquare size={14} /> Select All</button>
-                  <button onClick={deselectAll} className="btn btn-ghost" disabled={!fileTree}><Square size={14} /> Deselect All</button>
+                <div className="tree-action-buttons">
+                  <button onClick={expandAll} className="btn btn-ghost btn-icon" title="Expand All" disabled={!fileTree}><ChevronsDown size={14} /></button>
+                  <button onClick={collapseAll} className="btn btn-ghost btn-icon" title="Collapse All" disabled={!fileTree}><ChevronsUp size={14} /></button>
+                  <button onClick={selectAll} className="btn btn-ghost btn-icon" title="Select All" disabled={!fileTree}><CheckSquare size={14} /></button>
+                  <button onClick={deselectAll} className="btn btn-ghost btn-icon" title="Deselect All" disabled={!fileTree}><Square size={14} /></button>
                 </div>
 
-                <div style={{ marginTop: '8px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px' }}>
+                <div className="tree-filter-controls">
+                  <label className="tree-filter-checkbox">
                     <input type="checkbox" checked={showChangedOnly} onChange={(e) => setShowChangedOnly(e.target.checked)} />
                     Filter changed files only
                   </label>
                 </div>
 
-                <div style={{ marginTop: '8px' }}>
+                <div className="tree-search-input">
                   <input
                     type="text"
                     placeholder="Filter files..."
                     onChange={(e) => debouncedSetTreeFilter(e.target.value)}
                     className="gc-input"
-                    style={{ width: '100%', fontSize: '13px' }}
                   />
                 </div>
               </div>
 
               {/* File tree */}
-              <div style={{ flex: 1, overflow: 'auto', padding: '8px', minHeight: 0 }}>
+              <div className="left-panel-tree-container">
                 {fileTree && (
                   <FileTreeView
                     tree={fileTree}

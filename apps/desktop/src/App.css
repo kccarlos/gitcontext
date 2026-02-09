@@ -975,3 +975,114 @@ button {
   button.icon-only { padding: 0.75em; }
   .btn-icon { width:40px; height:40px; }
 }
+
+/* =============== Phase 2: Left Panel Enhancements =============== */
+
+/* Sticky controls */
+.left-panel-controls {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--surface-1);
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border-col);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.tree-action-buttons {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.tree-filter-controls {
+  display: flex;
+  align-items: center;
+}
+
+.tree-filter-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.tree-filter-checkbox input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.tree-search-input input {
+  width: 100%;
+  font-size: 13px;
+}
+
+/* Tree container with proper scrolling */
+.left-panel-tree-container {
+  flex: 1;
+  overflow: auto;
+  padding: var(--space-2);
+  min-height: 0;
+}
+
+/* Enhanced FileTreeView styling */
+/* Sticky directory headers */
+.file-tree li:has(> .tree-row strong) {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: var(--surface-1);
+}
+
+/* Status dot indicators */
+.tree-row[data-status="modify"]::before,
+.tree-row[data-status="add"]::before,
+.tree-row[data-status="remove"]::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: var(--space-2);
+  flex-shrink: 0;
+}
+
+.tree-row[data-status="modify"]::before {
+  background: #f59e0b; /* yellow for modified */
+}
+
+.tree-row[data-status="add"]::before {
+  background: #10b981; /* green for added */
+}
+
+.tree-row[data-status="remove"]::before {
+  background: #ef4444; /* red for removed */
+}
+
+/* Hover-only preview button */
+.tree-row .btn-preview {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.tree-row:hover .btn-preview {
+  opacity: 1;
+}
+
+/* Consistent row height */
+.tree-row {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  gap: var(--space-2);
+}
+
+/* Directory headers with better contrast */
+.tree-row strong {
+  font-weight: 600;
+  padding: var(--space-1) 0;
+}
