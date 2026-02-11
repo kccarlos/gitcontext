@@ -290,6 +290,16 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
     })
   }, [])
 
+  const removeSelectedPathsByPredicate = useCallback((predicate: (path: string) => boolean) => {
+    setSelectedPaths((prev) => {
+      const next = new Set(prev)
+      for (const path of prev) {
+        if (predicate(path)) next.delete(path)
+      }
+      return next
+    })
+  }, [])
+
   const revealPath = useCallback((path: string) => {
     if (!fileTree) return
 
@@ -349,6 +359,7 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
     selectAll,
     deselectAll,
     addSelectedPaths,
+    removeSelectedPathsByPredicate,
     revealPath,
   }
 }

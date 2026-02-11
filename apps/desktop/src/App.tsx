@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
-import { ChevronsDown, ChevronsUp, CheckSquare, Square, Sun, Moon, Folder, FolderGit2, ListChecks, Copy, ArrowLeftRight } from 'lucide-react'
+import { ChevronsDown, ChevronsUp, CheckSquare, Square, Sun, Moon, Folder, FolderGit2, ListChecks, Copy, ArrowLeftRight, Trash2 } from 'lucide-react'
 import { FileTreeView, PreviewModal, GitHubStarIconButton, BugIconButton } from '@gitcontext/ui'
 import { type FileDiffStatus, isBinaryPath, MAX_CONCURRENT_READS } from '@gitcontext/core'
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager'
@@ -159,6 +159,7 @@ function AppContent() {
     selectAll,
     deselectAll,
     addSelectedPaths,
+    removeSelectedPathsByPredicate,
     revealPath,
   } = useFileTree(setAppStatus)
 
@@ -394,6 +395,10 @@ function AppContent() {
     }
   }, [currentDir, fileTree, statusByPath, addSelectedPaths])
 
+  const handleRemoveTestPathsFromSelection = useCallback(() => {
+    removeSelectedPathsByPredicate((path) => path.toLowerCase().includes('test'))
+  }, [removeSelectedPathsByPredicate])
+
   // Calculate file tree tokens
   useEffect(() => {
     if (!includeFileTree || !fileTree || selectedPaths.size === 0) {
@@ -578,6 +583,7 @@ function AppContent() {
                     <button onClick={() => selectAll(treeFilter)} className="btn btn-ghost btn-icon" title="Select All" disabled={!fileTree}><CheckSquare size={14} /></button>
                     <button onClick={() => deselectAll(treeFilter)} className="btn btn-ghost btn-icon" title="Deselect All" disabled={!fileTree}><Square size={14} /></button>
                     <button onClick={() => void handleBatchSelectFromClipboard()} className="btn btn-ghost btn-icon" title="Batch Select from Clipboard" disabled={!fileTree || !currentDir}><ListChecks size={14} /></button>
+                    <button onClick={handleRemoveTestPathsFromSelection} className="btn btn-ghost btn-icon" title="Remove selected test files" disabled={!fileTree || selectedPaths.size === 0}><Trash2 size={14} /></button>
                   </div>
                   <label className="tree-filter-checkbox">
                     <input type="checkbox" checked={showChangedOnly} onChange={(e) => setShowChangedOnly(e.target.checked)} />
