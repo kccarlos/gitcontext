@@ -281,6 +281,15 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
     })
   }, [fileTree, showChangedOnly])
 
+  const addSelectedPaths = useCallback((paths: string[]) => {
+    if (!paths.length) return
+    setSelectedPaths((prev) => {
+      const next = new Set(prev)
+      for (const path of paths) next.add(path)
+      return next
+    })
+  }, [])
+
   const revealPath = useCallback((path: string) => {
     if (!fileTree) return
 
@@ -339,6 +348,7 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
     collapseAll,
     selectAll,
     deselectAll,
+    addSelectedPaths,
     revealPath,
   }
 }
