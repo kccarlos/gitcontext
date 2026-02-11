@@ -8,6 +8,15 @@ describe('DiffControlBar', () => {
     branches: ['main', 'dev', 'feature/test'],
     baseBranch: 'main',
     compareBranch: 'dev',
+    workspaces: [
+      { id: 'ws-1', name: 'Main Repo', path: '/tmp/main', folderName: 'main', updatedAt: '2026-01-01T00:00:00.000Z' },
+      { id: 'ws-2', name: 'Docs', path: '/tmp/docs', folderName: 'docs', updatedAt: '2026-01-02T00:00:00.000Z' },
+    ],
+    selectedWorkspaceId: '',
+    currentWorkspacePath: '/tmp/main',
+    onWorkspaceSelect: vi.fn(),
+    onSaveWorkspace: vi.fn(),
+    onDeleteWorkspace: vi.fn(),
     onBaseBranchChange: vi.fn(),
     onCompareBranchChange: vi.fn(),
     onFlip: vi.fn(),
@@ -34,12 +43,59 @@ describe('DiffControlBar', () => {
   it('renders all branch options in both selectors', () => {
     render(<DiffControlBar {...defaultProps} />)
 
-    const selects = screen.getAllByRole('combobox')
-    selects.forEach((select) => {
-      const options = Array.from(select.querySelectorAll('option'))
-      expect(options).toHaveLength(3)
-      expect(options.map(o => o.value)).toEqual(['main', 'dev', 'feature/test'])
-    })
+    const baseSelect = screen.getByLabelText(/base/i)
+    const compareSelect = screen.getByLabelText(/compare/i)
+    const baseOptions = Array.from(baseSelect.querySelectorAll('option'))
+    const compareOptions = Array.from(compareSelect.querySelectorAll('option'))
+
+    expect(baseOptions).toHaveLength(3)
+    expect(compareOptions).toHaveLength(3)
+    expect(baseOptions.map(o => o.value)).toEqual(['main', 'dev', 'feature/test'])
+    expect(compareOptions.map(o => o.value)).toEqual(['main', 'dev', 'feature/test'])
+  })
+
+  it('renders workspace selector and controls', () => {
+    render(<DiffControlBar {...defaultProps} />)
+
+    expect(screen.getByLabelText(/workspace/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /save current workspace/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /delete selected workspace/i })).toBeInTheDocument()
+  })
+
+  it('calls onWorkspaceSelect when a saved workspace is selected', async () => {
+    const user = userEvent.setup()
+    const onWorkspaceSelect = vi.fn()
+
+    render(<DiffControlBar {...defaultProps} onWorkspaceSelect={onWorkspaceSelect} />)
+
+    const workspaceSelect = screen.getByLabelText(/workspace/i)
+    await user.selectOptions(workspaceSelect, 'ws-2')
+
+    expect(onWorkspaceSelect).toHaveBeenCalledWith('ws-2')
+  })
+
+  it('calls onSaveWorkspace when save button is clicked', async () => {
+    const user = userEvent.setup()
+    const onSaveWorkspace = vi.fn()
+
+    render(<DiffControlBar {...defaultProps} onSaveWorkspace={onSaveWorkspace} />)
+    await user.click(screen.getByRole('button', { name: /save current workspace/i }))
+    expect(onSaveWorkspace).toHaveBeenCalledOnce()
+  })
+
+  it('calls onDeleteWorkspace when delete button is clicked', async () => {
+    const user = userEvent.setup()
+    const onDeleteWorkspace = vi.fn()
+
+    render(
+      <DiffControlBar
+        {...defaultProps}
+        selectedWorkspaceId="ws-1"
+        onDeleteWorkspace={onDeleteWorkspace}
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: /delete selected workspace/i }))
+    expect(onDeleteWorkspace).toHaveBeenCalledOnce()
   })
 
   it('displays "My Working Directory" for __WORKDIR__ branch', () => {
@@ -122,13 +178,19 @@ describe('DiffControlBar', () => {
   it('disables all controls when disabled prop is true', () => {
     render(<DiffControlBar {...defaultProps} disabled={true} />)
 
+    const workspaceSelect = screen.getByLabelText(/workspace/i)
     const baseSelect = screen.getByLabelText(/base/i)
     const compareSelect = screen.getByLabelText(/compare/i)
+    const saveButton = screen.getByRole('button', { name: /save current workspace/i })
+    const deleteButton = screen.getByRole('button', { name: /delete selected workspace/i })
     const flipButton = screen.getByRole('button', { name: /swap/i })
     const refreshButton = screen.getByRole('button', { name: /refresh/i })
 
+    expect(workspaceSelect).toBeDisabled()
     expect(baseSelect).toBeDisabled()
     expect(compareSelect).toBeDisabled()
+    expect(saveButton).toBeDisabled()
+    expect(deleteButton).toBeDisabled()
     expect(flipButton).toBeDisabled()
     expect(refreshButton).toBeDisabled()
   })
@@ -158,6 +220,7 @@ describe('DiffControlBar', () => {
     const { container } = render(<DiffControlBar {...defaultProps} />)
 
     expect(container.querySelector('.gc-diff-bar')).toBeInTheDocument()
+    expect(container.querySelector('.diff-bar-workspace-controls')).toBeInTheDocument()
     expect(container.querySelector('.diff-bar-branch-selector')).toBeInTheDocument()
     // Arrow removed - swap button is sufficient visual indicator
   })

@@ -27,10 +27,60 @@ import {
   parseClipboardPathLines,
   resolveSelectablePaths,
 } from './utils/clipboardBatchSelect'
+import {
+  DEFAULT_WORKSPACE_SETTINGS,
+  findWorkspaceByPath,
+  getActiveSession,
+  getWorkspaceById,
+  getWorkspaceSelectionRestore,
+  listWorkspaceItems,
+  loadWorkspaceStore,
+  markWorkspaceOpened,
+  removeWorkspace,
+  saveWorkspaceStore,
+  setActiveWorkspace,
+  type WorkspaceSessionSnapshotInput,
+  type WorkspaceStore,
+  upsertWorkspace,
+  updateWorkspaceSession,
+} from './utils/workspaceStore'
+
+type PendingWorkspaceSelectionRestore = {
+  id: number
+  source: 'workspace-open' | 'workspace-refresh' | 'workspace-autodetect'
+  workspaceId: string
+  workspaceName: string
+  workspacePath: string
+  baseBranch: string
+  compareBranch: string
+  selectedPaths: string[]
+  targetDiffSequence: number
+}
 
 function AppContent() {
   const [, setAppStatus] = useState<AppStatus>({ state: 'IDLE' })
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    const onRejection = (event: PromiseRejectionEvent) => {
+      event.preventDefault?.()
+      console.error('[unhandledrejection]', event.reason)
+      setErrorMessage(
+        event.reason instanceof Error ? event.reason.message : String(event.reason)
+      )
+    }
+    const onError = (event: ErrorEvent) => {
+      console.error('[window.error]', event.error || event.message)
+      setErrorMessage(event.error?.message || event.message)
+    }
+
+    window.addEventListener('unhandledrejection', onRejection)
+    window.addEventListener('error', onError)
+    return () => {
+      window.removeEventListener('unhandledrejection', onRejection)
+      window.removeEventListener('error', onError)
+    }
+  }, [])
 
   const {
     currentDir,
@@ -41,6 +91,7 @@ function AppContent() {
     setBaseBranch,
     compareBranch,
     setCompareBranch,
+    loadRepoFromHandle,
     selectNewRepo,
     refreshRepo,
     resetRepo,
@@ -145,12 +196,14 @@ function AppContent() {
 
   // File tree management
   const {
+    isComputing: isDiffComputing,
     fileTree,
     statusByPath,
     showChangedOnly,
     setShowChangedOnly,
     expandedPaths,
     selectedPaths,
+    diffSequence,
     computeDiffAndTree,
     toggleExpand,
     toggleSelect,
@@ -160,6 +213,7 @@ function AppContent() {
     deselectAll,
     addSelectedPaths,
     removeSelectedPathsByPredicate,
+    setSelectedPathsDirect,
     revealPath,
   } = useFileTree(setAppStatus)
 
@@ -183,6 +237,103 @@ function AppContent() {
   // Include binary files as file paths
   const [includeBinaryAsPaths, setIncludeBinaryAsPaths] = useState(false)
 
+  const initialWorkspaceStoreRef = useRef<WorkspaceStore | null>(null)
+  if (!initialWorkspaceStoreRef.current) {
+    initialWorkspaceStoreRef.current = loadWorkspaceStore()
+  }
+  const [workspaceStore, setWorkspaceStore] = useState<WorkspaceStore>(initialWorkspaceStoreRef.current)
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | ''>(
+    initialWorkspaceStoreRef.current.activeWorkspaceId ?? '',
+  )
+  const workspaceStoreRef = useRef(workspaceStore)
+  useEffect(() => {
+    workspaceStoreRef.current = workspaceStore
+  }, [workspaceStore])
+  const workspaceItems = useMemo(() => listWorkspaceItems(workspaceStore), [workspaceStore])
+  const pendingSelectionRestoreCounterRef = useRef(0)
+  const workspaceSwitchRequestRef = useRef(0)
+  const skipNextAutoWorkspacePathRef = useRef<string | null>(null)
+  const lastAutoWorkspaceSyncPathRef = useRef<string | null>(null)
+  const [pendingSelectionRestore, setPendingSelectionRestore] = useState<PendingWorkspaceSelectionRestore | null>(null)
+
+  const commitWorkspaceStore = useCallback((updater: (store: WorkspaceStore) => WorkspaceStore) => {
+    setWorkspaceStore((current) => {
+      const next = updater(current)
+      saveWorkspaceStore(next)
+      workspaceStoreRef.current = next
+      return next
+    })
+  }, [])
+
+  const setActiveWorkspaceSelection = useCallback((workspaceId: string | '') => {
+    setSelectedWorkspaceId(workspaceId)
+    commitWorkspaceStore((current) => setActiveWorkspace(current, workspaceId))
+  }, [commitWorkspaceStore])
+
+  const buildWorkspaceSessionSnapshot = useCallback(
+    (overrides?: Partial<WorkspaceSessionSnapshotInput>): WorkspaceSessionSnapshotInput => ({
+      sessionId: overrides?.sessionId,
+      sessionName: overrides?.sessionName,
+      baseBranch: overrides?.baseBranch ?? baseBranch,
+      compareBranch: overrides?.compareBranch ?? compareBranch,
+      selectedPaths: overrides?.selectedPaths ?? Array.from(selectedPaths),
+      settings: {
+        ...DEFAULT_WORKSPACE_SETTINGS,
+        selectedModel,
+        userInstructions,
+        includeFileTree,
+        includeBinaryAsPaths,
+        diffContextLines,
+        showChangedOnly,
+        activeTab,
+        ...(overrides?.settings ?? {}),
+      },
+    }),
+    [
+      activeTab,
+      baseBranch,
+      compareBranch,
+      diffContextLines,
+      includeBinaryAsPaths,
+      includeFileTree,
+      selectedModel,
+      selectedPaths,
+      showChangedOnly,
+      userInstructions,
+    ],
+  )
+
+  const applyWorkspaceSettings = useCallback((settings: Partial<typeof DEFAULT_WORKSPACE_SETTINGS>) => {
+    setSelectedModel(settings.selectedModel ?? '')
+    setUserInstructions(settings.userInstructions ?? '')
+    setIncludeFileTree(settings.includeFileTree ?? DEFAULT_WORKSPACE_SETTINGS.includeFileTree)
+    setIncludeBinaryAsPaths(settings.includeBinaryAsPaths ?? DEFAULT_WORKSPACE_SETTINGS.includeBinaryAsPaths)
+    const nextContextLines = settings.diffContextLines ?? DEFAULT_WORKSPACE_SETTINGS.diffContextLines
+    diffContextImmediateRef.current = nextContextLines
+    setDiffContextImmediate(nextContextLines)
+    setDiffContextLines(nextContextLines)
+    setShowChangedOnly(settings.showChangedOnly ?? DEFAULT_WORKSPACE_SETTINGS.showChangedOnly)
+    setActiveTab(settings.activeTab ?? DEFAULT_WORKSPACE_SETTINGS.activeTab)
+  }, [setShowChangedOnly])
+
+  const queueWorkspaceSelectionRestore = useCallback(
+    (params: Omit<PendingWorkspaceSelectionRestore, 'id' | 'targetDiffSequence'> & { expectNextDiff?: boolean }) => {
+      const restoreId = ++pendingSelectionRestoreCounterRef.current
+      setPendingSelectionRestore({
+        id: restoreId,
+        source: params.source,
+        workspaceId: params.workspaceId,
+        workspaceName: params.workspaceName,
+        workspacePath: params.workspacePath,
+        baseBranch: params.baseBranch,
+        compareBranch: params.compareBranch,
+        selectedPaths: params.selectedPaths,
+        targetDiffSequence: params.expectNextDiff === false ? diffSequence : diffSequence + 1,
+      })
+    },
+    [diffSequence],
+  )
+
   // Flip base and compare branches
   const flipBranches = useCallback(() => {
     if (baseBranch && compareBranch) {
@@ -198,6 +349,324 @@ function AppContent() {
       computeDiffAndTree(gitClient, baseBranch, compareBranch)
     }
   }, [repoStatus, baseBranch, compareBranch, gitClient, computeDiffAndTree, diffTrigger])
+
+  // Keep selected workspace in sync when a repository is opened directly.
+  useEffect(() => {
+    if (!currentDir) {
+      setPendingSelectionRestore(null)
+      skipNextAutoWorkspacePathRef.current = null
+      lastAutoWorkspaceSyncPathRef.current = null
+      return
+    }
+    if (lastAutoWorkspaceSyncPathRef.current === currentDir) {
+      return
+    }
+    if (skipNextAutoWorkspacePathRef.current === currentDir) {
+      skipNextAutoWorkspacePathRef.current = null
+      lastAutoWorkspaceSyncPathRef.current = currentDir
+      return
+    }
+    lastAutoWorkspaceSyncPathRef.current = currentDir
+    const matchedWorkspace = findWorkspaceByPath(workspaceStoreRef.current, currentDir)
+    if (!matchedWorkspace) {
+      if (selectedWorkspaceId !== '') {
+        setActiveWorkspaceSelection('')
+      }
+      return
+    }
+    const activeSession = getActiveSession(matchedWorkspace)
+    setSelectedWorkspaceId(matchedWorkspace.id)
+    commitWorkspaceStore((current) =>
+      markWorkspaceOpened(setActiveWorkspace(current, matchedWorkspace.id), matchedWorkspace.id),
+    )
+    applyWorkspaceSettings(activeSession.settings)
+    if (activeSession.baseBranch && branches.includes(activeSession.baseBranch) && baseBranch !== activeSession.baseBranch) {
+      setBaseBranch(activeSession.baseBranch)
+    }
+    if (
+      activeSession.compareBranch &&
+      branches.includes(activeSession.compareBranch) &&
+      compareBranch !== activeSession.compareBranch
+    ) {
+      setCompareBranch(activeSession.compareBranch)
+    }
+    queueWorkspaceSelectionRestore({
+      source: 'workspace-autodetect',
+      workspaceId: matchedWorkspace.id,
+      workspaceName: matchedWorkspace.name,
+      workspacePath: matchedWorkspace.path,
+      baseBranch: activeSession.baseBranch,
+      compareBranch: activeSession.compareBranch,
+      selectedPaths: activeSession.selectedPaths,
+      expectNextDiff: true,
+    })
+  }, [
+    applyWorkspaceSettings,
+    baseBranch,
+    branches,
+    commitWorkspaceStore,
+    compareBranch,
+    currentDir,
+    queueWorkspaceSelectionRestore,
+    selectedWorkspaceId,
+    setActiveWorkspaceSelection,
+    setBaseBranch,
+    setCompareBranch,
+  ])
+
+  const handleSelectWorkspace = useCallback(
+    async (workspaceId: string | '') => {
+      if (workspaceId === '') {
+        setActiveWorkspaceSelection('')
+        return
+      }
+      const workspace = getWorkspaceById(workspaceStoreRef.current, workspaceId)
+      if (!workspace) {
+        setActiveWorkspaceSelection('')
+        return
+      }
+      const requestId = ++workspaceSwitchRequestRef.current
+      const session = getActiveSession(workspace)
+      skipNextAutoWorkspacePathRef.current = workspace.path
+      setErrorMessage(null)
+      const loaded = await loadRepoFromHandle(workspace.path, {
+        preferredBranches: {
+          base: session.baseBranch,
+          compare: session.compareBranch,
+        },
+      })
+      if (requestId !== workspaceSwitchRequestRef.current) return
+      if (!loaded) {
+        const shouldRemove = window.confirm(
+          'This workspace path cannot be opened right now. Remove it from saved workspaces?',
+        )
+        if (shouldRemove) {
+          commitWorkspaceStore((current) => removeWorkspace(current, workspaceId))
+          setSelectedWorkspaceId('')
+        }
+        return
+      }
+      setSelectedWorkspaceId(workspaceId)
+      commitWorkspaceStore((current) =>
+        markWorkspaceOpened(setActiveWorkspace(current, workspaceId), workspaceId),
+      )
+      applyWorkspaceSettings(session.settings)
+      queueWorkspaceSelectionRestore({
+        source: 'workspace-open',
+        workspaceId,
+        workspaceName: workspace.name,
+        workspacePath: workspace.path,
+        baseBranch: session.baseBranch,
+        compareBranch: session.compareBranch,
+        selectedPaths: session.selectedPaths,
+        expectNextDiff: true,
+      })
+    },
+    [
+      applyWorkspaceSettings,
+      commitWorkspaceStore,
+      loadRepoFromHandle,
+      queueWorkspaceSelectionRestore,
+      setActiveWorkspaceSelection,
+    ],
+  )
+
+  const handleSaveWorkspace = useCallback(() => {
+    if (!currentDir) return
+    const selectedWorkspace =
+      selectedWorkspaceId !== '' ? getWorkspaceById(workspaceStoreRef.current, selectedWorkspaceId) : null
+    const byPathWorkspace = findWorkspaceByPath(workspaceStoreRef.current, currentDir)
+    const existing = selectedWorkspace ?? byPathWorkspace
+    const defaultName =
+      existing?.name || currentDir.split('/').filter(Boolean).pop() || 'Workspace'
+    let nextName = defaultName
+    try {
+      const enteredName = window.prompt('Enter a name for this workspace:', defaultName)
+      if (typeof enteredName === 'string') {
+        const trimmed = enteredName.trim()
+        if (!trimmed) return
+        nextName = trimmed
+      }
+      // `null` is treated as "prompt unavailable" fallback in desktop webviews.
+    } catch {
+      // Fall back to default name when prompt isn't supported by the runtime.
+    }
+
+    const sessionId = existing ? getActiveSession(existing).id : undefined
+    const sessionName = existing ? getActiveSession(existing).name : undefined
+    const snapshot = buildWorkspaceSessionSnapshot({ sessionId, sessionName })
+    let nextWorkspaceId = ''
+    commitWorkspaceStore((current) => {
+      const { store, workspaceId } = upsertWorkspace(current, {
+        name: nextName,
+        path: currentDir,
+        workspaceId: existing?.id,
+        snapshot,
+        markOpened: true,
+      })
+      nextWorkspaceId = workspaceId
+      return store
+    })
+    if (nextWorkspaceId) {
+      setSelectedWorkspaceId(nextWorkspaceId)
+    }
+  }, [buildWorkspaceSessionSnapshot, commitWorkspaceStore, currentDir, selectedWorkspaceId])
+
+  const handleDeleteWorkspace = useCallback(() => {
+    if (selectedWorkspaceId === '') return
+    const workspace = getWorkspaceById(workspaceStoreRef.current, selectedWorkspaceId)
+    if (!workspace) {
+      setActiveWorkspaceSelection('')
+      return
+    }
+    const confirmed = window.confirm(`Remove saved workspace "${workspace.name}"?`)
+    if (!confirmed) return
+    commitWorkspaceStore((current) => removeWorkspace(current, selectedWorkspaceId))
+    setSelectedWorkspaceId('')
+  }, [commitWorkspaceStore, selectedWorkspaceId, setActiveWorkspaceSelection])
+
+  const handleSelectNewRepo = useCallback(async () => {
+    const selectedPath = await selectNewRepo()
+    if (!selectedPath) return
+    const matchedWorkspace = findWorkspaceByPath(workspaceStoreRef.current, selectedPath)
+    if (!matchedWorkspace) {
+      setActiveWorkspaceSelection('')
+      return
+    }
+    const activeSession = getActiveSession(matchedWorkspace)
+    setSelectedWorkspaceId(matchedWorkspace.id)
+    commitWorkspaceStore((current) =>
+      markWorkspaceOpened(setActiveWorkspace(current, matchedWorkspace.id), matchedWorkspace.id),
+    )
+    applyWorkspaceSettings(activeSession.settings)
+    if (activeSession.baseBranch && branches.includes(activeSession.baseBranch) && baseBranch !== activeSession.baseBranch) {
+      setBaseBranch(activeSession.baseBranch)
+    }
+    if (
+      activeSession.compareBranch &&
+      branches.includes(activeSession.compareBranch) &&
+      compareBranch !== activeSession.compareBranch
+    ) {
+      setCompareBranch(activeSession.compareBranch)
+    }
+    queueWorkspaceSelectionRestore({
+      source: 'workspace-autodetect',
+      workspaceId: matchedWorkspace.id,
+      workspaceName: matchedWorkspace.name,
+      workspacePath: matchedWorkspace.path,
+      baseBranch: activeSession.baseBranch,
+      compareBranch: activeSession.compareBranch,
+      selectedPaths: activeSession.selectedPaths,
+      expectNextDiff: true,
+    })
+  }, [
+    applyWorkspaceSettings,
+    baseBranch,
+    branches,
+    commitWorkspaceStore,
+    compareBranch,
+    queueWorkspaceSelectionRestore,
+    selectNewRepo,
+    setActiveWorkspaceSelection,
+    setBaseBranch,
+    setCompareBranch,
+  ])
+
+  const handleRefreshWorkspace = useCallback(async () => {
+    const baseSnapshot = baseBranch
+    const compareSnapshot = compareBranch
+    const currentSelection = Array.from(selectedPaths)
+    const currentWorkspace =
+      selectedWorkspaceId !== '' ? getWorkspaceById(workspaceStoreRef.current, selectedWorkspaceId) : null
+    if (currentWorkspace) {
+      queueWorkspaceSelectionRestore({
+        source: 'workspace-refresh',
+        workspaceId: currentWorkspace.id,
+        workspaceName: currentWorkspace.name,
+        workspacePath: currentWorkspace.path,
+        baseBranch: baseSnapshot,
+        compareBranch: compareSnapshot,
+        selectedPaths: currentSelection,
+        expectNextDiff: true,
+      })
+    }
+    await refreshRepo({
+      preferredBranches: {
+        base: baseSnapshot,
+        compare: compareSnapshot,
+      },
+    })
+  }, [baseBranch, compareBranch, queueWorkspaceSelectionRestore, refreshRepo, selectedPaths, selectedWorkspaceId])
+
+  // Persist the latest session snapshot for the active saved workspace.
+  useEffect(() => {
+    if (!currentDir || selectedWorkspaceId === '') return
+    const timeout = window.setTimeout(() => {
+      const workspace = getWorkspaceById(workspaceStoreRef.current, selectedWorkspaceId)
+      if (!workspace) return
+      if (workspace.path !== currentDir) return
+      const activeSession = getActiveSession(workspace)
+      const snapshot = buildWorkspaceSessionSnapshot({
+        sessionId: activeSession.id,
+        sessionName: activeSession.name,
+      })
+      commitWorkspaceStore((current) =>
+        updateWorkspaceSession(setActiveWorkspace(current, selectedWorkspaceId), selectedWorkspaceId, snapshot),
+      )
+    }, 300)
+    return () => window.clearTimeout(timeout)
+  }, [buildWorkspaceSessionSnapshot, commitWorkspaceStore, currentDir, selectedWorkspaceId])
+
+  useEffect(() => {
+    if (!pendingSelectionRestore) return
+    if (!currentDir || repoStatus.state !== 'ready' || isDiffComputing) return
+    if (currentDir !== pendingSelectionRestore.workspacePath) return
+    if (diffSequence < pendingSelectionRestore.targetDiffSequence) return
+
+    const { matched, missing } = getWorkspaceSelectionRestore(
+      pendingSelectionRestore.selectedPaths,
+      statusByPath.keys(),
+    )
+    setSelectedPathsDirect(matched)
+
+    const branchMismatch =
+      pendingSelectionRestore.baseBranch !== baseBranch ||
+      pendingSelectionRestore.compareBranch !== compareBranch
+    if (missing.length > 0 || branchMismatch) {
+      const pieces: string[] = []
+      if (branchMismatch) {
+        pieces.push(
+          `Restored against ${baseBranch} -> ${compareBranch} instead of ${pendingSelectionRestore.baseBranch} -> ${pendingSelectionRestore.compareBranch}.`,
+        )
+      }
+      if (missing.length > 0) {
+        const preview = missing.slice(0, 5).join(', ')
+        pieces.push(
+          `Could not re-select ${missing.length} saved file${missing.length === 1 ? '' : 's'}: ${preview}${missing.length > 5 ? ', ...' : ''}`,
+        )
+      }
+      setErrorMessage(pieces.join(' '))
+    } else if (pendingSelectionRestore.source !== 'workspace-refresh') {
+      setErrorMessage(null)
+    }
+    setPendingSelectionRestore(null)
+  }, [
+    baseBranch,
+    compareBranch,
+    currentDir,
+    diffSequence,
+    isDiffComputing,
+    pendingSelectionRestore,
+    repoStatus.state,
+    setSelectedPathsDirect,
+    statusByPath,
+  ])
+
+  useEffect(() => {
+    if (repoStatus.state === 'error') {
+      setPendingSelectionRestore(null)
+    }
+  }, [repoStatus.state])
 
   // Preview file
   const previewFile = useCallback(async (path: string, status: FileDiffStatus) => {
@@ -502,7 +971,7 @@ function AppContent() {
           <button onClick={toggleTheme} className="btn btn-ghost btn-icon" title="Toggle theme">
             {effectiveTheme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
-          <button onClick={selectNewRepo} disabled={isLoading} className="btn btn-primary">
+          <button onClick={handleSelectNewRepo} disabled={isLoading} className="btn btn-primary">
             <Folder size={16} /> {isReady ? 'Change Repository' : 'Open Repository'}
           </button>
         </div>
@@ -522,7 +991,7 @@ function AppContent() {
                 leaving your machine.
               </p>
               <div className="row" style={{ marginTop: '1rem', marginBottom: '1.5rem' }}>
-                <button type="button" className="btn btn-primary" onClick={() => void selectNewRepo()} disabled={repoStatus.state === 'loading'}>
+                <button type="button" className="btn btn-primary" onClick={() => void handleSelectNewRepo()} disabled={repoStatus.state === 'loading'}>
                   <Folder size={16} /> {repoStatus.state === 'loading' ? 'Opening...' : 'Select Project Folder'}
                 </button>
               </div>
@@ -564,10 +1033,14 @@ function AppContent() {
             onBaseBranchChange={setBaseBranch}
             onCompareBranchChange={setCompareBranch}
             onFlip={flipBranches}
-            onRefresh={refreshRepo}
+            onRefresh={handleRefreshWorkspace}
             disabled={isLoading}
-            projectName={currentDir ? currentDir.split('/').pop() || currentDir : undefined}
-            projectPath={currentDir || undefined}
+            workspaces={workspaceItems}
+            selectedWorkspaceId={selectedWorkspaceId}
+            currentWorkspacePath={currentDir || ''}
+            onWorkspaceSelect={handleSelectWorkspace}
+            onSaveWorkspace={handleSaveWorkspace}
+            onDeleteWorkspace={handleDeleteWorkspace}
           />
 
           <div className="gc-main-content">

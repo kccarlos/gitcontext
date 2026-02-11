@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { open } from '@tauri-apps/plugin-dialog'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { TauriGitService } from '../services/TauriGitService'
@@ -24,6 +24,15 @@ export type RepoStatus =
   | { state: 'ready'; mode: RepoMode; headPreview?: string }
   | { state: 'error'; error: string }
 
+export type BranchSelectionPreference = {
+  base?: string
+  compare?: string
+}
+
+type LoadRepoOptions = {
+  preferredBranches?: BranchSelectionPreference
+}
+
 export function useGitRepository(setAppStatus?: (s: AppStatus) => void) {
   const [currentDir, setCurrentDir] = useState<string | null>(null)
   const [repoStatus, setRepoStatus] = useState<RepoStatus>({ state: 'idle' })
@@ -32,6 +41,7 @@ export function useGitRepository(setAppStatus?: (s: AppStatus) => void) {
   const [baseBranch, setBaseBranch] = useState<string>('')
   const [compareBranch, setCompareBranch] = useState<string>('')
   const [diffTrigger, setDiffTrigger] = useState(0) // Trigger diff refresh
+  const loadRequestIdRef = useRef(0)
 
   // Persist branch selection in localStorage
   useEffect(() => {
@@ -60,12 +70,14 @@ export function useGitRepository(setAppStatus?: (s: AppStatus) => void) {
     []
   )
 
-  const loadRepoFromHandle = useCallback(async (path: string) => {
+  const loadRepoFromHandle = useCallback(async (path: string, options?: LoadRepoOptions): Promise<boolean> => {
+    const requestId = ++loadRequestIdRef.current
     setRepoStatus({ state: 'loading', message: 'Loading repository...' })
     setAppStatus?.({ state: 'LOADING', task: 'repo', message: 'Loading repository...', progress: 'indeterminate' })
 
     try {
       const result = await gitClient.loadRepo(path, {})
+      if (requestId !== loadRequestIdRef.current) return false
 
       setBranches(result.branches)
       setCurrentDir(path)
@@ -82,36 +94,49 @@ export function useGitRepository(setAppStatus?: (s: AppStatus) => void) {
         }
       } catch {}
 
-      // Set branches
-      if (savedBase && result.branches.includes(savedBase)) {
-        setBaseBranch(savedBase)
-      } else if (result.defaultBranch) {
-        setBaseBranch(result.defaultBranch)
-      } else if (result.branches.length > 0) {
-        setBaseBranch(result.branches[0])
-      }
+      const preferredBase = options?.preferredBranches?.base
+      const preferredCompare = options?.preferredBranches?.compare
+      const branchList = result.branches
+      const WORKDIR = '__WORKDIR__'
 
-      if (savedCompare && result.branches.includes(savedCompare)) {
-        setCompareBranch(savedCompare)
-      } else if (result.defaultBranch) {
-        const otherBranch = result.branches.find(b => b !== result.defaultBranch)
-        setCompareBranch(otherBranch || result.defaultBranch)
-      } else if (result.branches.length >= 2) {
-        setCompareBranch(result.branches[1])
-      } else if (result.branches.length === 1) {
-        setCompareBranch(result.branches[0])
+      const nextBase =
+        [preferredBase, savedBase, result.defaultBranch]
+          .find((branch) => Boolean(branch) && branchList.includes(branch as string)) ?? branchList[0] ?? ''
+
+      const compareCandidates = [preferredCompare, savedCompare].filter(
+        (branch): branch is string => Boolean(branch),
+      )
+      let nextCompare =
+        compareCandidates.find((branch) => branchList.includes(branch) && branch !== nextBase) ?? ''
+      if (!nextCompare) {
+        nextCompare =
+          branchList.find((branch) => branch !== nextBase && branch !== WORKDIR) ??
+          branchList.find((branch) => branch !== nextBase) ??
+          nextBase
       }
+      if (!nextCompare && branchList.length === 1) nextCompare = branchList[0]
+
+      setBaseBranch(nextBase)
+      setCompareBranch(nextCompare)
+      try {
+        if (nextBase && nextCompare) {
+          localStorage.setItem(`branchSel:${path}`, JSON.stringify({ base: nextBase, compare: nextCompare }))
+        }
+      } catch {}
 
       setRepoStatus({ state: 'ready', mode: 'git' })
       setAppStatus?.({ state: 'IDLE' })
+      return true
     } catch (error) {
+      if (requestId !== loadRequestIdRef.current) return false
       const message = error instanceof Error ? error.message : String(error)
       setRepoStatus({ state: 'error', error: message })
       setAppStatus?.({ state: 'ERROR', message })
+      return false
     }
   }, [gitClient, setAppStatus])
 
-  const selectNewRepo = useCallback(async () => {
+  const selectNewRepo = useCallback(async (options?: LoadRepoOptions): Promise<string | null> => {
     try {
       const selected = await open({
         directory: true,
@@ -120,19 +145,22 @@ export function useGitRepository(setAppStatus?: (s: AppStatus) => void) {
       })
 
       if (selected && typeof selected === 'string') {
-        await loadRepoFromHandle(selected)
+        const loaded = await loadRepoFromHandle(selected, options)
+        return loaded ? selected : null
       }
     } catch (error) {
       console.error('Failed to select repository:', error)
     }
+    return null
   }, [loadRepoFromHandle])
 
-  const refreshRepo = useCallback(async () => {
-    if (!currentDir) return
-    await loadRepoFromHandle(currentDir)
+  const refreshRepo = useCallback(async (options?: LoadRepoOptions): Promise<boolean> => {
+    if (!currentDir) return false
+    return loadRepoFromHandle(currentDir, options)
   }, [currentDir, loadRepoFromHandle])
 
   const resetRepo = useCallback(() => {
+    loadRequestIdRef.current += 1
     // Note: dispose() clears the repo path but the service instance remains
     // valid and can be reused. This is by design for the singleton pattern.
     gitClient.dispose()
@@ -153,6 +181,7 @@ export function useGitRepository(setAppStatus?: (s: AppStatus) => void) {
       unlisten = await listen<{ repoPath: string; changedFiles: string[] }>(
         'workdir-changed',
         (event) => {
+          if (event.payload.repoPath !== currentDir) return
           // Only react if WORKDIR is currently selected
           if (baseBranch === '__WORKDIR__' || compareBranch === '__WORKDIR__') {
             console.log('Working directory changed, refreshing diff...', event.payload.changedFiles)
@@ -177,9 +206,15 @@ export function useGitRepository(setAppStatus?: (s: AppStatus) => void) {
       unlisten = await listen<{ repoPath: string }>(
         'refs-changed',
         (event) => {
+          if (event.payload.repoPath !== currentDir) return
           console.log('Git refs changed, refreshing branch list...', event.payload)
           // Use refreshRepo to reload branches
-          void refreshRepo()
+          void refreshRepo({
+            preferredBranches: {
+              base: baseBranch,
+              compare: compareBranch,
+            },
+          })
         }
       )
     }
@@ -188,7 +223,7 @@ export function useGitRepository(setAppStatus?: (s: AppStatus) => void) {
     return () => {
       if (unlisten) void unlisten()
     }
-  }, [currentDir, refreshRepo])
+  }, [baseBranch, compareBranch, currentDir, refreshRepo])
 
   return {
     currentDir,
