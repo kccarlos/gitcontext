@@ -3,7 +3,7 @@ import './App.css'
 import { ChevronsDown, ChevronsUp, CheckSquare, Square, Sun, Moon, Folder, FolderGit2, ListChecks, Copy, ArrowLeftRight } from 'lucide-react'
 import { FileTreeView, PreviewModal, GitHubStarIconButton, BugIconButton } from '@gitcontext/ui'
 import { type FileDiffStatus, isBinaryPath, MAX_CONCURRENT_READS } from '@gitcontext/core'
-import { writeText } from '@tauri-apps/plugin-clipboard-manager'
+import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { useGitRepository } from './hooks/useGitRepository'
 import { useFileTree } from './hooks/useFileTree'
 import { SelectedFilesPanel } from './components/SelectedFilesPanel'
@@ -21,6 +21,12 @@ import { TokenCountsProvider } from './context/TokenCountsContext'
 import { mapWithConcurrency } from './utils/concurrency'
 import { logError } from './utils/logger'
 import { debounce } from './utils/debounce'
+import {
+  INVALID_CLIPBOARD_FORMAT_MESSAGE,
+  NO_MATCHING_FILES_MESSAGE,
+  parseClipboardPathLines,
+  resolveSelectablePaths,
+} from './utils/clipboardBatchSelect'
 
 function AppContent() {
   const [, setAppStatus] = useState<AppStatus>({ state: 'IDLE' })
@@ -152,6 +158,7 @@ function AppContent() {
     collapseAll,
     selectAll,
     deselectAll,
+    addSelectedPaths,
     revealPath,
   } = useFileTree(setAppStatus)
 
@@ -356,6 +363,37 @@ function AppContent() {
     }
   }, [gitClient, baseBranch, compareBranch, selectedPaths, diffContextLines, statusByPath, userInstructions, fileTree, includeFileTree, showChangedOnly, currentDir])
 
+  const handleBatchSelectFromClipboard = useCallback(async () => {
+    if (!currentDir || !fileTree) return
+
+    try {
+      const clipboardText = await readText()
+      const lines = parseClipboardPathLines(clipboardText)
+      if (lines.length === 0) {
+        setErrorMessage(INVALID_CLIPBOARD_FORMAT_MESSAGE)
+        return
+      }
+
+      const selectableSet = new Set(statusByPath.keys())
+      const { matched, invalidCount, outsideRepoCount } = resolveSelectablePaths(lines, currentDir, selectableSet)
+
+      if (matched.length === 0) {
+        if (invalidCount === lines.length && outsideRepoCount === 0) {
+          setErrorMessage(INVALID_CLIPBOARD_FORMAT_MESSAGE)
+        } else {
+          setErrorMessage(NO_MATCHING_FILES_MESSAGE)
+        }
+        return
+      }
+
+      addSelectedPaths(matched)
+      setErrorMessage(null)
+    } catch (err) {
+      logError('batchSelectFromClipboard', err)
+      setErrorMessage('Failed to read clipboard content.')
+    }
+  }, [currentDir, fileTree, statusByPath, addSelectedPaths])
+
   // Calculate file tree tokens
   useEffect(() => {
     if (!includeFileTree || !fileTree || selectedPaths.size === 0) {
@@ -539,6 +577,7 @@ function AppContent() {
                     <button onClick={collapseAll} className="btn btn-ghost btn-icon" title="Collapse All" disabled={!fileTree}><ChevronsUp size={14} /></button>
                     <button onClick={() => selectAll(treeFilter)} className="btn btn-ghost btn-icon" title="Select All" disabled={!fileTree}><CheckSquare size={14} /></button>
                     <button onClick={() => deselectAll(treeFilter)} className="btn btn-ghost btn-icon" title="Deselect All" disabled={!fileTree}><Square size={14} /></button>
+                    <button onClick={() => void handleBatchSelectFromClipboard()} className="btn btn-ghost btn-icon" title="Batch Select from Clipboard" disabled={!fileTree || !currentDir}><ListChecks size={14} /></button>
                   </div>
                   <label className="tree-filter-checkbox">
                     <input type="checkbox" checked={showChangedOnly} onChange={(e) => setShowChangedOnly(e.target.checked)} />
