@@ -1,4 +1,5 @@
-import { ArrowLeftRight, RefreshCw, Folder } from 'lucide-react'
+import { ArrowLeftRight, RefreshCw, Save, Trash2 } from 'lucide-react'
+import type { WorkspaceListItem } from '../utils/workspaceStore'
 
 type DiffControlBarProps = {
   branches: string[]
@@ -9,8 +10,12 @@ type DiffControlBarProps = {
   onFlip: () => void
   onRefresh: () => void
   disabled?: boolean
-  projectName?: string
-  projectPath?: string
+  workspaces: WorkspaceListItem[]
+  selectedWorkspaceId: string | ''
+  currentWorkspacePath: string
+  onWorkspaceSelect: (workspaceId: string | '') => void
+  onSaveWorkspace: () => void
+  onDeleteWorkspace: () => void
 }
 
 export function DiffControlBar({
@@ -22,22 +27,68 @@ export function DiffControlBar({
   onFlip,
   onRefresh,
   disabled = false,
-  projectName,
-  projectPath,
+  workspaces,
+  selectedWorkspaceId,
+  currentWorkspacePath,
+  onWorkspaceSelect,
+  onSaveWorkspace,
+  onDeleteWorkspace,
 }: DiffControlBarProps) {
   const formatBranchLabel = (branch: string) =>
     branch === '__WORKDIR__' ? 'My Working Directory' : branch
+  const selectedWorkspace =
+    selectedWorkspaceId !== ''
+      ? workspaces.find((workspace) => workspace.id === selectedWorkspaceId) ?? null
+      : null
+  const fallbackFolder = currentWorkspacePath
+    ? currentWorkspacePath.split('/').filter(Boolean).pop() || currentWorkspacePath
+    : ''
+  const unsavedLabel = currentWorkspacePath ? `Unsaved: ${fallbackFolder}` : 'Unsaved Workspace'
+  const workspaceTitle = selectedWorkspace?.path || currentWorkspacePath || 'Workspace'
 
   return (
     <div className="gc-diff-bar">
-      {projectName && (
-        <div className="diff-bar-project-info">
-          <Folder size={16} style={{ opacity: 0.6 }} />
-          <span className="diff-bar-project-name" title={projectPath || projectName}>
-            {projectName}
-          </span>
+      <div className="diff-bar-workspace-controls">
+        <div className="diff-bar-workspace-selector">
+          <label htmlFor="workspace-select" className="diff-bar-label">Workspace</label>
+          <select
+            id="workspace-select"
+            value={selectedWorkspaceId}
+            onChange={(event) => onWorkspaceSelect(event.target.value || '')}
+            className="gc-select diff-bar-select"
+            title={workspaceTitle}
+            disabled={disabled}
+          >
+            {selectedWorkspaceId === '' ? (
+              <option value="">{unsavedLabel}</option>
+            ) : null}
+            {selectedWorkspaceId !== '' && !selectedWorkspace ? (
+              <option value={selectedWorkspaceId}>Selected Workspace</option>
+            ) : null}
+            {workspaces.map((workspace) => (
+              <option key={workspace.id} value={workspace.id}>
+                {workspace.name} - {workspace.folderName}
+              </option>
+            ))}
+          </select>
         </div>
-      )}
+        <button
+          onClick={onSaveWorkspace}
+          className="btn btn-ghost btn-icon"
+          title="Save current workspace"
+          disabled={disabled || !currentWorkspacePath}
+        >
+          <Save size={16} />
+        </button>
+        <button
+          onClick={onDeleteWorkspace}
+          className="btn btn-ghost btn-icon"
+          title="Delete selected workspace"
+          disabled={disabled || selectedWorkspaceId === ''}
+        >
+          <Trash2 size={16} />
+        </button>
+      </div>
       <div className="diff-bar-branch-selector">
         <label htmlFor="base-branch-select" className="diff-bar-label">Base</label>
         <select

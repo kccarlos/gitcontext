@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import type { TauriGitService } from '../services/TauriGitService'
 import type { AppStatus } from '../types/appStatus'
 import { isBinaryPath, LARGE_REPO_FILE_THRESHOLD, type FileDiffStatus, type FileTreeNode } from '@gitcontext/core'
@@ -17,6 +17,8 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set())
   const [isComputing, setIsComputing] = useState<boolean>(false)
+  const [diffSequence, setDiffSequence] = useState(0)
+  const diffRequestIdRef = useRef(0)
 
   const buildTreeFromPaths = useCallback((allPaths: string[], diffMap: Map<string, FileDiffStatus>): { tree: FileTreeNode; statusByPath: Map<string, FileDiffStatus> } => {
     const root: FileTreeNode = { name: '', path: '', type: 'dir', children: [] }
@@ -77,17 +79,20 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
       setProgress?: ProgressSetter,
     ) => {
       if (!gitClient || !baseBranch || !compareBranch) {
+        diffRequestIdRef.current += 1
         setDiffFiles([])
         setFileTree(null)
         setStatusByPath(new Map())
         setTotalFileCount(0)
         setSelectedPaths(new Set())
         setExpandedPaths(new Set())
+        setDiffSequence((prev) => prev + 1)
         return
       }
 
       // Handle case where base and compare are the same
       if (baseBranch === compareBranch) {
+        diffRequestIdRef.current += 1
         setDiffFiles([])
         setFileTree(null)
         setStatusByPath(new Map())
@@ -98,9 +103,11 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
           ? 'Cannot compare working directory to itself. Select a different branch.'
           : 'Base and compare branches are the same. Select different branches to see changes.'
         setAppStatus?.({ state: 'READY', message: msg })
+        setDiffSequence((prev) => prev + 1)
         return
       }
 
+      const requestId = ++diffRequestIdRef.current
       setIsComputing(true)
 
       try {
@@ -109,6 +116,7 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
         setProgress?.({ message: 'Computing file differences…', percent: 25 })
 
         const res = await gitClient.getDiff(baseBranch, compareBranch)
+        if (requestId !== diffRequestIdRef.current) return
         setDiffFiles(res.files)
 
         setProgress?.({ message: 'Fetching file list…', percent: 50 })
@@ -116,6 +124,7 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
         try { console.info('[app-status]', { state: 'LOADING', task: 'diff', message: 'Fetching file list…', progress: 50 }) } catch {}
         const baseList = await gitClient.listFiles(baseBranch)
         const compareList = await gitClient.listFiles(compareBranch)
+        if (requestId !== diffRequestIdRef.current) return
         const diffMap = new Map<string, FileDiffStatus>()
         for (const f of res.files) diffMap.set(f.path, f.type as FileDiffStatus)
         // Build union from both sides to keep unchanged files present on either side
@@ -124,6 +133,7 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
         setAppStatus?.({ state: 'LOADING', task: 'diff', message: 'Building file tree…', progress: 75 })
         try { console.info('[app-status]', { state: 'LOADING', task: 'diff', message: 'Building file tree…', progress: 75 }) } catch {}
         const { tree, statusByPath: statusMap } = buildTreeFromPaths(Array.from(union), diffMap)
+        if (requestId !== diffRequestIdRef.current) return
         setFileTree(tree)
         setStatusByPath(statusMap)
 
@@ -156,14 +166,19 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
         setProgress?.(null)
         setAppStatus?.({ state: 'READY', message: `Diff complete (${baseBranch} → ${compareBranch}). Files changed: ${res.files.length}` })
         try { console.info('[app-status]', { state: 'READY', base: baseBranch, compare: compareBranch, changed: res.files.length }) } catch {}
+        setDiffSequence((prev) => prev + 1)
       } catch (err: any) {
+        if (requestId !== diffRequestIdRef.current) return
         setProgress?.({ message: err?.message || 'Failed to compute diff', percent: 0 })
         setAppStatus?.({ state: 'ERROR', message: err?.message || 'Failed to compute diff' })
         try { console.info('[app-status]', { state: 'ERROR', message: err?.message || 'Failed to compute diff' }) } catch {}
+        setDiffSequence((prev) => prev + 1)
         throw err
       } finally {
         // Always reset computing state regardless of success or failure
-        setIsComputing(false)
+        if (requestId === diffRequestIdRef.current) {
+          setIsComputing(false)
+        }
       }
     },
     [buildTreeFromPaths],
@@ -300,6 +315,16 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
     })
   }, [])
 
+  const setSelectedPathsDirect = useCallback((paths: Iterable<string>) => {
+    const next = new Set<string>()
+    for (const path of paths) {
+      if (typeof path === 'string' && path) {
+        next.add(path)
+      }
+    }
+    setSelectedPaths(next)
+  }, [])
+
   const revealPath = useCallback((path: string) => {
     if (!fileTree) return
 
@@ -351,6 +376,7 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
     setShowChangedOnly,
     expandedPaths,
     selectedPaths,
+    diffSequence,
     computeDiffAndTree,
     toggleExpand,
     toggleSelect,
@@ -360,6 +386,7 @@ export function useFileTree(setAppStatus?: (s: AppStatus) => void) {
     deselectAll,
     addSelectedPaths,
     removeSelectedPathsByPredicate,
+    setSelectedPathsDirect,
     revealPath,
   }
 }

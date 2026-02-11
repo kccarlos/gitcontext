@@ -154,12 +154,30 @@
 .gc-diff-bar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-4);
+  row-gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--border-col);
   background: var(--surface-2);
   flex-shrink: 0;
   z-index: 9;
+}
+
+.diff-bar-workspace-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  min-width: min(100%, 280px);
+  flex: 1 1 320px;
+}
+
+.diff-bar-workspace-selector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 220px;
+  flex: 1;
 }
 
 .diff-bar-branch-selector {
@@ -168,6 +186,7 @@
   gap: var(--space-1);
   min-width: 200px;
   max-width: 300px;
+  flex: 1 1 220px;
 }
 
 .diff-bar-label {
@@ -182,26 +201,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   overflow: hidden;
-}
-
-.diff-bar-project-info {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  background: color-mix(in oklab, var(--surface-1) 50%, transparent);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-sm);
-  color: inherit;
-  opacity: 0.8;
-}
-
-.diff-bar-project-name {
-  font-weight: 500;
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .gc-main-content {
@@ -250,6 +249,10 @@
   .gc-main-content {
     padding: var(--space-3);
     gap: var(--space-3);
+  }
+
+  .diff-bar-workspace-controls {
+    min-width: 100%;
   }
 }
 
