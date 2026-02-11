@@ -8,16 +8,16 @@
   --surface-1: color-mix(in oklab, Canvas 96%, transparent);
   --surface-2: color-mix(in oklab, Canvas 92%, transparent);
   --border-col: color-mix(in hsl, currentColor 18%, transparent);
-  --ring: #646cff;
-  --primary: #646cff;
+  --ring: #22c55e;
+  --primary: #22c55e;
   --primary-contrast: CanvasText;
 }
 [data-theme="dark"] {
   --surface-1: color-mix(in oklab, Canvas 88%, transparent);
   --surface-2: color-mix(in oklab, Canvas 84%, transparent);
   --border-col: color-mix(in hsl, currentColor 26%, transparent);
-  --ring: #a3a6ff;
-  --primary: #a3a6ff;
+  --ring: #4ade80;
+  --primary: #22c55e;
 }
 
 :where(button,[role="button"],a,input,select,textarea):focus-visible {
@@ -178,7 +178,7 @@ a.hint:active {
 }
 
 .landing-visual-button:focus-visible {
-  outline: 2px solid #646cff;
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
   border-radius: var(--radius-lg);
 }
