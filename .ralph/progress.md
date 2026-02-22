@@ -523,3 +523,42 @@ Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-17.md
   - The provider's percent calculation clamps to [0, 100] and uses Math.round, so edge cases like 0/0 -> 100%, 10/5 -> 100% should be tested
   - Testing context providers is best done with a Consumer component pattern that exposes context values via data-testid attributes
 ---
+
+## [2026-02-22 13:55] - theme-management-tests: Frontend: theme management integration tests
+Thread:
+Run: 20260222-104122-$ (iteration 18)
+Run log: /workspace/.ralph/runs/run-20260222-104122-$-iter-18.log
+Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-18.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: d08c85d test(desktop): add comprehensive Vitest tests for useTheme hook
+- Post-commit status: clean
+- Verification:
+  - Command: `npm --workspace apps/desktop run test` -> PASS (226 tests, 10 theme tests)
+  - Command: `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml` -> PASS (44 tests)
+  - Command: `cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml -- -D warnings` -> PASS
+  - Command: `npm run web:build` -> PASS
+- Files changed:
+  - apps/desktop/src/hooks/useTheme.ts (new, extracted hook from App.tsx)
+  - apps/desktop/src/App.tsx (refactored to use useTheme hook)
+  - apps/desktop/src/__tests__/theme.test.ts (new, 10 tests)
+- What was implemented:
+  - Extracted theme management logic from App.tsx into a reusable `useTheme` hook
+  - 10 comprehensive Vitest renderHook tests covering all acceptance criteria:
+    - System default light: defaults to light when system prefers light
+    - System default dark: defaults to dark when system prefers dark
+    - Toggle: toggles between light and dark correctly
+    - Persistence: persists theme choice to localStorage under 'gc.theme' key
+    - Restore: restores persisted theme from localStorage on mount
+    - Fallback: falls back to system preference when no localStorage theme
+    - DOM attribute: sets data-theme attribute on document.documentElement
+    - Corrupt value: falls back to system default when localStorage has corrupt theme value
+    - System change: responds to system preference changes via matchMedia listener
+    - Cleanup: removes matchMedia listener on unmount
+  - matchMedia mock supports both light and dark system preferences and dynamic switching
+- **Learnings for future iterations:**
+  - Extracting inline React state/effects into a custom hook is the cleanest way to make them testable with renderHook
+  - matchMedia mock needs both `matches` property and `addEventListener`/`removeEventListener` methods
+  - The `trigger` helper on matchMedia mock enables testing dynamic system preference changes
+  - Corrupt localStorage values (not 'light' or 'dark') are treated as null, which falls through to system preference and localStorage.removeItem cleans up
+---
