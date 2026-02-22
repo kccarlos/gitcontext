@@ -1087,9 +1087,7 @@ mod tests {
         fs::write(lib_dir.join("util.rs"), "pub fn helper() {}\n").unwrap();
 
         let mut index = repo.index().unwrap();
-        index
-            .add_path(std::path::Path::new("src/main.rs"))
-            .unwrap();
+        index.add_path(std::path::Path::new("src/main.rs")).unwrap();
         index
             .add_path(std::path::Path::new("src/lib/util.rs"))
             .unwrap();
@@ -1192,9 +1190,7 @@ mod tests {
         fs::write(&gitignore_path, "*.log\nbuild/\n").unwrap();
 
         let mut index = repo.index().unwrap();
-        index
-            .add_path(std::path::Path::new(".gitignore"))
-            .unwrap();
+        index.add_path(std::path::Path::new(".gitignore")).unwrap();
         index.write().unwrap();
         let tree_id = index.write_tree().unwrap();
         let tree = repo.find_tree(tree_id).unwrap();
@@ -1284,16 +1280,8 @@ mod tests {
             .unwrap();
 
         // Add multiple files
-        fs::write(
-            std::path::Path::new(&repo_path).join("a.txt"),
-            "file a\n",
-        )
-        .unwrap();
-        fs::write(
-            std::path::Path::new(&repo_path).join("b.txt"),
-            "file b\n",
-        )
-        .unwrap();
+        fs::write(std::path::Path::new(&repo_path).join("a.txt"), "file a\n").unwrap();
+        fs::write(std::path::Path::new(&repo_path).join("b.txt"), "file b\n").unwrap();
 
         let mut index = repo.index().unwrap();
         index.add_path(std::path::Path::new("a.txt")).unwrap();
@@ -1318,7 +1306,12 @@ mod tests {
 
         // All OIDs should be valid 40-char hex
         for file in &result.files {
-            assert_eq!(file.oid.len(), 40, "OID for {} should be 40 chars", file.path);
+            assert_eq!(
+                file.oid.len(),
+                40,
+                "OID for {} should be 40 chars",
+                file.path
+            );
             assert!(
                 file.oid.chars().all(|c| c.is_ascii_hexdigit()),
                 "OID for {} should be valid hex",
