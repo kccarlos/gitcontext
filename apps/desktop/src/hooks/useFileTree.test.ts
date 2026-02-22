@@ -303,7 +303,7 @@ describe('useFileTree race condition prevention', () => {
         // Second (fresh) request — resolves immediately
         return Promise.resolve({ files: [{ path: 'fresh.ts', type: 'add' }] })
       }),
-      listFiles: vi.fn().mockImplementation((ref: string) => {
+      listFiles: vi.fn().mockImplementation((_ref: string) => {
         // For the second (fresh) request these resolve instantly.
         // For the first (stale) request, getDiff hasn't resolved yet so
         // listFiles will only be reached if getDiff resolves, and by then

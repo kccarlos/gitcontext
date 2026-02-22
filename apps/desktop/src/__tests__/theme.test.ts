@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useTheme } from '../hooks/useTheme'
 
@@ -27,7 +27,7 @@ function createMatchMediaMock(prefersDark: boolean) {
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 describe('useTheme', () => {
-  let matchMediaSpy: ReturnType<typeof vi.spyOn>
+  let matchMediaSpy: MockInstance<Window['matchMedia']>
   let matchMediaMock: ReturnType<typeof createMatchMediaMock>
 
   beforeEach(() => {
@@ -37,7 +37,7 @@ describe('useTheme', () => {
 
     // Default: system prefers light
     matchMediaMock = createMatchMediaMock(false)
-    matchMediaSpy = vi.spyOn(window, 'matchMedia').mockReturnValue(matchMediaMock.mql as any)
+    matchMediaSpy = vi.spyOn(window, 'matchMedia').mockReturnValue(matchMediaMock.mql as unknown as MediaQueryList)
   })
 
   afterEach(() => {
@@ -57,7 +57,7 @@ describe('useTheme', () => {
 
   it('defaults to dark when system prefers dark', () => {
     matchMediaMock = createMatchMediaMock(true)
-    matchMediaSpy.mockReturnValue(matchMediaMock.mql as any)
+    matchMediaSpy.mockReturnValue(matchMediaMock.mql as unknown as MediaQueryList)
 
     const { result } = renderHook(() => useTheme())
 
@@ -126,7 +126,7 @@ describe('useTheme', () => {
   it('falls back to system preference when localStorage has no theme', () => {
     // Start with system-dark and no saved preference
     matchMediaMock = createMatchMediaMock(true)
-    matchMediaSpy.mockReturnValue(matchMediaMock.mql as any)
+    matchMediaSpy.mockReturnValue(matchMediaMock.mql as unknown as MediaQueryList)
 
     const { result } = renderHook(() => useTheme())
 
@@ -158,7 +158,7 @@ describe('useTheme', () => {
 
     // System prefers dark
     matchMediaMock = createMatchMediaMock(true)
-    matchMediaSpy.mockReturnValue(matchMediaMock.mql as any)
+    matchMediaSpy.mockReturnValue(matchMediaMock.mql as unknown as MediaQueryList)
 
     const { result } = renderHook(() => useTheme())
 

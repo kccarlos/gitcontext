@@ -88,7 +88,6 @@ describe('createUnifiedDiffForPath', () => {
     expect(result).toContain('+X')
     // With 0 context, surrounding unchanged lines should not appear as context
     const lines = result.split('\n')
-    const contextLines = lines.filter((l) => l.startsWith(' ') && l.trim().length > 0)
     // The only space-prefixed lines should be from the patch header, not content context
     // Filter out the header area
     const afterHunk = lines.slice(lines.findIndex((l) => l.startsWith('@@')))
