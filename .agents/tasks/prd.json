@@ -176,11 +176,13 @@
         "All tests pass with `npm --workspace apps/desktop run test`"
       ],
       "attempts": 1,
-      "status": "in_progress",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "startedAt": "2026-02-22T11:51:16.817481+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-22T11:51:16.817509+00:00"
+      "completedAt": "2026-02-22T12:05:26.276523+00:00",
+      "updatedAt": "2026-02-22T12:05:26.276523+00:00",
+      "skipped": false,
+      "notes": "Completion + verification gate passed."
     },
     {
       "id": "use-token-counts-hook",
@@ -194,7 +196,15 @@
         "Mock tiktoken returns deterministic token counts",
         "Cancellation test verifies no state update after abort",
         "All tests pass with `npm --workspace apps/desktop run test`"
-      ]
+      ],
+      "attempts": 1,
+      "status": "done",
+      "passes": true,
+      "startedAt": "2026-02-22T12:05:28.661571+00:00",
+      "completedAt": "2026-02-22T12:17:01.333179+00:00",
+      "updatedAt": "2026-02-22T12:17:01.333179+00:00",
+      "skipped": false,
+      "notes": "Completion + verification gate passed."
     },
     {
       "id": "diff-util-tests",
@@ -208,7 +218,13 @@
         "Context lines verified: setting 0 shows only changed lines, 3 shows 3 lines around changes, 999 shows full file",
         "CRLF normalization verified with mixed line endings",
         "All tests pass with `npm --workspace apps/desktop run test`"
-      ]
+      ],
+      "attempts": 1,
+      "status": "in_progress",
+      "passes": false,
+      "startedAt": "2026-02-22T12:17:03.702534+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-22T12:17:03.702581+00:00"
     },
     {
       "id": "workspace-store-comprehensive",
