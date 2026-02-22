@@ -35,3 +35,31 @@ Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-1.md
   - Pre-existing code had clippy warnings; fixing them is necessary to pass the `-D warnings` quality gate
   - `cargo fmt` auto-fixes both existing code and new code formatting
 ---
+
+## 2026-02-22 - rust-git-read-file: Rust backend: read_file_blob command tests
+Thread: claude session
+Run: 20260222-104122-$ (iteration 2)
+Run log: /workspace/.ralph/runs/run-20260222-104122-$-iter-2.log
+Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-2.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 3cec463 test(desktop): add comprehensive cargo tests for read_file_blob command
+- Post-commit status: pre-existing uncommitted files only (.agents/tasks/prd.json, linux-schema.json)
+- Verification:
+  - Command: `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml` -> PASS (18/18 tests)
+  - Command: `cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml -- -D warnings` -> PASS
+  - Command: `cargo fmt --check --manifest-path apps/desktop/src-tauri/Cargo.toml` -> PASS
+  - Command: `npm run web:build` -> PASS
+- Files changed:
+  - apps/desktop/src-tauri/src/git.rs (9 new read_file_blob tests)
+  - .codex/ralph-gitcontext/verify/rust-git-read-file.md (verification report)
+- What was implemented:
+  - 9 comprehensive unit tests for the read_file_blob function covering all acceptance criteria
+  - Tests verify: text file content match, missing file (notFound=true), binary detection (null bytes), WORKDIR filesystem read, WORKDIR missing file, non-UTF8 lossy conversion (git blob), non-UTF8 lossy conversion (WORKDIR), bad ref error, WORKDIR binary detection
+  - Binary detection tested with actual null byte content in both git blob and workdir paths
+  - Lossy UTF-8 conversion verified: invalid bytes (0xC0, 0xC1, 0xFE, 0xFF) produce U+FFFD replacement characters while preserving valid surrounding text
+- **Learnings for future iterations:**
+  - Reuse existing create_test_repo() helper from the git_diff story
+  - cargo fmt must be run after writing code; clippy and fmt are separate checks
+  - read_file_blob has two distinct code paths (git blob vs WORKDIR) that both need testing
+---
