@@ -13,7 +13,6 @@ import {
   setActiveWorkspace,
   upsertWorkspace,
   updateWorkspaceSession,
-  WORKSPACE_STORE_KEY,
   type WorkspaceSessionSnapshotInput,
   type WorkspaceStore,
 } from '../utils/workspaceStore'

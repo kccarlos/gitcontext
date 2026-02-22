@@ -541,11 +541,13 @@
         "All tests pass with `npm --workspace apps/desktop run test`"
       ],
       "attempts": 1,
-      "status": "in_progress",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "startedAt": "2026-02-22T14:56:12.699520+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-22T14:56:12.699542+00:00"
+      "completedAt": "2026-02-22T15:04:34.879903+00:00",
+      "updatedAt": "2026-02-22T15:04:34.879903+00:00",
+      "skipped": false,
+      "notes": "Completion + verification gate passed."
     }
   ]
 }
