@@ -498,11 +498,13 @@
         "All tests pass with `npm --workspace apps/desktop run test`"
       ],
       "attempts": 1,
-      "status": "in_progress",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "startedAt": "2026-02-22T14:33:51.962558+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-22T14:33:51.962604+00:00"
+      "completedAt": "2026-02-22T14:47:53.569249+00:00",
+      "updatedAt": "2026-02-22T14:47:53.569249+00:00",
+      "skipped": false,
+      "notes": "Completion + verification gate passed."
     },
     {
       "id": "logger-util-tests",
@@ -515,7 +517,15 @@
         "At least 4 tests covering: Error objects, strings, other types, error code formatting",
         "console.error mock verifies exact output format",
         "All tests pass with `npm --workspace apps/desktop run test`"
-      ]
+      ],
+      "attempts": 1,
+      "status": "done",
+      "passes": true,
+      "startedAt": "2026-02-22T14:47:55.950045+00:00",
+      "completedAt": "2026-02-22T14:56:10.328516+00:00",
+      "updatedAt": "2026-02-22T14:56:10.328516+00:00",
+      "skipped": false,
+      "notes": "Completion + verification gate passed."
     },
     {
       "id": "diff-control-bar-comprehensive",
@@ -529,7 +539,13 @@
         "WORKDIR display text verified",
         "Disabled state comprehensively tested",
         "All tests pass with `npm --workspace apps/desktop run test`"
-      ]
+      ],
+      "attempts": 1,
+      "status": "in_progress",
+      "passes": false,
+      "startedAt": "2026-02-22T14:56:12.699520+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-22T14:56:12.699542+00:00"
     }
   ]
 }
