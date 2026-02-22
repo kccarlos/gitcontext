@@ -469,3 +469,28 @@ Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-15.md
   - Progress bar is conditionally rendered only when limit > 0
   - Copy button is disabled during flash (!!copyFlash is truthy), not just when no files
 ---
+
+## [2026-02-22 13:30:00] - right-panel-tabs-tests: Frontend: RightPanelTabs component tests
+Thread:
+Run: 20260222-104122-$ (iteration 16)
+Run log: /workspace/.ralph/runs/run-20260222-104122-$-iter-16.log
+Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-16.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 100106a test(desktop): add comprehensive Vitest tests for RightPanelTabs
+- Post-commit status: clean
+- Verification:
+  - Command: npm --workspace apps/desktop run test -> PASS (207 tests, 15 files, all passed)
+  - Command: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml -> PASS (44 passed)
+  - Command: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml -- -D warnings -> PASS
+  - Command: npm run web:build -> PASS
+- Files changed:
+  - apps/desktop/src/components/RightPanelTabs.test.tsx (created)
+  - .codex/ralph-gitcontext/verify/right-panel-tabs-tests.md (created)
+- Created 8 tests for RightPanelTabs component covering tab rendering, badge count, tab switching with correct IDs ('files'/'settings'), active styling, children rendering, and content preservation on tab switch
+- **Learnings for future iterations:**
+  - RightPanelTabs is a simple presentational component with no internal state - activeTab is fully controlled by parent
+  - Badge only renders when filesCount > 0 (conditional rendering with &&)
+  - The component renders children unconditionally in a .tab-content div regardless of active tab, preserving content across switches
+  - Active styling is applied via CSS class name 'active' on the tab-nav-item button
+---
