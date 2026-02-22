@@ -228,3 +228,32 @@ Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-7.md
   - Race condition testing requires careful mock design: deferred promise for the stale request, immediate resolution for the fresh one
   - The hook's computeDiffAndTree checks requestId at each await point, so stale requests bail out early at getDiff level
 ---
+
+## 2026-02-22 - use-token-counts-hook: Frontend: useTokenCounts hook tests
+Thread: claude session
+Run: 20260222-104122-$ (iteration 8)
+Run log: /workspace/.ralph/runs/run-20260222-104122-$-iter-8.log
+Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-8.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: aa38d4f test(desktop): add comprehensive Vitest tests for useTokenCounts hook
+- Post-commit status: clean (only pre-existing .agents/tasks/prd.json modified)
+- Verification:
+  - Command: `npm --workspace apps/desktop run test` -> PASS (104 tests, 10 new)
+  - Command: `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml` -> PASS (44 tests)
+  - Command: `cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml -- -D warnings` -> PASS
+  - Command: `npm run web:build` -> PASS
+- Files changed:
+  - apps/desktop/src/hooks/useTokenCounts.test.ts (new, 10 tests)
+  - .codex/ralph-gitcontext/verify/use-token-counts-hook.md (verification report)
+- What was implemented:
+  - 10 comprehensive renderHook tests for the useTokenCounts hook covering all acceptance criteria
+  - Tests cover: count updates on selectedPaths change, binary files with includeBinaryPaths=true (header-only tokens), binary files with includeBinaryPaths=false (0 tokens), progress callback with correct completed/total values, cancellation via unmount/AbortSignal prevents stale state updates, empty selection returns zero counts, diffContextLines effect (more context = more tokens), total is sum of individual counts, runtime-detected binary files (non-binary extension but binary:true response), null gitClient returns empty counts
+  - Mock tiktoken returns deterministic word-count (split on whitespace) for predictable assertions
+  - gitClient mocked as plain object with readFile vi.fn() (TauriGitService is type-only import)
+- **Learnings for future iterations:**
+  - TauriGitService is imported as type-only in useTokenCounts, so no module mock needed; a plain object with readFile suffices
+  - flushPromises helper with multiple setTimeout rounds ensures all nested async operations complete
+  - The hook uses mapWithConcurrency which processes in batches; progress callbacks fire at batch boundaries
+  - Cancellation test uses unmount() which triggers the effect cleanup (abortController.abort())
+---
