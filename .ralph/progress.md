@@ -435,3 +435,37 @@ Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-14.md
   - The SelectedFilesPanel uses isBinaryPath from @gitcontext/core which checks file extension against a set of known binary extensions
   - Default sort is tokens-desc; sort state is internal useState
 ---
+
+## [2026-02-22T13:20:00Z] - context-footer-tests: Frontend: ContextFooter component tests
+Thread:
+Run: 20260222-104122-$ (iteration 15)
+Run log: /workspace/.ralph/runs/run-20260222-104122-$-iter-15.log
+Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-15.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: d737065 test(desktop): add comprehensive Vitest tests for ContextFooter
+- Post-commit status: clean
+- Verification:
+  - Command: npm --workspace apps/desktop run test -> PASS (199 tests, 15 new in ContextFooter.test.tsx)
+  - Command: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml -> PASS (44 tests)
+  - Command: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml -- -D warnings -> PASS
+  - Command: npm run web:build -> PASS
+- Files changed:
+  - apps/desktop/src/components/ContextFooter.test.tsx (new, 15 tests)
+  - .codex/ralph-gitcontext/verify/context-footer-tests.md (verification report)
+- What was implemented:
+  - 15 comprehensive Vitest tests for the ContextFooter component covering all acceptance criteria
+  - Token breakdown display: files count, file content (from context), instructions, file tree, and total tokens
+  - Progress bar: width matches percentage of limit, capped at 100%, hidden when limit=0
+  - Over-limit: `.over-limit` class applied when totalTokens > limit, not when equal
+  - Copy button: disabled when filesCount=0 or disabled prop, enabled otherwise, clicking triggers onCopy
+  - Flash messages: success ("Copied!") and failure ("Copy failed") replace button text and disable button
+  - Token formatting: large numbers formatted with commas via toLocaleString()
+  - Busy state: "calculating..." text shown when context busy=true
+  - TokenCountsContext properly mocked via vi.mock of the module path
+- **Learnings for future iterations:**
+  - ContextFooter derives totalTokens by adding filesTokens (from context) + instructionsTokens + fileTreeTokens (from props)
+  - The component uses toLocaleString() for formatting, which renders commas in en-US locale
+  - Progress bar is conditionally rendered only when limit > 0
+  - Copy button is disabled during flash (!!copyFlash is truthy), not just when no files
+---
