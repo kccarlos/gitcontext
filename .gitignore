@@ -162,8 +162,6 @@ apps/desktop/src-tauri/Cargo.lock
 *.njsproj
 *.sln
 *.sw?
-# Ignore all Markdown files
-*.md
 
 # But keep README.md
 !README.md
@@ -171,3 +169,15 @@ apps/desktop/src-tauri/Cargo.lock
 agent/
 .cursor/
 .claude/
+
+# Docker local overrides (machine-specific tweaks, not committed)
+docker-compose.override.yml
+
+# Ralph loop — runtime state (logs, temp files)
+# Keep: .ralph/progress.md, .ralph/guardrails.md (learning artifacts)
+# Keep: .codex/ralph-gitcontext/verify/ (verification reports)
+.ralph/runs/
+.ralph/.tmp/
+.ralph/errors.log
+.ralph/activity.log
+.codex/ralph-gitcontext/logs/
