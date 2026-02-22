@@ -6,6 +6,7 @@ import { type FileDiffStatus, isBinaryPath, MAX_CONCURRENT_READS } from '@gitcon
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { useGitRepository } from './hooks/useGitRepository'
 import { useFileTree } from './hooks/useFileTree'
+import { useTheme } from './hooks/useTheme'
 import { SelectedFilesPanel } from './components/SelectedFilesPanel'
 import { TopProgressBar } from './components/TopProgressBar'
 import { ErrorBanner } from './components/ErrorBanner'
@@ -109,35 +110,7 @@ function AppContent() {
   } | null>(null)
 
   // Theme management
-  const [theme, setTheme] = useState<'light' | 'dark' | null>(() => {
-    try {
-      const saved = localStorage.getItem('gc.theme')
-      return saved === 'light' || saved === 'dark' ? saved : null
-    } catch (e) {
-      logError('themeLoad', e)
-      return null
-    }
-  })
-  const [systemDark, setSystemDark] = useState(window.matchMedia('(prefers-color-scheme: dark)').matches)
-  useEffect(() => {
-    const mql = window.matchMedia('(prefers-color-scheme: dark)')
-    const handler = (e: MediaQueryListEvent) => setSystemDark(e.matches)
-    mql.addEventListener('change', handler)
-    return () => mql.removeEventListener('change', handler)
-  }, [])
-  const effectiveTheme = theme ?? (systemDark ? 'dark' : 'light')
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', effectiveTheme)
-  }, [effectiveTheme])
-  useEffect(() => {
-    try {
-      if (theme) localStorage.setItem('gc.theme', theme)
-      else localStorage.removeItem('gc.theme')
-    } catch (e) {
-      logError('themePersistence', e)
-    }
-  }, [theme])
-  const toggleTheme = () => setTheme(effectiveTheme === 'dark' ? 'light' : 'dark')
+  const { effectiveTheme, toggleTheme } = useTheme()
 
   // User instructions
   const [userInstructions, setUserInstructions] = useState<string>('')
