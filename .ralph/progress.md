@@ -159,3 +159,32 @@ Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-5.md
   - Each test needs to loadRepo first since the service requires repoPath to be set
   - mockClear() between loadRepo and the method under test keeps assertions clean
 ---
+
+## 2026-02-22 - use-git-repository-hook: Frontend: useGitRepository hook tests
+Thread: claude session
+Run: 20260222-104122-$ (iteration 6)
+Run log: /workspace/.ralph/runs/run-20260222-104122-$-iter-6.log
+Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-6.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 22082eb test(desktop): add comprehensive Vitest tests for useGitRepository hook
+- Post-commit status: pre-existing uncommitted files only (.agents/tasks/prd.json, linux-schema.json)
+- Verification:
+  - Command: `npm --workspace apps/desktop run test` -> PASS (75 tests, 12 new)
+  - Command: `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml` -> PASS (44 tests)
+  - Command: `cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml -- -D warnings` -> PASS
+  - Command: `npm run web:build` -> PASS
+- Files changed:
+  - apps/desktop/src/hooks/useGitRepository.test.ts (new, 12 tests)
+  - .codex/ralph-gitcontext/verify/use-git-repository-hook.md (verification report)
+- What was implemented:
+  - 12 comprehensive renderHook tests for the useGitRepository hook covering all acceptance criteria
+  - Tests cover: initial idle state, load success (idle→loading→ready), load error (idle→loading→error), refresh with preserved selection, reset to idle, localStorage branch persistence (save/restore), workdir-changed event increments diffTrigger (with 300ms debounce), workdir-changed ignored when WORKDIR not selected, branch flipping via setBaseBranch/setCompareBranch, refreshRepo returns false with no dir, single-branch repo defaults, wrong repo path events ignored
+  - Mocked TauriGitService with vi.hoisted() + vi.mock() class pattern, @tauri-apps/api/event listen with captured callbacks, localStorage via vi.stubGlobal with Map-based store
+- **Learnings for future iterations:**
+  - vi.mock factory is hoisted before variable declarations; must use vi.hoisted() to define mock references used inside factory
+  - vi.fn().mockImplementation() as a constructor doesn't work reliably with `new`; use a class definition in the mock factory instead
+  - The eventListeners Map for @tauri-apps/api/event must be created in vi.hoisted() scope to be accessible in the mock factory
+  - vi.useFakeTimers() is needed to test debounce behavior; vi.advanceTimersByTime(350) past the 300ms debounce threshold
+  - The hook's branch selection logic skips __WORKDIR__ when choosing compare, but falls back to it when it's the only other branch
+---
