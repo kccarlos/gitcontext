@@ -802,4 +802,253 @@ mod tests {
             "image.png should be detected as binary by read_file_blob"
         );
     }
+
+    // ── read_file_blob tests ─────────────────────────────────────────
+
+    #[test]
+    fn test_read_file_blob_text_file_returns_correct_content() {
+        let (_tmp, repo_path) = create_test_repo();
+
+        // README.md was committed in the initial commit with "# Test Repo\n"
+        let result = read_file_blob(&repo_path, "main", "README.md").unwrap();
+        assert!(!result.binary, "README.md should not be binary");
+        assert_eq!(result.not_found, None, "not_found should be None");
+        assert_eq!(
+            result.text.as_deref(),
+            Some("# Test Repo\n"),
+            "text content should match what was committed"
+        );
+    }
+
+    #[test]
+    fn test_read_file_blob_missing_file_returns_not_found() {
+        let (_tmp, repo_path) = create_test_repo();
+
+        let result = read_file_blob(&repo_path, "main", "does_not_exist.txt").unwrap();
+        assert_eq!(
+            result.not_found,
+            Some(true),
+            "missing file should have notFound=true"
+        );
+        assert!(!result.binary, "missing file should not be marked binary");
+        assert_eq!(result.text, None, "missing file should have no text");
+    }
+
+    #[test]
+    fn test_read_file_blob_binary_file_returns_binary_true() {
+        let (_tmp, repo_path) = create_test_repo();
+        let repo = git2::Repository::open(&repo_path).unwrap();
+        let sig = repo.signature().unwrap();
+
+        let main_commit = repo
+            .revparse_single("main")
+            .unwrap()
+            .peel_to_commit()
+            .unwrap();
+
+        // Create a branch with a binary file containing null bytes
+        repo.branch("binary-branch", &main_commit, false).unwrap();
+        repo.set_head("refs/heads/binary-branch").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
+            .unwrap();
+
+        let bin_path = std::path::Path::new(&repo_path).join("data.bin");
+        let binary_content: Vec<u8> = vec![0xFF, 0xD8, 0x00, 0x00, 0x01, 0x02, 0x03];
+        fs::write(&bin_path, &binary_content).unwrap();
+
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("data.bin")).unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        repo.commit(
+            Some("refs/heads/binary-branch"),
+            &sig,
+            &sig,
+            "add binary file",
+            &tree,
+            &[&main_commit],
+        )
+        .unwrap();
+
+        let result = read_file_blob(&repo_path, "binary-branch", "data.bin").unwrap();
+        assert!(
+            result.binary,
+            "file with null bytes should be detected as binary"
+        );
+        assert_eq!(result.text, None, "binary file should have no text");
+        assert_eq!(
+            result.not_found, None,
+            "binary file should not be not_found"
+        );
+    }
+
+    #[test]
+    fn test_read_file_blob_workdir_reads_from_filesystem() {
+        let (_tmp, repo_path) = create_test_repo();
+        let repo = git2::Repository::open(&repo_path).unwrap();
+
+        // Checkout main so working directory is populated
+        repo.set_head("refs/heads/main").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
+            .unwrap();
+
+        // Write a new file to the working directory (not committed)
+        let new_file = std::path::Path::new(&repo_path).join("workdir_only.txt");
+        fs::write(&new_file, "workdir content here\n").unwrap();
+
+        let result = read_file_blob(&repo_path, WORKDIR_SENTINEL, "workdir_only.txt").unwrap();
+        assert!(!result.binary, "text file in workdir should not be binary");
+        assert_eq!(
+            result.not_found, None,
+            "file exists so not_found should be None"
+        );
+        assert_eq!(
+            result.text.as_deref(),
+            Some("workdir content here\n"),
+            "WORKDIR read should return filesystem content"
+        );
+    }
+
+    #[test]
+    fn test_read_file_blob_workdir_missing_file_returns_not_found() {
+        let (_tmp, repo_path) = create_test_repo();
+
+        let result = read_file_blob(&repo_path, WORKDIR_SENTINEL, "no_such_file.txt").unwrap();
+        assert_eq!(
+            result.not_found,
+            Some(true),
+            "missing workdir file should have notFound=true"
+        );
+        assert!(!result.binary);
+        assert_eq!(result.text, None);
+    }
+
+    #[test]
+    fn test_read_file_blob_non_utf8_lossy_conversion() {
+        let (_tmp, repo_path) = create_test_repo();
+        let repo = git2::Repository::open(&repo_path).unwrap();
+        let sig = repo.signature().unwrap();
+
+        let main_commit = repo
+            .revparse_single("main")
+            .unwrap()
+            .peel_to_commit()
+            .unwrap();
+
+        repo.branch("non-utf8-branch", &main_commit, false).unwrap();
+        repo.set_head("refs/heads/non-utf8-branch").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
+            .unwrap();
+
+        // Create a file with invalid UTF-8 bytes (but no null bytes, so not binary)
+        // 0xC0 0xC1 are invalid UTF-8 lead bytes; 0xFE 0xFF are also invalid
+        let invalid_utf8: Vec<u8> = vec![
+            b'h', b'e', b'l', b'l', b'o', 0xC0, 0xC1, b'w', b'o', b'r', b'l', b'd',
+        ];
+        let file_path = std::path::Path::new(&repo_path).join("bad_utf8.txt");
+        fs::write(&file_path, &invalid_utf8).unwrap();
+
+        let mut index = repo.index().unwrap();
+        index
+            .add_path(std::path::Path::new("bad_utf8.txt"))
+            .unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        repo.commit(
+            Some("refs/heads/non-utf8-branch"),
+            &sig,
+            &sig,
+            "add non-utf8 file",
+            &tree,
+            &[&main_commit],
+        )
+        .unwrap();
+
+        let result = read_file_blob(&repo_path, "non-utf8-branch", "bad_utf8.txt").unwrap();
+        assert!(
+            !result.binary,
+            "non-UTF8 text file should not be binary (no null bytes)"
+        );
+        assert_eq!(result.not_found, None);
+
+        let text = result.text.expect("should have text via lossy conversion");
+        // Lossy conversion replaces invalid bytes with U+FFFD (�)
+        assert!(
+            text.contains('\u{FFFD}'),
+            "lossy conversion should produce replacement characters, got: {:?}",
+            text
+        );
+        assert!(
+            text.starts_with("hello"),
+            "valid prefix should be preserved"
+        );
+        assert!(text.ends_with("world"), "valid suffix should be preserved");
+    }
+
+    #[test]
+    fn test_read_file_blob_non_utf8_workdir_lossy_conversion() {
+        let (_tmp, repo_path) = create_test_repo();
+        let repo = git2::Repository::open(&repo_path).unwrap();
+
+        repo.set_head("refs/heads/main").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
+            .unwrap();
+
+        // Write invalid UTF-8 directly to workdir (no null bytes)
+        let invalid_utf8: Vec<u8> = vec![b'A', b'B', 0xFE, 0xFF, b'C', b'D'];
+        let file_path = std::path::Path::new(&repo_path).join("bad_workdir.txt");
+        fs::write(&file_path, &invalid_utf8).unwrap();
+
+        let result = read_file_blob(&repo_path, WORKDIR_SENTINEL, "bad_workdir.txt").unwrap();
+        assert!(!result.binary);
+        let text = result.text.expect("should have text via lossy conversion");
+        assert!(
+            text.contains('\u{FFFD}'),
+            "WORKDIR lossy conversion should produce replacement characters"
+        );
+        assert!(text.starts_with("AB"), "valid prefix should be preserved");
+        assert!(text.ends_with("CD"), "valid suffix should be preserved");
+    }
+
+    #[test]
+    fn test_read_file_blob_bad_ref_returns_error() {
+        let (_tmp, repo_path) = create_test_repo();
+
+        let result = read_file_blob(&repo_path, "nonexistent-ref", "README.md");
+        assert!(
+            result.is_err(),
+            "reading from a non-existent ref should return an error"
+        );
+        let err_msg = result.unwrap_err();
+        assert!(
+            err_msg.contains("Failed to resolve"),
+            "error should mention resolution failure, got: {}",
+            err_msg
+        );
+    }
+
+    #[test]
+    fn test_read_file_blob_workdir_binary_file_detected() {
+        let (_tmp, repo_path) = create_test_repo();
+        let repo = git2::Repository::open(&repo_path).unwrap();
+
+        repo.set_head("refs/heads/main").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
+            .unwrap();
+
+        // Write a binary file (containing null bytes) to the working directory
+        let bin_content: Vec<u8> = vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x00, 0x1A];
+        let bin_path = std::path::Path::new(&repo_path).join("photo.png");
+        fs::write(&bin_path, &bin_content).unwrap();
+
+        let result = read_file_blob(&repo_path, WORKDIR_SENTINEL, "photo.png").unwrap();
+        assert!(
+            result.binary,
+            "WORKDIR binary file (null bytes) should be detected"
+        );
+        assert_eq!(result.text, None, "binary workdir file should have no text");
+        assert_eq!(result.not_found, None);
+    }
 }
