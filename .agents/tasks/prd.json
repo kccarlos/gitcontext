@@ -44,11 +44,13 @@
         "All tests pass with `cargo test`"
       ],
       "attempts": 1,
-      "status": "in_progress",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "startedAt": "2026-02-22T10:41:22.974522+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-22T10:41:22.974555+00:00"
+      "completedAt": "2026-02-22T11:06:55.483265+00:00",
+      "updatedAt": "2026-02-22T11:06:55.483265+00:00",
+      "skipped": false,
+      "notes": "Completion + verification gate passed."
     },
     {
       "id": "rust-git-read-file",
@@ -62,7 +64,15 @@
         "Binary detection verified (null byte in content)",
         "Lossy UTF-8 conversion produces replacement characters for invalid bytes",
         "All tests pass with `cargo test`"
-      ]
+      ],
+      "attempts": 1,
+      "status": "done",
+      "passes": true,
+      "startedAt": "2026-02-22T11:06:57.857228+00:00",
+      "completedAt": "2026-02-22T11:14:00.742936+00:00",
+      "updatedAt": "2026-02-22T11:14:00.742936+00:00",
+      "skipped": false,
+      "notes": "Completion + verification gate passed."
     },
     {
       "id": "rust-git-list-files",
@@ -76,7 +86,15 @@
         "WORKDIR listing respects .gitignore patterns",
         "OIDs are valid 40-char hex strings",
         "All tests pass with `cargo test`"
-      ]
+      ],
+      "attempts": 1,
+      "status": "done",
+      "passes": true,
+      "startedAt": "2026-02-22T11:14:03.006288+00:00",
+      "completedAt": "2026-02-22T11:20:27.077114+00:00",
+      "updatedAt": "2026-02-22T11:20:27.077114+00:00",
+      "skipped": false,
+      "notes": "Completion + verification gate passed."
     },
     {
       "id": "rust-watcher",
@@ -90,7 +108,15 @@
         "Regular file paths pass the filter",
         ".git/refs and .git/HEAD paths trigger refs-changed classification",
         "All tests pass with `cargo test`"
-      ]
+      ],
+      "attempts": 1,
+      "status": "done",
+      "passes": true,
+      "startedAt": "2026-02-22T11:20:29.332696+00:00",
+      "completedAt": "2026-02-22T11:27:41.472199+00:00",
+      "updatedAt": "2026-02-22T11:27:41.472199+00:00",
+      "skipped": false,
+      "notes": "Completion + verification gate passed."
     },
     {
       "id": "tauri-git-service",
@@ -104,7 +130,15 @@
         "All invoke calls verified with correct command names and argument shapes",
         "Error propagation tested for at least one method",
         "All tests pass with `npm --workspace apps/desktop run test`"
-      ]
+      ],
+      "attempts": 1,
+      "status": "done",
+      "passes": true,
+      "startedAt": "2026-02-22T11:27:43.854484+00:00",
+      "completedAt": "2026-02-22T11:36:17.561544+00:00",
+      "updatedAt": "2026-02-22T11:36:17.561544+00:00",
+      "skipped": false,
+      "notes": "Completion + verification gate passed."
     },
     {
       "id": "use-git-repository-hook",
@@ -118,7 +152,15 @@
         "State transitions verified (idle\u2192loading\u2192ready, idle\u2192loading\u2192error)",
         "localStorage mock verifies branch persistence per repo path",
         "All tests pass with `npm --workspace apps/desktop run test`"
-      ]
+      ],
+      "attempts": 1,
+      "status": "done",
+      "passes": true,
+      "startedAt": "2026-02-22T11:36:19.942961+00:00",
+      "completedAt": "2026-02-22T11:51:14.443562+00:00",
+      "updatedAt": "2026-02-22T11:51:14.443562+00:00",
+      "skipped": false,
+      "notes": "Completion + verification gate passed."
     },
     {
       "id": "use-file-tree-comprehensive",
@@ -132,7 +174,13 @@
         "Tree structure verified: directories contain children, files are leaves",
         "Race condition test verifies stale results are discarded",
         "All tests pass with `npm --workspace apps/desktop run test`"
-      ]
+      ],
+      "attempts": 1,
+      "status": "in_progress",
+      "passes": false,
+      "startedAt": "2026-02-22T11:51:16.817481+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-22T11:51:16.817509+00:00"
     },
     {
       "id": "use-token-counts-hook",
