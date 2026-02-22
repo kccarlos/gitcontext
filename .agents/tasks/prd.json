@@ -15,30 +15,48 @@
       "id": "rust-git-open-repo",
       "title": "Rust backend: open_repo command tests",
       "description": "Add comprehensive Cargo tests for the open_repo Tauri command in apps/desktop/src-tauri/src/git.rs. Test: opening a valid Git repo returns branches and default_branch, opening a non-existent path returns a descriptive error, opening a directory that is not a Git repo returns a clear error, repos with no branches return an empty list, repos with many branches (>100) are handled correctly, bare repos open successfully. Create a test helper that initializes a temporary Git repo with commits and branches using the git2 crate. All tests go in a #[cfg(test)] mod at the bottom of git.rs.",
-      "testFiles": ["apps/desktop/src-tauri/src/git.rs"],
+      "testFiles": [
+        "apps/desktop/src-tauri/src/git.rs"
+      ],
       "acceptanceCriteria": [
         "At least 6 unit tests for open_repo covering valid repo, invalid path, non-git dir, bare repo, empty repo, many branches",
         "Test helper function creates temp repos with configurable branches and commits",
         "All tests pass with `cargo test`"
-      ]
+      ],
+      "attempts": 1,
+      "status": "in_progress",
+      "passes": false,
+      "startedAt": "2026-02-22T10:38:17.796966+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-22T10:38:17.797117+00:00"
     },
     {
       "id": "rust-git-diff",
       "title": "Rust backend: git_diff command tests",
       "description": "Add Cargo tests for the git_diff function in apps/desktop/src-tauri/src/git.rs. Test: diff between identical branches returns empty array, diff detects added files, diff detects modified files, diff detects removed files, diff detects renamed files (with find_similar), diff with __WORKDIR__ sentinel compares branch to working directory, diff with non-existent branch returns error, diff with binary files marks them correctly. Use the test helper from the open_repo story to set up repos with known file changes between branches.",
-      "testFiles": ["apps/desktop/src-tauri/src/git.rs"],
+      "testFiles": [
+        "apps/desktop/src-tauri/src/git.rs"
+      ],
       "acceptanceCriteria": [
         "At least 7 unit tests covering: identical branches, add, modify, remove, rename, WORKDIR sentinel, invalid branch",
         "Rename detection verified via old_path field in DiffFile",
         "WORKDIR test creates actual uncommitted changes in temp repo",
         "All tests pass with `cargo test`"
-      ]
+      ],
+      "attempts": 1,
+      "status": "in_progress",
+      "passes": false,
+      "startedAt": "2026-02-22T10:41:22.974522+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-22T10:41:22.974555+00:00"
     },
     {
       "id": "rust-git-read-file",
       "title": "Rust backend: read_file_blob command tests",
       "description": "Add Cargo tests for read_file_blob in apps/desktop/src-tauri/src/git.rs. Test: reading an existing text file returns correct content, reading a non-existent file returns notFound=true, reading a binary file returns binary=true, reading from __WORKDIR__ reads from filesystem, reading a file with non-UTF8 content performs lossy conversion, reading from a non-existent ref returns error. Verify the exact text content returned matches what was committed.",
-      "testFiles": ["apps/desktop/src-tauri/src/git.rs"],
+      "testFiles": [
+        "apps/desktop/src-tauri/src/git.rs"
+      ],
       "acceptanceCriteria": [
         "At least 6 tests covering: text file, missing file, binary file, WORKDIR read, non-UTF8, bad ref",
         "Binary detection verified (null byte in content)",
@@ -50,7 +68,9 @@
       "id": "rust-git-list-files",
       "title": "Rust backend: list_files and list_files_with_oids tests",
       "description": "Add Cargo tests for list_files and list_files_with_oids in apps/desktop/src-tauri/src/git.rs. Test: listing files for a ref returns all committed files, listing with __WORKDIR__ returns filesystem files (respecting .gitignore), nested directory structures flatten to full paths, empty tree returns empty list, list_files_with_oids returns valid OID strings for each file. Also test resolve_ref: valid branch resolves to OID, invalid ref returns error, HEAD resolves correctly.",
-      "testFiles": ["apps/desktop/src-tauri/src/git.rs"],
+      "testFiles": [
+        "apps/desktop/src-tauri/src/git.rs"
+      ],
       "acceptanceCriteria": [
         "At least 6 tests covering list_files, list_files_with_oids, and resolve_ref",
         "WORKDIR listing respects .gitignore patterns",
@@ -62,7 +82,9 @@
       "id": "rust-watcher",
       "title": "Rust backend: file watcher tests",
       "description": "Add Cargo tests for the watcher module in apps/desktop/src-tauri/src/watcher.rs. Test: watcher ignores changes in node_modules directory, watcher ignores .git/objects changes, watcher detects changes to regular source files and emits workdir-changed, watcher detects .git/refs changes and emits refs-changed, watcher can be stopped cleanly. If direct testing of the watcher is difficult due to Tauri AppHandle dependency, extract the path-filtering logic into a testable pure function and test that instead.",
-      "testFiles": ["apps/desktop/src-tauri/src/watcher.rs"],
+      "testFiles": [
+        "apps/desktop/src-tauri/src/watcher.rs"
+      ],
       "acceptanceCriteria": [
         "Path filtering logic is tested: node_modules filtered, .git/objects filtered, .git/logs filtered, target/ filtered",
         "Regular file paths pass the filter",
@@ -74,7 +96,9 @@
       "id": "tauri-git-service",
       "title": "Frontend: TauriGitService unit tests",
       "description": "Create apps/desktop/src/services/TauriGitService.test.ts with Vitest tests for the TauriGitService class. Mock @tauri-apps/api/core invoke function. Test: loadRepo calls invoke('open_repo') with correct args and maps result, listBranches calls invoke('get_branches'), getDiff passes base/compare correctly, readFile maps result to {binary, text, notFound}, listFiles returns flat array, resolveRef returns OID string, dispose clears repo path so subsequent calls throw or handle gracefully, singleton pattern returns same instance. Verify error propagation when invoke rejects.",
-      "testFiles": ["apps/desktop/src/services/TauriGitService.test.ts"],
+      "testFiles": [
+        "apps/desktop/src/services/TauriGitService.test.ts"
+      ],
       "acceptanceCriteria": [
         "At least 8 tests covering all GitService interface methods plus dispose and singleton",
         "All invoke calls verified with correct command names and argument shapes",
@@ -85,11 +109,13 @@
     {
       "id": "use-git-repository-hook",
       "title": "Frontend: useGitRepository hook tests",
-      "description": "Create apps/desktop/src/hooks/useGitRepository.test.ts with Vitest + React Testing Library renderHook tests. Mock the TauriGitService and @tauri-apps/api/event. Test: initial state is idle with empty branches, loadRepoFromHandle transitions state idle→loading→ready, loadRepoFromHandle sets branches and default branch selection, loadRepoFromHandle with invalid path sets error state, refreshRepo reloads branches and preserves selection, resetRepo clears all state back to idle, branch persistence saves to and restores from localStorage, file watcher events (workdir-changed) trigger diffTrigger increment, flipBranches swaps base and compare. Mock localStorage for persistence tests.",
-      "testFiles": ["apps/desktop/src/hooks/useGitRepository.test.ts"],
+      "description": "Create apps/desktop/src/hooks/useGitRepository.test.ts with Vitest + React Testing Library renderHook tests. Mock the TauriGitService and @tauri-apps/api/event. Test: initial state is idle with empty branches, loadRepoFromHandle transitions state idle\u2192loading\u2192ready, loadRepoFromHandle sets branches and default branch selection, loadRepoFromHandle with invalid path sets error state, refreshRepo reloads branches and preserves selection, resetRepo clears all state back to idle, branch persistence saves to and restores from localStorage, file watcher events (workdir-changed) trigger diffTrigger increment, flipBranches swaps base and compare. Mock localStorage for persistence tests.",
+      "testFiles": [
+        "apps/desktop/src/hooks/useGitRepository.test.ts"
+      ],
       "acceptanceCriteria": [
         "At least 8 tests covering: initial state, load success, load error, refresh, reset, branch persistence, watcher events, flip",
-        "State transitions verified (idle→loading→ready, idle→loading→error)",
+        "State transitions verified (idle\u2192loading\u2192ready, idle\u2192loading\u2192error)",
         "localStorage mock verifies branch persistence per repo path",
         "All tests pass with `npm --workspace apps/desktop run test`"
       ]
@@ -98,7 +124,9 @@
       "id": "use-file-tree-comprehensive",
       "title": "Frontend: useFileTree hook comprehensive tests",
       "description": "Expand apps/desktop/src/hooks/useFileTree.test.ts with comprehensive tests beyond the existing 3. Test: computeDiffAndTree builds correct hierarchical tree from flat file list, status markers (add/modify/remove/unchanged) are set correctly on nodes, binary files detected by extension get isLikelyBinary flag, showChangedOnly filter hides unchanged files, toggleExpand expands and collapses directories, toggleSelect selects and deselects files and updates parent counts, selectAll respects treeFilter and showChangedOnly, deselectAll works correctly, large repo mode (>1000 files) auto-enables showChangedOnly, race condition prevention ignores stale diff results, expandAll/collapseAll set all directory paths, diffSequence increments on each computation, revealPath expands parent directories of target file.",
-      "testFiles": ["apps/desktop/src/hooks/useFileTree.test.ts"],
+      "testFiles": [
+        "apps/desktop/src/hooks/useFileTree.test.ts"
+      ],
       "acceptanceCriteria": [
         "At least 12 total tests (including existing 3) covering tree building, status, binary detection, filtering, selection, large repo, race conditions",
         "Tree structure verified: directories contain children, files are leaves",
@@ -110,7 +138,9 @@
       "id": "use-token-counts-hook",
       "title": "Frontend: useTokenCounts hook tests",
       "description": "Create apps/desktop/src/hooks/useTokenCounts.test.ts. Mock the tiktoken module and GitService readFile. Test: token counts update when selectedPaths change, binary files are counted as path-only tokens when includeBinaryPaths is true, binary files return 0 tokens when includeBinaryPaths is false, progress callback reports correct completed/total, cancellation via AbortSignal stops in-flight counting, empty selection returns all zero counts, concurrent file reads respect MAX_CONCURRENT_READS limit, diff context lines affect token count (more context = more tokens), total includes file content + header formatting tokens.",
-      "testFiles": ["apps/desktop/src/hooks/useTokenCounts.test.ts"],
+      "testFiles": [
+        "apps/desktop/src/hooks/useTokenCounts.test.ts"
+      ],
       "acceptanceCriteria": [
         "At least 7 tests covering: count update, binary handling (both modes), progress, cancellation, empty selection, context lines effect",
         "Mock tiktoken returns deterministic token counts",
@@ -121,8 +151,10 @@
     {
       "id": "diff-util-tests",
       "title": "Frontend: diff utility tests",
-      "description": "Create apps/desktop/src/utils/diff.test.ts with Vitest tests for createUnifiedDiffForPath and buildUnifiedDiffForStatus. Test: modified file produces correct unified diff with context lines, added file shows all lines as additions, removed file shows all lines as deletions, unchanged file returns empty string, CRLF normalization (\\r\\n → \\n) produces stable diffs, context lines parameter controls number of surrounding lines (0, 3, 999/infinity), empty files produce valid diffs, files with no trailing newline handled correctly, binary file inputs return null/empty.",
-      "testFiles": ["apps/desktop/src/utils/diff.test.ts"],
+      "description": "Create apps/desktop/src/utils/diff.test.ts with Vitest tests for createUnifiedDiffForPath and buildUnifiedDiffForStatus. Test: modified file produces correct unified diff with context lines, added file shows all lines as additions, removed file shows all lines as deletions, unchanged file returns empty string, CRLF normalization (\\r\\n \u2192 \\n) produces stable diffs, context lines parameter controls number of surrounding lines (0, 3, 999/infinity), empty files produce valid diffs, files with no trailing newline handled correctly, binary file inputs return null/empty.",
+      "testFiles": [
+        "apps/desktop/src/utils/diff.test.ts"
+      ],
       "acceptanceCriteria": [
         "At least 8 tests covering: modify, add, remove, unchanged, CRLF, context lines, empty files, no trailing newline",
         "Context lines verified: setting 0 shows only changed lines, 3 shows 3 lines around changes, 999 shows full file",
@@ -134,7 +166,9 @@
       "id": "workspace-store-comprehensive",
       "title": "Frontend: workspaceStore comprehensive tests",
       "description": "Expand apps/desktop/src/utils/workspaceStore.test.ts with additional edge case tests. Test: upsertWorkspace with existing ID updates rather than creates duplicate, removeWorkspace with non-existent ID is a no-op, getWorkspaceSelectionRestore correctly partitions matched vs missing paths (case-sensitive), MAX_PERSISTED_SELECTIONS (5000) limit is enforced on save, listWorkspaceItems returns sorted by lastOpenedAt, setActiveWorkspace/getActiveWorkspace round-trips correctly, corrupt localStorage data handled gracefully (returns empty store), workspace session settings merge with defaults (missing keys filled in), findWorkspaceByPath matches exact paths only. Fix any bugs discovered during testing.",
-      "testFiles": ["apps/desktop/src/utils/workspaceStore.test.ts"],
+      "testFiles": [
+        "apps/desktop/src/utils/workspaceStore.test.ts"
+      ],
       "acceptanceCriteria": [
         "At least 12 total tests (including existing 5) covering all edge cases",
         "Selection limit enforcement verified (paths truncated at 5000)",
@@ -146,7 +180,9 @@
       "id": "concurrency-util-tests",
       "title": "Frontend: concurrency utility tests",
       "description": "Create apps/desktop/src/utils/concurrency.test.ts. Test mapWithConcurrency: respects concurrency limit (e.g., limit=2 never has more than 2 in-flight), processes all items and returns results in order, handles rejected promises (propagates error), empty array returns empty array, limit of 1 processes sequentially, limit greater than array length works correctly. Test createConcurrencyLimiter if it exists. Use timing/tracking to verify concurrent execution counts.",
-      "testFiles": ["apps/desktop/src/utils/concurrency.test.ts"],
+      "testFiles": [
+        "apps/desktop/src/utils/concurrency.test.ts"
+      ],
       "acceptanceCriteria": [
         "At least 5 tests covering: concurrency limit, result ordering, error propagation, empty input, sequential (limit=1)",
         "Concurrency limit verified by tracking in-flight count during execution",
@@ -158,7 +194,9 @@
       "id": "debounce-util-tests",
       "title": "Frontend: debounce utility tests",
       "description": "Create apps/desktop/src/utils/debounce.test.ts. Test the debounce function: calling multiple times within delay only invokes once, final call's arguments are used, waiting full delay triggers the function, rapid calls reset the timer, returned function is callable. Use vi.useFakeTimers() for deterministic timing control.",
-      "testFiles": ["apps/desktop/src/utils/debounce.test.ts"],
+      "testFiles": [
+        "apps/desktop/src/utils/debounce.test.ts"
+      ],
       "acceptanceCriteria": [
         "At least 4 tests covering: single invocation after burst, correct arguments, timer reset, delay expiration",
         "Uses vi.useFakeTimers for reliable timing",
@@ -169,7 +207,9 @@
       "id": "clipboard-batch-select-comprehensive",
       "title": "Frontend: clipboardBatchSelect comprehensive tests",
       "description": "Expand apps/desktop/src/utils/clipboardBatchSelect.test.ts with edge cases. Test: Windows drive letter paths (C:\\Users\\...) normalized correctly, UNC paths (\\\\server\\share) handled, trailing slashes stripped, empty lines and whitespace-only lines filtered, duplicate paths deduplicated, case-insensitive matching on Windows-style paths, paths with special characters (spaces, unicode), relative paths (./src/file.ts) resolved, paths outside repo root rejected with correct outsideRepoCount. Fix any bugs discovered.",
-      "testFiles": ["apps/desktop/src/utils/clipboardBatchSelect.test.ts"],
+      "testFiles": [
+        "apps/desktop/src/utils/clipboardBatchSelect.test.ts"
+      ],
       "acceptanceCriteria": [
         "At least 10 total tests (including existing 5) covering Windows paths, UNC, duplicates, special chars, relative paths",
         "Cross-platform path handling verified",
@@ -179,8 +219,10 @@
     {
       "id": "selected-files-panel-tests",
       "title": "Frontend: SelectedFilesPanel component tests",
-      "description": "Create apps/desktop/src/components/SelectedFilesPanel.test.tsx. Test: renders list of selected files with correct status icons, sorting by tokens (high→low, low→high) reorders files, sorting by name (A→Z, Z→A) reorders files, binary files show binary indicator and preview button is disabled, clicking remove calls onUnselect with correct path, clicking reveal calls onReveal with correct path, clicking preview calls onPreview with path and status, empty selection shows empty state message, refreshing state shows recalculating indicator. Must wrap in TokenCountsProvider with mocked context values.",
-      "testFiles": ["apps/desktop/src/components/SelectedFilesPanel.test.tsx"],
+      "description": "Create apps/desktop/src/components/SelectedFilesPanel.test.tsx. Test: renders list of selected files with correct status icons, sorting by tokens (high\u2192low, low\u2192high) reorders files, sorting by name (A\u2192Z, Z\u2192A) reorders files, binary files show binary indicator and preview button is disabled, clicking remove calls onUnselect with correct path, clicking reveal calls onReveal with correct path, clicking preview calls onPreview with path and status, empty selection shows empty state message, refreshing state shows recalculating indicator. Must wrap in TokenCountsProvider with mocked context values.",
+      "testFiles": [
+        "apps/desktop/src/components/SelectedFilesPanel.test.tsx"
+      ],
       "acceptanceCriteria": [
         "At least 7 tests covering: rendering, sort modes, binary files, remove/reveal/preview callbacks, empty state",
         "Sorting verified by checking DOM order after sort change",
@@ -192,7 +234,9 @@
       "id": "context-footer-tests",
       "title": "Frontend: ContextFooter component tests",
       "description": "Create apps/desktop/src/components/ContextFooter.test.tsx. Test: displays correct token breakdown (files, content, instructions, file tree, total), progress bar width matches percentage of limit, over-limit state shows warning text in red, copy button disabled when no files selected, clicking copy calls onCopy, copy flash message appears and shows correct text (success/failure), zero limit hides progress bar, token counts formatted with commas for readability.",
-      "testFiles": ["apps/desktop/src/components/ContextFooter.test.tsx"],
+      "testFiles": [
+        "apps/desktop/src/components/ContextFooter.test.tsx"
+      ],
       "acceptanceCriteria": [
         "At least 7 tests covering: token breakdown display, progress bar, over-limit warning, disabled state, copy callback, flash messages",
         "Over-limit correctly detected when total > limit",
@@ -203,7 +247,9 @@
       "id": "right-panel-tabs-tests",
       "title": "Frontend: RightPanelTabs component tests",
       "description": "Create apps/desktop/src/components/RightPanelTabs.test.tsx. Test: renders two tabs (Selected Files, Settings), files tab shows badge with file count, clicking tab calls onTabChange with correct tab ID, active tab has active styling, badge shows 0 when no files, children content renders in tab panel, switching tabs preserves content (no remount).",
-      "testFiles": ["apps/desktop/src/components/RightPanelTabs.test.tsx"],
+      "testFiles": [
+        "apps/desktop/src/components/RightPanelTabs.test.tsx"
+      ],
       "acceptanceCriteria": [
         "At least 5 tests covering: tab rendering, badge count, tab switching, active styling, children rendering",
         "Tab IDs 'files' and 'settings' verified",
@@ -214,7 +260,9 @@
       "id": "token-counts-context-tests",
       "title": "Frontend: TokenCountsContext provider tests",
       "description": "Create apps/desktop/src/context/TokenCountsContext.test.tsx. Test: provider makes token counts available to children via useContext, counts update when selectedPaths change, busy flag is true during computation and false when done, progress reports completed/total/percent correctly, total is sum of all individual file counts, provider handles unmount during async counting gracefully (no state update after unmount). Mock the underlying useTokenCounts hook.",
-      "testFiles": ["apps/desktop/src/context/TokenCountsContext.test.tsx"],
+      "testFiles": [
+        "apps/desktop/src/context/TokenCountsContext.test.tsx"
+      ],
       "acceptanceCriteria": [
         "At least 5 tests covering: context availability, count updates, busy flag, progress, unmount safety",
         "No 'state update on unmounted component' warnings",
@@ -225,7 +273,9 @@
       "id": "theme-management-tests",
       "title": "Frontend: theme management integration tests",
       "description": "Create apps/desktop/src/__tests__/theme.test.ts testing theme-related logic. Test: default theme follows system preference (prefers-color-scheme), toggling theme switches between light and dark, theme persists to localStorage key 'gc.theme', removing theme preference falls back to system, data-theme attribute set on document.documentElement, corrupt localStorage theme value falls back to system default. Mock window.matchMedia and localStorage.",
-      "testFiles": ["apps/desktop/src/__tests__/theme.test.ts"],
+      "testFiles": [
+        "apps/desktop/src/__tests__/theme.test.ts"
+      ],
       "acceptanceCriteria": [
         "At least 5 tests covering: system default, toggle, persistence, fallback, DOM attribute",
         "matchMedia mock supports both light and dark system preferences",
@@ -236,7 +286,9 @@
       "id": "app-copy-output-tests",
       "title": "Frontend: copy output generation tests",
       "description": "Create apps/desktop/src/__tests__/copyOutput.test.ts testing the output format produced by copyAllSelected logic. Extract the output-building logic into a testable function if needed. Test: output header includes repo path, base/compare branches, file count, user instructions appear in ## Instructions section when non-empty, file tree section included when includeFileTree is true and omitted when false, modified files produce ```diff blocks, added files with unlimited context produce ``` blocks (full content), removed files produce diff blocks, binary files show [Binary file] placeholder, includeBinaryAsPaths includes binary file paths in output, context lines setting affects diff output length, multiple files concatenated in order.",
-      "testFiles": ["apps/desktop/src/__tests__/copyOutput.test.ts"],
+      "testFiles": [
+        "apps/desktop/src/__tests__/copyOutput.test.ts"
+      ],
       "acceptanceCriteria": [
         "At least 8 tests covering: header, instructions, file tree toggle, modify/add/remove diffs, binary handling, context lines",
         "Output format matches exact markdown structure used by the app",
@@ -248,7 +300,9 @@
       "id": "models-util-tests",
       "title": "Frontend: models utility tests",
       "description": "Create apps/desktop/src/utils/models.test.ts. Test: getModels returns array of ModelInfo objects, each model has required fields (id, name, context_length), model IDs are unique, context_length values are positive numbers, model list is not empty. Also test model selection persistence: selectedModel saved to localStorage key 'gc.selectedModel', restoring selected model from localStorage works, invalid saved model ID handled gracefully.",
-      "testFiles": ["apps/desktop/src/utils/models.test.ts"],
+      "testFiles": [
+        "apps/desktop/src/utils/models.test.ts"
+      ],
       "acceptanceCriteria": [
         "At least 5 tests covering: model list structure, required fields, unique IDs, persistence, invalid saved model",
         "ModelInfo type compliance verified",
@@ -258,8 +312,10 @@
     {
       "id": "error-handling-tests",
       "title": "Frontend: global error handling and ErrorBanner integration tests",
-      "description": "Expand apps/desktop/src/components/ErrorBanner.test.tsx with integration-level tests. Add tests: unhandled promise rejection displays in error banner, window.error event displays in error banner, error banner auto-clears when new repo loads successfully, multiple rapid errors show only the latest, error from loadRepoFromHandle propagates to banner, error from computeDiffAndTree propagates to banner, dismissing error clears it and does not reappear unless a new error occurs. Test the error recovery flow: error state → user action → success state.",
-      "testFiles": ["apps/desktop/src/components/ErrorBanner.test.tsx"],
+      "description": "Expand apps/desktop/src/components/ErrorBanner.test.tsx with integration-level tests. Add tests: unhandled promise rejection displays in error banner, window.error event displays in error banner, error banner auto-clears when new repo loads successfully, multiple rapid errors show only the latest, error from loadRepoFromHandle propagates to banner, error from computeDiffAndTree propagates to banner, dismissing error clears it and does not reappear unless a new error occurs. Test the error recovery flow: error state \u2192 user action \u2192 success state.",
+      "testFiles": [
+        "apps/desktop/src/components/ErrorBanner.test.tsx"
+      ],
       "acceptanceCriteria": [
         "At least 12 total tests (including existing 7) covering error propagation, auto-clear, dismiss, recovery flow",
         "Error messages from different sources verified (repo load, diff compute, unhandled rejection)",
@@ -270,7 +326,9 @@
       "id": "workspace-lifecycle-tests",
       "title": "Frontend: workspace save/restore lifecycle integration tests",
       "description": "Create apps/desktop/src/__tests__/workspaceLifecycle.test.ts testing the full workspace flow. Test: saving a workspace captures current branch selection and file selection, loading a saved workspace restores branches and triggers diff, workspace auto-detection on repo open matches by path, workspace refresh preserves current selection, deleting a workspace removes it from store and clears selection, workspace with missing branch falls back gracefully, workspace session auto-persists on settings change (debounced), switching workspaces cancels pending selection restore from previous workspace. Mock TauriGitService and localStorage.",
-      "testFiles": ["apps/desktop/src/__tests__/workspaceLifecycle.test.ts"],
+      "testFiles": [
+        "apps/desktop/src/__tests__/workspaceLifecycle.test.ts"
+      ],
       "acceptanceCriteria": [
         "At least 7 tests covering: save, restore, auto-detect, refresh, delete, missing branch, session auto-persist",
         "Branch and selection state correctly captured and restored",
@@ -282,7 +340,9 @@
       "id": "logger-util-tests",
       "title": "Frontend: logger utility tests",
       "description": "Create apps/desktop/src/utils/logger.test.ts. Test: logError calls console.error with formatted message including error code, logError handles Error objects extracting message, logError handles string errors, logError handles non-Error non-string values (objects, null, undefined), error code prefix is included in output. Mock console.error to verify output format.",
-      "testFiles": ["apps/desktop/src/utils/logger.test.ts"],
+      "testFiles": [
+        "apps/desktop/src/utils/logger.test.ts"
+      ],
       "acceptanceCriteria": [
         "At least 4 tests covering: Error objects, strings, other types, error code formatting",
         "console.error mock verifies exact output format",
@@ -293,7 +353,9 @@
       "id": "diff-control-bar-comprehensive",
       "title": "Frontend: DiffControlBar comprehensive interaction tests",
       "description": "Expand apps/desktop/src/components/DiffControlBar.test.tsx with additional interaction tests. Test: changing base branch to same value as compare auto-swaps (if applicable), __WORKDIR__ option shows 'My Working Directory' label, workspace save button triggers save callback, workspace delete button shows only when workspace selected, refresh button calls onRefresh, all controls disabled during loading state, workspace selector dropdown shows saved workspace names sorted correctly, selecting empty workspace ID clears selection. Fix any UI bugs found.",
-      "testFiles": ["apps/desktop/src/components/DiffControlBar.test.tsx"],
+      "testFiles": [
+        "apps/desktop/src/components/DiffControlBar.test.tsx"
+      ],
       "acceptanceCriteria": [
         "At least 28 total tests (including existing 23) covering additional interaction edge cases",
         "WORKDIR display text verified",
