@@ -412,11 +412,13 @@
         "All tests pass with `npm --workspace apps/desktop run test`"
       ],
       "attempts": 1,
-      "status": "in_progress",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "startedAt": "2026-02-22T13:46:13.141526+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-22T13:46:13.141575+00:00"
+      "completedAt": "2026-02-22T13:56:45.587525+00:00",
+      "updatedAt": "2026-02-22T13:56:45.587525+00:00",
+      "skipped": false,
+      "notes": "Completion + verification gate passed."
     },
     {
       "id": "app-copy-output-tests",
@@ -430,7 +432,15 @@
         "Output format matches exact markdown structure used by the app",
         "Binary file handling verified for both includeBinaryAsPaths settings",
         "All tests pass with `npm --workspace apps/desktop run test`"
-      ]
+      ],
+      "attempts": 1,
+      "status": "done",
+      "passes": true,
+      "startedAt": "2026-02-22T13:56:47.960378+00:00",
+      "completedAt": "2026-02-22T14:14:02.781153+00:00",
+      "updatedAt": "2026-02-22T14:14:02.781153+00:00",
+      "skipped": false,
+      "notes": "Completion + verification gate passed."
     },
     {
       "id": "models-util-tests",
@@ -443,7 +453,15 @@
         "At least 5 tests covering: model list structure, required fields, unique IDs, persistence, invalid saved model",
         "ModelInfo type compliance verified",
         "All tests pass with `npm --workspace apps/desktop run test`"
-      ]
+      ],
+      "attempts": 1,
+      "status": "done",
+      "passes": true,
+      "startedAt": "2026-02-22T14:14:05.159901+00:00",
+      "completedAt": "2026-02-22T14:22:39.983361+00:00",
+      "updatedAt": "2026-02-22T14:22:39.983361+00:00",
+      "skipped": false,
+      "notes": "Completion + verification gate passed."
     },
     {
       "id": "error-handling-tests",
@@ -456,7 +474,15 @@
         "At least 12 total tests (including existing 7) covering error propagation, auto-clear, dismiss, recovery flow",
         "Error messages from different sources verified (repo load, diff compute, unhandled rejection)",
         "All tests pass with `npm --workspace apps/desktop run test`"
-      ]
+      ],
+      "attempts": 1,
+      "status": "done",
+      "passes": true,
+      "startedAt": "2026-02-22T14:22:42.345387+00:00",
+      "completedAt": "2026-02-22T14:33:49.596399+00:00",
+      "updatedAt": "2026-02-22T14:33:49.596399+00:00",
+      "skipped": false,
+      "notes": "Completion + verification gate passed."
     },
     {
       "id": "workspace-lifecycle-tests",
@@ -470,7 +496,13 @@
         "Branch and selection state correctly captured and restored",
         "Race condition between workspace switches handled",
         "All tests pass with `npm --workspace apps/desktop run test`"
-      ]
+      ],
+      "attempts": 1,
+      "status": "in_progress",
+      "passes": false,
+      "startedAt": "2026-02-22T14:33:51.962558+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-22T14:33:51.962604+00:00"
     },
     {
       "id": "logger-util-tests",
