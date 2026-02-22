@@ -188,3 +188,43 @@ Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-6.md
   - vi.useFakeTimers() is needed to test debounce behavior; vi.advanceTimersByTime(350) past the 300ms debounce threshold
   - The hook's branch selection logic skips __WORKDIR__ when choosing compare, but falls back to it when it's the only other branch
 ---
+
+## 2026-02-22 - use-file-tree-comprehensive: Frontend: useFileTree hook comprehensive tests
+Thread: claude session
+Run: 20260222-104122-$ (iteration 7)
+Run log: /workspace/.ralph/runs/run-20260222-104122-$-iter-7.log
+Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-7.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: ea87cba test(desktop): add comprehensive Vitest tests for useFileTree hook
+- Post-commit status: clean
+- Verification:
+  - Command: `npm --workspace apps/desktop run test` -> PASS (94 tests, 22 useFileTree tests)
+  - Command: `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml` -> PASS (44 tests)
+  - Command: `cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml -- -D warnings` -> PASS
+  - Command: `npm run web:build` -> PASS
+- Files changed:
+  - apps/desktop/src/hooks/useFileTree.test.ts (expanded from 3 to 22 tests)
+- What was implemented:
+  - 19 new tests (22 total) for the useFileTree hook covering all acceptance criteria:
+    - Tree building: hierarchical tree from flat paths, dirs sorted before files, files are leaves
+    - Status markers: add/modify/remove/unchanged set correctly on nodes and statusByPath map
+    - Binary detection: .png, .woff2 get isLikelyBinary=true, .ts gets false
+    - showChangedOnly filter: defaults to true, selectAll skips unchanged when true, includes all when false
+    - toggleExpand: expand/collapse directory paths
+    - toggleSelect: select/deselect files
+    - selectAll: respects showChangedOnly, respects filter text
+    - deselectAll: clears selected paths for visible files
+    - Large repo mode: >50000 files auto-enables showChangedOnly
+    - Race condition: stale diff results discarded via requestId mechanism
+    - expandAll/collapseAll: set/clear all directory paths
+    - diffSequence: increments on each computation
+    - revealPath: expands parent directories of target file
+    - Auto-selection: add/modify files selected, remove files not selected
+    - Same branch handling: resets state and shows message
+    - Null client: resets all state
+- **Learnings for future iterations:**
+  - Large repo test with 50001 files is slow (~6s); set explicit 30s timeout
+  - Race condition testing requires careful mock design: deferred promise for the stale request, immediate resolution for the fresh one
+  - The hook's computeDiffAndTree checks requestId at each await point, so stale requests bail out early at getDiff level
+---
