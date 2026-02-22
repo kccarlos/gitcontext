@@ -651,3 +651,41 @@ Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-21.md
   - window.onerror must be nulled in beforeEach to prevent jsdom from treating dispatched ErrorEvents as real test failures
   - The App.tsx error flow: repoStatus.error → useEffect → setErrorMessage → ErrorBanner; also global listeners for unhandled rejections/errors
 ---
+
+## [2026-02-22 14:42] - workspace-lifecycle-tests: Frontend: workspace save/restore lifecycle integration tests
+Thread:
+Run: 20260222-104122-$ (iteration 22)
+Run log: /workspace/.ralph/runs/run-20260222-104122-$-iter-22.log
+Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-22.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 0bb92f5 test(desktop): add workspace save/restore lifecycle integration tests
+- Post-commit status: clean
+- Verification:
+  - Command: npm --workspace apps/desktop run test -> PASS (288 tests, 20 files)
+  - Command: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml -> PASS (44 tests)
+  - Command: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml -- -D warnings -> PASS
+  - Command: npm run web:build -> PASS
+- Files changed:
+  - apps/desktop/src/__tests__/workspaceLifecycle.test.ts (new, 10 tests)
+- What was implemented:
+  - 10 comprehensive integration tests for the full workspace save/restore lifecycle
+  - Tests cover all acceptance criteria:
+    1. Save: captures branch selection (base/compare) and file selection with settings
+    2. Restore: loads workspace, restores branches for diff trigger, restores settings
+    3. Auto-detect: repo open by path matches saved workspace via findWorkspaceByPath
+    4. Refresh: preserves current selection via getWorkspaceSelectionRestore
+    5. Delete: removes workspace from store, clears activeWorkspaceId
+    6. Missing branch: graceful fallback when saved branch no longer exists
+    7. Session auto-persist: debounced settings persist via updateWorkspaceSession
+    8. Race condition: workspace switch request ID pattern prevents stale restores
+    9. Full lifecycle round-trip: create → save → close → reopen → modify → persist → reload
+    10. Multiple workspaces: isolated sessions with no cross-contamination
+  - Mocked localStorage via vi.stubGlobal with Map-backed store
+  - Helper functions simulate App.tsx patterns: buildSnapshot, commitWorkspaceStore
+- **Learnings for future iterations:**
+  - Workspace lifecycle logic in App.tsx is tested indirectly through the store functions
+  - The race condition prevention uses a simple counter (workspaceSwitchRequestRef) that can be simulated in tests
+  - getWorkspaceSelectionRestore partitions saved paths into matched/missing based on available paths
+  - upsertWorkspace handles both create and update via path or ID matching
+---
