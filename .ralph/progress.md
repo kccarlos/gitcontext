@@ -562,3 +562,38 @@ Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-18.md
   - The `trigger` helper on matchMedia mock enables testing dynamic system preference changes
   - Corrupt localStorage values (not 'light' or 'dark') are treated as null, which falls through to system preference and localStorage.removeItem cleans up
 ---
+
+## 2026-02-22 14:12 UTC - app-copy-output-tests: Frontend: copy output generation tests
+Thread:
+Run: 20260222-104122-$ (iteration 19)
+Run log: /workspace/.ralph/runs/run-20260222-104122-$-iter-19.log
+Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-19.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: aaa397f test(desktop): add comprehensive Vitest tests for copy output generation
+- Post-commit status: clean (only .agents/tasks/prd.json modified, which is expected)
+- Verification:
+  - Command: npm --workspace apps/desktop run test -> PASS (252 tests, 18 test files)
+  - Command: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml -> PASS (44 tests)
+  - Command: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml -- -D warnings -> PASS
+  - Command: npm run web:build -> PASS
+- Files changed:
+  - apps/desktop/src/utils/copyOutput.ts (new - extracted testable output-building functions)
+  - apps/desktop/src/__tests__/copyOutput.test.ts (new - 26 tests for copy output generation)
+  - apps/desktop/src/App.tsx (refactored copyAllSelected to use extracted functions)
+- What was implemented:
+  - Extracted copy output logic from App.tsx into apps/desktop/src/utils/copyOutput.ts with pure functions: generateFileTreeText, buildHeader, buildFileSection, buildCopyOutput
+  - Refactored App.tsx to import and use the extracted functions, keeping behavior identical
+  - Created 26 comprehensive tests across 6 describe blocks:
+    - buildHeader (6 tests): repo path, branches, file count, instructions section, file tree toggle, unknown repo
+    - generateFileTreeText (3 tests): selected files filtering, directory exclusion, code fence wrapping
+    - buildFileSection (9 tests): modify diffs, add with unlimited context, add with limited context, remove diffs, binary by extension, binary by content flag, unchanged files, notFound handling, context lines effect
+    - buildCopyOutput (4 tests): multi-file concatenation order, file tree inclusion/exclusion, instructions section
+    - binary file handling (3 tests): extension-based, content-flag-based, non-binary .dat extension
+    - end-to-end format (1 test): verifies full output structure ordering and content
+- **Learnings for future iterations:**
+  - The copyAllSelected function in App.tsx had inline logic for file tree generation, header building, and file section creation that was tightly coupled to the component. Extracting to pure functions is straightforward and makes testing easy.
+  - Binary detection is two-layered: extension-based (isBinaryPath from @gitcontext/core) and content-flag-based (binary property from ReadFileSide). Both paths need testing.
+  - The `add` status with unlimited context (Number.MAX_SAFE_INTEGER) produces a plain code block instead of a diff block - this is a special case worth testing.
+  - File content in code blocks retains its trailing newline, so expect `\n\`\`\`` patterns rather than exact end-of-content matches.
+---
