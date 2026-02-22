@@ -93,3 +93,37 @@ Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-3.md
   - list_workdir_files uses the `ignore` crate WalkBuilder which automatically respects .gitignore
   - Reuse existing create_test_repo() helper; only need custom setup for empty-tree edge case
 ---
+
+## 2026-02-22 - rust-watcher: Rust backend: file watcher tests
+Thread: claude session
+Run: 20260222-104122-$ (iteration 4)
+Run log: /workspace/.ralph/runs/run-20260222-104122-$-iter-4.log
+Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-4.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 341f7b4 test(desktop): add comprehensive cargo tests for watcher path filtering
+- Post-commit status: pre-existing uncommitted files only (.agents/tasks/prd.json, linux-schema.json)
+- Verification:
+  - Command: `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml` -> PASS (44/44 tests)
+  - Command: `cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml -- -D warnings` -> PASS
+  - Command: `cargo fmt --check --manifest-path apps/desktop/src-tauri/Cargo.toml` -> PASS
+  - Command: `npm --workspace apps/desktop run test` -> PASS (45/45 tests)
+  - Command: `npm run web:build` -> PASS
+- Files changed:
+  - apps/desktop/src-tauri/src/watcher.rs (extracted classify_path + EventKind, added 17 tests)
+  - apps/desktop/src-tauri/src/git.rs (cargo fmt formatting fix only)
+  - .codex/ralph-gitcontext/verify/rust-watcher.md (verification report)
+- What was implemented:
+  - Extracted path-filtering logic from the watcher callback into a pure `classify_path(path, repo_root, git_dir) -> EventKind` function
+  - Added `EventKind` enum with `RefsChanged`, `WorkdirChanged(String)`, and `Ignored` variants
+  - Refactored the `RepoWatcher::new` callback to use `classify_path` via match
+  - 17 unit tests covering all acceptance criteria:
+    - Ignored paths (7): node_modules, nested node_modules, .git/objects, .git/logs, target/ at root, nested target/, .git/index
+    - Workdir-changed (3): regular source file, root-level file, deeply nested file
+    - Refs-changed (4): .git/refs/heads, .git/refs/tags, .git/refs/remotes, .git/HEAD
+    - Edge cases (2): path outside repo, file named "target" in source dir not ignored
+- **Learnings for future iterations:**
+  - When watcher/callback logic is tightly coupled to Tauri AppHandle, extract the pure logic into a standalone function for testability
+  - The refactoring pattern (extract pure function + test it) preserves exact behavior while enabling comprehensive testing
+  - Pre-existing cargo fmt issues in other files should be fixed as part of the quality gates
+---
