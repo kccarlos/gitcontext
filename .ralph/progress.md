@@ -624,3 +624,30 @@ Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-20.md
   - localStorage caching uses two keys: gc.models.cache and gc.models.fetchedAt with a 24-hour TTL
   - The cache code falls through to refetch when JSON.parse fails on corrupt data
 ---
+
+## [2026-02-22 14:30] - error-handling-tests: Frontend: global error handling and ErrorBanner integration tests
+Thread: iteration-21
+Run: 20260222-104122-$ (iteration 21)
+Run log: /workspace/.ralph/runs/run-20260222-104122-$-iter-21.log
+Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-21.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 89cd1ab test(desktop): add integration tests for ErrorBanner error handling
+- Post-commit status: clean (only .agents/tasks/prd.json modified — expected)
+- Verification:
+  - Command: npm --workspace apps/desktop run test -> PASS (278 tests, 19 files)
+  - Command: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml -> PASS (44 tests)
+  - Command: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml -- -D warnings -> PASS
+  - Command: npm run web:build -> PASS
+- Files changed:
+  - apps/desktop/src/components/ErrorBanner.test.tsx
+- What was implemented:
+  - Added 13 integration-level tests to ErrorBanner.test.tsx (21 total, 8 existing + 13 new)
+  - Created ErrorBannerHarness component that mirrors App.tsx error management pattern
+  - Tests cover: unhandled promise rejection (Error and non-Error), window.error event (with/without error object), auto-clear on successful repo load, multiple rapid errors showing only latest, repo load error propagation, diff compute error propagation, dismiss behavior (clears and doesn't reappear), full recovery flow (error → user action → success), re-render on message change, null transition hiding, global listener cleanup on unmount
+- **Learnings for future iterations:**
+  - ErrorBanner is purely presentational — integration tests require a harness component that replicates the App's useState + useEffect pattern
+  - Dispatching unhandledrejection in jsdom requires creating a plain Event and manually setting the `reason` property
+  - window.onerror must be nulled in beforeEach to prevent jsdom from treating dispatched ErrorEvents as real test failures
+  - The App.tsx error flow: repoStatus.error → useEffect → setErrorMessage → ErrorBanner; also global listeners for unhandled rejections/errors
+---
