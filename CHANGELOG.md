@@ -1,3 +1,12 @@
+# [2.3.0](https://github.com/kccarlos/gitcontext/compare/v2.2.0...v2.3.0) (2026-02-22)
+
+
+### Features
+
+* **desktop:** add batch file selection from clipboard in file tree ([2ef3dd6](https://github.com/kccarlos/gitcontext/commit/2ef3dd601ff185bd74c1e6e295b4351b3b671634))
+* **desktop:** add remove-test-files selection action with trash icon ([66ae3e6](https://github.com/kccarlos/gitcontext/commit/66ae3e62f07890f1187a65efcc16afec94a63618))
+* **desktop:** add saved workspace switching with branch/settings/file selection restore ([d33c44b](https://github.com/kccarlos/gitcontext/commit/d33c44b99809c671e82c05ef793f7629e9b49798))
+
 # [2.2.0](https://github.com/kccarlos/gitcontext/compare/v2.1.0...v2.2.0) (2026-02-09)
 
 
