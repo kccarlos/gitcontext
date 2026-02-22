@@ -52,7 +52,7 @@ export function normalizeClipboardPath(line: string, repoRoot: string): string |
   const normalizedRepoRoot = stripTrailingSlashes(normalizeSlashes(repoRoot.trim()))
   if (!normalizedRepoRoot) return null
 
-  const normalizedLine = normalizeSlashes(line.trim())
+  const normalizedLine = stripTrailingSlashes(normalizeSlashes(line.trim()))
   if (!normalizedLine) return null
 
   if (isAbsolutePath(normalizedLine)) {
