@@ -323,3 +323,33 @@ Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-10.md
   - MAX_PERSISTED_SELECTIONS is not exported, but can be tested by passing >5000 paths and verifying truncation
   - corrupt localStorage variants include invalid JSON, wrong types, empty fields — all handled gracefully by sanitize functions
 ---
+
+## 2026-02-22 - concurrency-util-tests: Frontend: concurrency utility tests
+Thread: claude session
+Run: 20260222-104122-$ (iteration 11)
+Run log: /workspace/.ralph/runs/run-20260222-104122-$-iter-11.log
+Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-11.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 31b8616 test(desktop): add comprehensive Vitest tests for concurrency utilities
+- Post-commit status: clean
+- Verification:
+  - Command: `npm --workspace apps/desktop run test` -> PASS (151 tests, 10 new)
+  - Command: `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml` -> PASS (44 tests)
+  - Command: `cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml -- -D warnings` -> PASS
+  - Command: `npm run web:build` -> PASS
+- Files changed:
+  - apps/desktop/src/utils/concurrency.test.ts (new, 10 tests)
+  - .codex/ralph-gitcontext/verify/concurrency-util-tests.md (verification report)
+- What was implemented:
+  - 10 comprehensive Vitest tests for concurrency utilities:
+    - mapWithConcurrency (7 tests): concurrency limit enforcement via in-flight tracking, result ordering preservation with varying delays, error propagation from rejected promises, empty array returns empty array, sequential processing with limit=1, limit greater than array length processes all concurrently, AbortSignal cancellation stops processing
+    - createConcurrencyLimiter (3 tests): concurrent execution limiting via in-flight tracking, result ordering from wrapped functions, error propagation from limited functions
+  - In-flight tracking pattern: increment counter before async work, record max, decrement after, assert max <= limit
+  - Result ordering verified with items that have different processing times to ensure completion order differs from input order
+- **Learnings for future iterations:**
+  - mapWithConcurrency uses batch-based approach (slices of limit size processed with Promise.all), so in-flight count exactly equals batch size
+  - createConcurrencyLimiter uses queue-based approach (p-limit style), allowing more granular concurrency control
+  - AbortSignal is checked between batches, not during individual item processing
+  - Both utilities preserve result ordering: mapWithConcurrency via index tracking, createConcurrencyLimiter via Promise.all ordering
+---
