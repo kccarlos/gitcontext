@@ -384,3 +384,30 @@ Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-12.md
   - vi.restoreAllTimers() is not a valid Vitest API; use vi.useRealTimers() instead for fake timer cleanup
   - The desktop debounce does not have a cancel() method (unlike the web version); tests only cover the core debounce behavior
 ---
+
+## [2026-02-22 12:55] - clipboard-batch-select-comprehensive: Frontend: clipboardBatchSelect comprehensive tests
+Thread:
+Run: 20260222-104122-$ (iteration 13)
+Run log: /workspace/.ralph/runs/run-20260222-104122-$-iter-13.log
+Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-13.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 8bc3877 test(desktop): add comprehensive Vitest tests for clipboardBatchSelect
+- Post-commit status: clean
+- Verification:
+  - Command: npm --workspace apps/desktop run test -> PASS (171 tests, 19 clipboardBatchSelect)
+  - Command: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml -> PASS (44 tests)
+  - Command: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml -- -D warnings -> PASS
+  - Command: npm run web:build -> PASS
+- Files changed:
+  - apps/desktop/src/utils/clipboardBatchSelect.test.ts (14 new tests, 19 total)
+  - apps/desktop/src/utils/clipboardBatchSelect.ts (bug fix: trailing slash stripping)
+  - .codex/ralph-gitcontext/verify/clipboard-batch-select-comprehensive.md (verification report)
+- Added 14 new tests covering: Windows drive letter paths (C:\), case-insensitive matching, UNC paths (\\server\share), trailing slash stripping, whitespace-only line filtering, path deduplication, spaces and unicode in paths, relative ./paths, outsideRepoCount tracking, repo root rejection, end-to-end Windows path resolution
+- Fixed bug: normalizeClipboardPath did not strip trailing slashes from input paths (only repo root was stripped), causing inconsistent results for directory-like paths
+- **Learnings for future iterations:**
+  - clipboardBatchSelect already handles Windows drive letters via DRIVE_LETTER_ABS regex and case-insensitive comparison in equalForFs/startsWithForFs
+  - UNC paths (\\server\share) are normalized to //server/share which matches the startsWith('/') check in isAbsolutePath
+  - The resolveSelectablePaths function uses a Set for deduplication natively via matched.add()
+  - stripTrailingSlashes was already applied to repoRoot but not to the input line - this was the bug
+---
