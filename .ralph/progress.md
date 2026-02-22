@@ -494,3 +494,32 @@ Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-16.md
   - The component renders children unconditionally in a .tab-content div regardless of active tab, preserving content across switches
   - Active styling is applied via CSS class name 'active' on the tab-nav-item button
 ---
+
+## [2026-02-22 13:42:00] - token-counts-context-tests: Frontend: TokenCountsContext provider tests
+Thread:
+Run: 20260222-104122-$ (iteration 17)
+Run log: /workspace/.ralph/runs/run-20260222-104122-$-iter-17.log
+Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-17.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 165b5a5 test(desktop): add comprehensive Vitest tests for TokenCountsContext
+- Post-commit status: clean
+- Verification:
+  - Command: npm --workspace apps/desktop run test -> PASS (216 tests, 16 files, all passed)
+  - Command: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml -> PASS (44 passed)
+  - Command: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml -- -D warnings -> PASS
+  - Command: npm run web:build -> PASS
+- Files changed:
+  - apps/desktop/src/context/TokenCountsContext.test.tsx (created)
+  - .codex/ralph-gitcontext/verify/token-counts-context-tests.md (created)
+- What was implemented:
+  - 9 comprehensive Vitest tests for TokenCountsContext provider covering all acceptance criteria
+  - Tests cover: context availability via useContext, count updates on selectedPaths change, busy flag reflecting computation state, progress reports (completed/total/percent) via onBatch callback, total as sum of individual counts, unmount safety (no state-update-after-unmount warnings), progress percent edge cases (zero total, overflow), useTokenCountsContext throws outside provider, props forwarding to useTokenCounts
+  - Mock strategy: vi.mock of useTokenCounts hook, capturing onBatch callback for manual invocation in tests
+  - Consumer component pattern: renders context values as data-testid spans for assertion
+- **Learnings for future iterations:**
+  - Mocking useTokenCounts and capturing onBatch via the mock factory allows testing the provider's progress state management independently
+  - React 18+ silently ignores state updates on unmounted components (no warning), but the test still verifies no console.error warnings occur
+  - The provider's percent calculation clamps to [0, 100] and uses Math.round, so edge cases like 0/0 -> 100%, 10/5 -> 100% should be tested
+  - Testing context providers is best done with a Consumer component pattern that exposes context values via data-testid attributes
+---
