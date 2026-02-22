@@ -24,5 +24,8 @@ ignore = "0.4"
 notify = "6.1"
 notify-debouncer-full = "0.3"
 
+[dev-dependencies]
+tempfile = "3"
+
 [target."cfg(not(any(target_os = \"android\", target_os = \"ios\")))".dependencies]
 tauri-plugin-cli = "2.0"

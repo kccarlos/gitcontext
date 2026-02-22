@@ -62,9 +62,9 @@ pub fn open_repo(path: &str) -> Result<LoadRepoResult, String> {
         .branches(Some(git2::BranchType::Local))
         .map_err(|e| format!("Failed to list branches: {}", e))?
         .filter_map(|branch_result| {
-            branch_result.ok().and_then(|(branch, _)| {
-                branch.name().ok().flatten().map(|name| name.to_string())
-            })
+            branch_result
+                .ok()
+                .and_then(|(branch, _)| branch.name().ok().flatten().map(|name| name.to_string()))
         })
         .collect();
 
@@ -163,11 +163,15 @@ pub fn git_diff(path: &str, base: &str, compare: &str) -> Result<DiffResult, Str
 
     diff.foreach(
         &mut |delta, _progress| {
-            let new_path = delta.new_file().path()
+            let new_path = delta
+                .new_file()
+                .path()
                 .and_then(|p| p.to_str())
                 .map(|s| s.to_string());
 
-            let old_path = delta.old_file().path()
+            let old_path = delta
+                .old_file()
+                .path()
                 .and_then(|p| p.to_str())
                 .map(|s| s.to_string());
 
@@ -178,28 +182,24 @@ pub fn git_diff(path: &str, base: &str, compare: &str) -> Result<DiffResult, Str
                     } else {
                         (new_path.unwrap_or_default(), "add", None)
                     }
-                },
+                }
                 git2::Delta::Deleted => {
                     if invert_changes {
                         (old_path.unwrap_or_default(), "add", None)
                     } else {
                         (old_path.unwrap_or_default(), "remove", None)
                     }
-                },
-                git2::Delta::Modified => {
-                    (new_path.unwrap_or_default(), "modify", None)
-                },
+                }
+                git2::Delta::Modified => (new_path.unwrap_or_default(), "modify", None),
                 git2::Delta::Renamed => {
                     // For renames, store the new path as primary and old path separately
                     (new_path.clone().unwrap_or_default(), "rename", old_path)
-                },
+                }
                 git2::Delta::Copied => {
                     // For copies, store the new path as primary and old path separately
                     (new_path.clone().unwrap_or_default(), "copy", old_path)
-                },
-                _ => {
-                    (new_path.or(old_path).unwrap_or_default(), "modify", None)
-                },
+                }
+                _ => (new_path.or(old_path).unwrap_or_default(), "modify", None),
             };
 
             files.push(DiffFile {
@@ -350,7 +350,11 @@ pub fn resolve_ref(path: &str, ref_name: &str) -> Result<ResolveRefResult, Strin
 }
 
 /// Read file content at a specific ref
-pub fn read_file_blob(path: &str, ref_name: &str, file_path: &str) -> Result<ReadFileResult, String> {
+pub fn read_file_blob(
+    path: &str,
+    ref_name: &str,
+    file_path: &str,
+) -> Result<ReadFileResult, String> {
     // Handle WORKDIR sentinel - read from filesystem
     if ref_name == WORKDIR_SENTINEL {
         use std::fs;
@@ -362,7 +366,7 @@ pub fn read_file_blob(path: &str, ref_name: &str, file_path: &str) -> Result<Rea
             Ok(content) => {
                 // Check if binary (scan first 8KB for null bytes)
                 let check_len = content.len().min(8192);
-                let is_binary = content[..check_len].iter().any(|&b| b == 0);
+                let is_binary = content[..check_len].contains(&0);
 
                 if is_binary {
                     return Ok(ReadFileResult {
@@ -381,75 +385,72 @@ pub fn read_file_blob(path: &str, ref_name: &str, file_path: &str) -> Result<Rea
                     not_found: None,
                 })
             }
-            Err(_) => {
-                Ok(ReadFileResult {
-                    binary: false,
-                    text: None,
-                    not_found: Some(true),
-                })
-            }
-        }
-    } else {
-        // Normal Git blob reading
-        let repo = Repository::open(path).map_err(|e| format!("Failed to open repository: {}", e))?;
-
-    // Resolve ref to commit
-    let commit = repo
-        .revparse_single(ref_name)
-        .map_err(|e| format!("Failed to resolve ref '{}': {}", ref_name, e))?
-        .peel_to_commit()
-        .map_err(|e| format!("Failed to peel to commit: {}", e))?;
-
-    // Get tree from commit
-    let tree = commit
-        .tree()
-        .map_err(|e| format!("Failed to get tree: {}", e))?;
-
-    // Find the file in the tree
-    let entry = tree
-        .get_path(Path::new(file_path))
-        .map_err(|_| {
-            return ReadFileResult {
+            Err(_) => Ok(ReadFileResult {
                 binary: false,
                 text: None,
                 not_found: Some(true),
-            };
-        })
-        .ok();
+            }),
+        }
+    } else {
+        // Normal Git blob reading
+        let repo =
+            Repository::open(path).map_err(|e| format!("Failed to open repository: {}", e))?;
 
-    if entry.is_none() {
-        return Ok(ReadFileResult {
-            binary: false,
-            text: None,
-            not_found: Some(true),
-        });
-    }
+        // Resolve ref to commit
+        let commit = repo
+            .revparse_single(ref_name)
+            .map_err(|e| format!("Failed to resolve ref '{}': {}", ref_name, e))?
+            .peel_to_commit()
+            .map_err(|e| format!("Failed to peel to commit: {}", e))?;
 
-    let entry = entry.unwrap();
+        // Get tree from commit
+        let tree = commit
+            .tree()
+            .map_err(|e| format!("Failed to get tree: {}", e))?;
 
-    // Get the blob
-    let object = entry
-        .to_object(&repo)
-        .map_err(|e| format!("Failed to get object: {}", e))?;
+        // Find the file in the tree
+        let entry = tree
+            .get_path(Path::new(file_path))
+            .map_err(|_| ReadFileResult {
+                binary: false,
+                text: None,
+                not_found: Some(true),
+            })
+            .ok();
 
-    let blob = object
-        .as_blob()
-        .ok_or_else(|| format!("Path is not a file"))?;
+        if entry.is_none() {
+            return Ok(ReadFileResult {
+                binary: false,
+                text: None,
+                not_found: Some(true),
+            });
+        }
 
-    // Check if binary
-    let content = blob.content();
-    let is_binary = content.iter().any(|&b| b == 0);
+        let entry = entry.unwrap();
 
-    if is_binary {
-        return Ok(ReadFileResult {
-            binary: true,
-            text: None,
-            not_found: None,
-        });
-    }
+        // Get the blob
+        let object = entry
+            .to_object(&repo)
+            .map_err(|e| format!("Failed to get object: {}", e))?;
 
-    // Convert to UTF-8 string (use lossy conversion for non-UTF8 encodings like Latin-1)
-    let text = String::from_utf8_lossy(content).into_owned();
+        let blob = object
+            .as_blob()
+            .ok_or_else(|| "Path is not a file".to_string())?;
+
+        // Check if binary
+        let content = blob.content();
+        let is_binary = content.contains(&0);
+
+        if is_binary {
+            return Ok(ReadFileResult {
+                binary: true,
+                text: None,
+                not_found: None,
+            });
+        }
+
+        // Convert to UTF-8 string (use lossy conversion for non-UTF8 encodings like Latin-1)
+        let text = String::from_utf8_lossy(content).into_owned();
 
         Ok(ReadFileResult {
             binary: false,
@@ -462,15 +463,343 @@ pub fn read_file_blob(path: &str, ref_name: &str, file_path: &str) -> Result<Rea
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
 
-    // Note: These tests would need a test repository to run against
-    // For now, they serve as examples of how to test the git operations
+    /// Creates a temporary git repository with an initial commit on "main".
+    /// Returns the TempDir (keeps it alive) and the repo path as a String.
+    fn create_test_repo() -> (tempfile::TempDir, String) {
+        let tmp = tempfile::tempdir().expect("failed to create temp dir");
+        let repo_path = tmp.path().to_str().unwrap().to_string();
+
+        let repo = git2::Repository::init(&repo_path).expect("failed to init repo");
+
+        // Configure committer identity for the test repo
+        let mut config = repo.config().expect("failed to get config");
+        config.set_str("user.name", "Test").unwrap();
+        config.set_str("user.email", "test@test.com").unwrap();
+
+        // Create an initial commit so "main" branch exists
+        let sig = repo.signature().unwrap();
+        let tree_id = {
+            let mut index = repo.index().unwrap();
+            // Write an initial file so the tree is non-empty
+            let file_path = tmp.path().join("README.md");
+            fs::write(&file_path, "# Test Repo\n").unwrap();
+            index.add_path(std::path::Path::new("README.md")).unwrap();
+            index.write().unwrap();
+            index.write_tree().unwrap()
+        };
+        let tree = repo.find_tree(tree_id).unwrap();
+        repo.commit(
+            Some("refs/heads/main"),
+            &sig,
+            &sig,
+            "initial commit",
+            &tree,
+            &[],
+        )
+        .unwrap();
+
+        // Set HEAD to main
+        repo.set_head("refs/heads/main").unwrap();
+
+        (tmp, repo_path)
+    }
+
+    // ── open_repo tests ───────────────────────────────────────────────
 
     #[test]
-    fn test_open_repo_structure() {
-        // Test that the function signature is correct
-        // Actual test would need a valid repo path
+    fn test_open_repo_invalid_path() {
         let result = open_repo("/nonexistent/path");
         assert!(result.is_err());
+    }
+
+    // ── git_diff tests ────────────────────────────────────────────────
+
+    #[test]
+    fn test_diff_identical_branches_returns_empty() {
+        let (_tmp, repo_path) = create_test_repo();
+
+        // Diff main against itself should produce no changes
+        let result = git_diff(&repo_path, "main", "main").unwrap();
+        assert!(
+            result.files.is_empty(),
+            "identical branches should produce empty diff"
+        );
+    }
+
+    #[test]
+    fn test_diff_detects_added_files() {
+        let (_tmp, repo_path) = create_test_repo();
+        let repo = git2::Repository::open(&repo_path).unwrap();
+        let sig = repo.signature().unwrap();
+
+        // Create a feature branch from main
+        let main_commit = repo
+            .revparse_single("main")
+            .unwrap()
+            .peel_to_commit()
+            .unwrap();
+        repo.branch("feature-add", &main_commit, false).unwrap();
+
+        // Checkout feature branch and add a new file
+        repo.set_head("refs/heads/feature-add").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
+            .unwrap();
+
+        let new_file = std::path::Path::new(&repo_path).join("new_file.txt");
+        fs::write(&new_file, "new content\n").unwrap();
+
+        let mut index = repo.index().unwrap();
+        index
+            .add_path(std::path::Path::new("new_file.txt"))
+            .unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        repo.commit(
+            Some("refs/heads/feature-add"),
+            &sig,
+            &sig,
+            "add new file",
+            &tree,
+            &[&main_commit],
+        )
+        .unwrap();
+
+        let result = git_diff(&repo_path, "main", "feature-add").unwrap();
+        assert_eq!(result.files.len(), 1);
+        assert_eq!(result.files[0].path, "new_file.txt");
+        assert_eq!(result.files[0].change_type, "add");
+    }
+
+    #[test]
+    fn test_diff_detects_modified_files() {
+        let (_tmp, repo_path) = create_test_repo();
+        let repo = git2::Repository::open(&repo_path).unwrap();
+        let sig = repo.signature().unwrap();
+
+        let main_commit = repo
+            .revparse_single("main")
+            .unwrap()
+            .peel_to_commit()
+            .unwrap();
+        repo.branch("feature-modify", &main_commit, false).unwrap();
+        repo.set_head("refs/heads/feature-modify").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
+            .unwrap();
+
+        // Modify README.md
+        let readme = std::path::Path::new(&repo_path).join("README.md");
+        fs::write(&readme, "# Modified Repo\nSome extra content.\n").unwrap();
+
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("README.md")).unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        repo.commit(
+            Some("refs/heads/feature-modify"),
+            &sig,
+            &sig,
+            "modify readme",
+            &tree,
+            &[&main_commit],
+        )
+        .unwrap();
+
+        let result = git_diff(&repo_path, "main", "feature-modify").unwrap();
+        assert_eq!(result.files.len(), 1);
+        assert_eq!(result.files[0].path, "README.md");
+        assert_eq!(result.files[0].change_type, "modify");
+    }
+
+    #[test]
+    fn test_diff_detects_removed_files() {
+        let (_tmp, repo_path) = create_test_repo();
+        let repo = git2::Repository::open(&repo_path).unwrap();
+        let sig = repo.signature().unwrap();
+
+        let main_commit = repo
+            .revparse_single("main")
+            .unwrap()
+            .peel_to_commit()
+            .unwrap();
+        repo.branch("feature-remove", &main_commit, false).unwrap();
+        repo.set_head("refs/heads/feature-remove").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
+            .unwrap();
+
+        // Remove README.md
+        let readme = std::path::Path::new(&repo_path).join("README.md");
+        fs::remove_file(&readme).unwrap();
+
+        let mut index = repo.index().unwrap();
+        index
+            .remove_path(std::path::Path::new("README.md"))
+            .unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        repo.commit(
+            Some("refs/heads/feature-remove"),
+            &sig,
+            &sig,
+            "remove readme",
+            &tree,
+            &[&main_commit],
+        )
+        .unwrap();
+
+        let result = git_diff(&repo_path, "main", "feature-remove").unwrap();
+        assert_eq!(result.files.len(), 1);
+        assert_eq!(result.files[0].path, "README.md");
+        assert_eq!(result.files[0].change_type, "remove");
+    }
+
+    #[test]
+    fn test_diff_detects_renamed_files() {
+        let (_tmp, repo_path) = create_test_repo();
+        let repo = git2::Repository::open(&repo_path).unwrap();
+        let sig = repo.signature().unwrap();
+
+        let main_commit = repo
+            .revparse_single("main")
+            .unwrap()
+            .peel_to_commit()
+            .unwrap();
+        repo.branch("feature-rename", &main_commit, false).unwrap();
+        repo.set_head("refs/heads/feature-rename").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
+            .unwrap();
+
+        // Rename README.md → DOCS.md (same content so find_similar detects it)
+        let old_path = std::path::Path::new(&repo_path).join("README.md");
+        let new_path = std::path::Path::new(&repo_path).join("DOCS.md");
+        fs::rename(&old_path, &new_path).unwrap();
+
+        let mut index = repo.index().unwrap();
+        index
+            .remove_path(std::path::Path::new("README.md"))
+            .unwrap();
+        index.add_path(std::path::Path::new("DOCS.md")).unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        repo.commit(
+            Some("refs/heads/feature-rename"),
+            &sig,
+            &sig,
+            "rename readme to docs",
+            &tree,
+            &[&main_commit],
+        )
+        .unwrap();
+
+        let result = git_diff(&repo_path, "main", "feature-rename").unwrap();
+        assert_eq!(
+            result.files.len(),
+            1,
+            "rename should produce exactly 1 diff entry"
+        );
+        assert_eq!(result.files[0].change_type, "rename");
+        assert_eq!(result.files[0].path, "DOCS.md");
+        assert_eq!(
+            result.files[0].old_path.as_deref(),
+            Some("README.md"),
+            "old_path should contain the original filename"
+        );
+    }
+
+    #[test]
+    fn test_diff_workdir_detects_uncommitted_changes() {
+        let (_tmp, repo_path) = create_test_repo();
+        let repo = git2::Repository::open(&repo_path).unwrap();
+
+        // Checkout main so working directory matches
+        repo.set_head("refs/heads/main").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
+            .unwrap();
+
+        // Modify README.md in working directory (do NOT commit)
+        let readme = std::path::Path::new(&repo_path).join("README.md");
+        fs::write(&readme, "# Changed in workdir\n").unwrap();
+
+        let result = git_diff(&repo_path, "main", WORKDIR_SENTINEL).unwrap();
+        assert!(
+            !result.files.is_empty(),
+            "WORKDIR diff should detect uncommitted changes"
+        );
+
+        let modified = result.files.iter().find(|f| f.path == "README.md");
+        assert!(modified.is_some(), "should find modified README.md");
+        assert_eq!(modified.unwrap().change_type, "modify");
+    }
+
+    #[test]
+    fn test_diff_nonexistent_branch_returns_error() {
+        let (_tmp, repo_path) = create_test_repo();
+
+        let result = git_diff(&repo_path, "main", "nonexistent-branch");
+        assert!(
+            result.is_err(),
+            "diffing against a nonexistent branch should error"
+        );
+        let err_msg = result.unwrap_err();
+        assert!(
+            err_msg.contains("Failed to resolve"),
+            "error should mention resolution failure, got: {}",
+            err_msg
+        );
+    }
+
+    #[test]
+    fn test_diff_binary_files_detected() {
+        let (_tmp, repo_path) = create_test_repo();
+        let repo = git2::Repository::open(&repo_path).unwrap();
+        let sig = repo.signature().unwrap();
+
+        let main_commit = repo
+            .revparse_single("main")
+            .unwrap()
+            .peel_to_commit()
+            .unwrap();
+        repo.branch("feature-binary", &main_commit, false).unwrap();
+        repo.set_head("refs/heads/feature-binary").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
+            .unwrap();
+
+        // Add a binary file (contains null bytes)
+        let bin_path = std::path::Path::new(&repo_path).join("image.png");
+        let binary_content: Vec<u8> = vec![0x89, 0x50, 0x4E, 0x47, 0x00, 0x00, 0x00, 0x01];
+        fs::write(&bin_path, &binary_content).unwrap();
+
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("image.png")).unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        repo.commit(
+            Some("refs/heads/feature-binary"),
+            &sig,
+            &sig,
+            "add binary file",
+            &tree,
+            &[&main_commit],
+        )
+        .unwrap();
+
+        // The diff should detect the binary file as an added file
+        let result = git_diff(&repo_path, "main", "feature-binary").unwrap();
+        let bin_file = result.files.iter().find(|f| f.path == "image.png");
+        assert!(bin_file.is_some(), "binary file should appear in diff");
+        assert_eq!(bin_file.unwrap().change_type, "add");
+
+        // Also verify read_file_blob marks it as binary
+        let blob = read_file_blob(&repo_path, "feature-binary", "image.png").unwrap();
+        assert!(
+            blob.binary,
+            "image.png should be detected as binary by read_file_blob"
+        );
     }
 }
