@@ -127,3 +127,35 @@ Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-4.md
   - The refactoring pattern (extract pure function + test it) preserves exact behavior while enabling comprehensive testing
   - Pre-existing cargo fmt issues in other files should be fixed as part of the quality gates
 ---
+
+## 2026-02-22 - tauri-git-service: Frontend: TauriGitService unit tests
+Thread: claude session
+Run: 20260222-104122-$ (iteration 5)
+Run log: /workspace/.ralph/runs/run-20260222-104122-$-iter-5.log
+Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-5.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 05d2ece test(desktop): add comprehensive Vitest tests for TauriGitService
+- Post-commit status: pre-existing uncommitted files only (.agents/tasks/prd.json, linux-schema.json)
+- Verification:
+  - Command: `npm --workspace apps/desktop run test` -> PASS (63 tests, 18 new)
+  - Command: `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml` -> PASS (44 tests)
+  - Command: `cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml -- -D warnings` -> PASS
+  - Command: `npm run web:build` -> PASS
+- Files changed:
+  - apps/desktop/src/services/TauriGitService.test.ts (new, 18 tests)
+  - .codex/ralph-gitcontext/verify/tauri-git-service.md (verification report)
+- What was implemented:
+  - 18 comprehensive Vitest unit tests for the TauriGitService class
+  - Mocked @tauri-apps/api/core invoke function using vi.mock
+  - Tests cover all 7 GitService interface methods: loadRepo, listBranches, getDiff, readFile, listFiles, listFilesWithOids, resolveRef
+  - Dispose tests: close_repo invocation, no-op when no repo, path cleared even on failure
+  - Error propagation: invoke rejections propagate for loadRepo and getDiff
+  - Singleton/reuse: same instance reuses path, allows new repo after dispose
+  - readFile field mapping: not_found -> notFound, binary files, missing files
+- **Learnings for future iterations:**
+  - vi.mock must be called at module level before imports for Vitest hoisting to work correctly
+  - vi.mocked(invoke) provides proper typing for mock assertions
+  - Each test needs to loadRepo first since the service requires repoPath to be set
+  - mockClear() between loadRepo and the method under test keeps assertions clean
+---
