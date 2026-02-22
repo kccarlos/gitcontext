@@ -689,3 +689,37 @@ Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-22.md
   - getWorkspaceSelectionRestore partitions saved paths into matched/missing based on available paths
   - upsertWorkspace handles both create and update via path or ID matching
 ---
+
+## [2026-02-22 14:52] - logger-util-tests: Frontend: logger utility tests
+Thread:
+Run: 20260222-104122-$ (iteration 23)
+Run log: /workspace/.ralph/runs/run-20260222-104122-$-iter-23.log
+Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-23.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: b3abfde test(desktop): add logger utility unit tests
+- Post-commit status: clean (only .agents/tasks/prd.json modified — expected)
+- Verification:
+  - Command: npm --workspace apps/desktop run test -> PASS (294 tests, 21 files)
+  - Command: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml -> PASS (44 tests)
+  - Command: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml -- -D warnings -> PASS
+  - Command: npm run web:build -> PASS
+- Files changed:
+  - apps/desktop/src/utils/logger.test.ts (new, 6 tests)
+- What was implemented:
+  - Created 6 Vitest tests for the logError function in logger.ts
+  - Tests cover all acceptance criteria:
+    1. Error objects: verifies console.error called with `[source]` prefix and Error object, extracts `.message` for errorLog
+    2. String errors: verifies string used directly as the message in errorLog
+    3. Non-Error non-string values: objects (String() -> '[object Object]'), null ('null'), undefined ('undefined')
+    4. Error code formatting: verifies `[CODE]` prefix in console.error output
+    5. console.error mock verifies exact output format for all cases
+    6. Bonus: errorLog cap at 100 entries (oldest shifted out)
+  - Mocked console.error with vi.spyOn to verify output format
+  - Shared errorLog cleared between tests for isolation
+- **Learnings for future iterations:**
+  - logError uses `String(error)` for non-Error values, which produces '[object Object]' for plain objects
+  - The errorLog is a module-level mutable array — tests must clear it with `.length = 0` in beforeEach
+  - console.error is wrapped in try/catch in the source, so it won't throw even if mocked badly
+  - errorLog has a 100-entry cap with FIFO eviction via shift()
+---
