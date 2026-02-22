@@ -723,3 +723,28 @@ Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-23.md
   - console.error is wrapped in try/catch in the source, so it won't throw even if mocked badly
   - errorLog has a 100-entry cap with FIFO eviction via shift()
 ---
+
+## [2026-02-22T15:00] - diff-control-bar-comprehensive: Frontend: DiffControlBar comprehensive interaction tests
+Thread:
+Run: 20260222-104122-$ (iteration 24)
+Run log: /workspace/.ralph/runs/run-20260222-104122-$-iter-24.log
+Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-24.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 7789299 test(desktop): add DiffControlBar comprehensive interaction tests
+- Post-commit status: clean
+- Verification:
+  - Command: npm --workspace apps/desktop run test -> PASS (307 tests, 21 files)
+  - Command: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml -> PASS (44 tests)
+  - Command: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml -- -D warnings -> PASS
+  - Command: npm run web:build -> PASS
+- Files changed:
+  - apps/desktop/src/components/DiffControlBar.test.tsx (expanded from 19 to 32 tests)
+- What was implemented:
+  - Added 13 new interaction tests to DiffControlBar.test.tsx for a total of 32 tests
+  - New tests cover: delete button enable/disable based on workspace selection, save button disabled without path, unsaved workspace label variants, workspace option display format, fallback for unknown workspace IDs, workspace selector title attribute, WORKDIR in base selector, comprehensive enabled/disabled states, disabled prop overriding individual conditions
+- **Learnings for future iterations:**
+  - The existing test file had 19 tests (not 23 as stated in story). The 28 target was still met and exceeded.
+  - DiffControlBar uses conditional rendering for unsaved/fallback options in the workspace selector
+  - The workspace title attribute uses selectedWorkspace.path falling back to currentWorkspacePath
+---
