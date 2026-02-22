@@ -1051,4 +1051,340 @@ mod tests {
         assert_eq!(result.text, None, "binary workdir file should have no text");
         assert_eq!(result.not_found, None);
     }
+
+    // ── list_files tests ────────────────────────────────────────────────
+
+    #[test]
+    fn test_list_files_returns_all_committed_files() {
+        let (_tmp, repo_path) = create_test_repo();
+
+        // The test repo has only README.md committed on main
+        let result = list_files(&repo_path, "main").unwrap();
+        assert_eq!(result.files, vec!["README.md"]);
+    }
+
+    #[test]
+    fn test_list_files_nested_directories_flatten_to_full_paths() {
+        let (_tmp, repo_path) = create_test_repo();
+        let repo = git2::Repository::open(&repo_path).unwrap();
+        let sig = repo.signature().unwrap();
+
+        let main_commit = repo
+            .revparse_single("main")
+            .unwrap()
+            .peel_to_commit()
+            .unwrap();
+        repo.branch("feature-nested", &main_commit, false).unwrap();
+        repo.set_head("refs/heads/feature-nested").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
+            .unwrap();
+
+        // Create nested directory structure: src/lib/util.rs and src/main.rs
+        let src_dir = std::path::Path::new(&repo_path).join("src");
+        let lib_dir = src_dir.join("lib");
+        fs::create_dir_all(&lib_dir).unwrap();
+        fs::write(src_dir.join("main.rs"), "fn main() {}\n").unwrap();
+        fs::write(lib_dir.join("util.rs"), "pub fn helper() {}\n").unwrap();
+
+        let mut index = repo.index().unwrap();
+        index
+            .add_path(std::path::Path::new("src/main.rs"))
+            .unwrap();
+        index
+            .add_path(std::path::Path::new("src/lib/util.rs"))
+            .unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        repo.commit(
+            Some("refs/heads/feature-nested"),
+            &sig,
+            &sig,
+            "add nested files",
+            &tree,
+            &[&main_commit],
+        )
+        .unwrap();
+
+        let result = list_files(&repo_path, "feature-nested").unwrap();
+        let mut files = result.files.clone();
+        files.sort();
+
+        assert_eq!(
+            files,
+            vec!["README.md", "src/lib/util.rs", "src/main.rs"],
+            "nested directories should be flattened to full paths with forward slashes"
+        );
+    }
+
+    #[test]
+    fn test_list_files_empty_tree_returns_empty_list() {
+        let tmp = tempfile::tempdir().expect("failed to create temp dir");
+        let repo_path = tmp.path().to_str().unwrap().to_string();
+
+        let repo = git2::Repository::init(&repo_path).expect("failed to init repo");
+
+        // Configure committer identity
+        let mut config = repo.config().expect("failed to get config");
+        config.set_str("user.name", "Test").unwrap();
+        config.set_str("user.email", "test@test.com").unwrap();
+
+        // Create a commit with an empty tree (no files)
+        let sig = repo.signature().unwrap();
+        let empty_tree_id = repo.treebuilder(None).unwrap().write().unwrap();
+        let empty_tree = repo.find_tree(empty_tree_id).unwrap();
+        repo.commit(
+            Some("refs/heads/main"),
+            &sig,
+            &sig,
+            "empty commit",
+            &empty_tree,
+            &[],
+        )
+        .unwrap();
+        repo.set_head("refs/heads/main").unwrap();
+
+        let result = list_files(&repo_path, "main").unwrap();
+        assert!(
+            result.files.is_empty(),
+            "empty tree should return empty file list"
+        );
+    }
+
+    #[test]
+    fn test_list_files_workdir_returns_filesystem_files() {
+        let (_tmp, repo_path) = create_test_repo();
+        let repo = git2::Repository::open(&repo_path).unwrap();
+
+        repo.set_head("refs/heads/main").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
+            .unwrap();
+
+        // Add an extra untracked file to the working directory
+        let extra_path = std::path::Path::new(&repo_path).join("extra.txt");
+        fs::write(&extra_path, "extra content\n").unwrap();
+
+        let result = list_files(&repo_path, WORKDIR_SENTINEL).unwrap();
+        assert!(
+            result.files.contains(&"README.md".to_string()),
+            "WORKDIR should include tracked files"
+        );
+        assert!(
+            result.files.contains(&"extra.txt".to_string()),
+            "WORKDIR should include untracked files"
+        );
+    }
+
+    #[test]
+    fn test_list_files_workdir_respects_gitignore() {
+        let (_tmp, repo_path) = create_test_repo();
+        let repo = git2::Repository::open(&repo_path).unwrap();
+        let sig = repo.signature().unwrap();
+
+        let main_commit = repo
+            .revparse_single("main")
+            .unwrap()
+            .peel_to_commit()
+            .unwrap();
+
+        // Add a .gitignore that ignores *.log files
+        let gitignore_path = std::path::Path::new(&repo_path).join(".gitignore");
+        fs::write(&gitignore_path, "*.log\nbuild/\n").unwrap();
+
+        let mut index = repo.index().unwrap();
+        index
+            .add_path(std::path::Path::new(".gitignore"))
+            .unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        repo.commit(
+            Some("refs/heads/main"),
+            &sig,
+            &sig,
+            "add gitignore",
+            &tree,
+            &[&main_commit],
+        )
+        .unwrap();
+
+        repo.set_head("refs/heads/main").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
+            .unwrap();
+
+        // Create files: one ignored, one not
+        let log_path = std::path::Path::new(&repo_path).join("debug.log");
+        fs::write(&log_path, "log line\n").unwrap();
+
+        let build_dir = std::path::Path::new(&repo_path).join("build");
+        fs::create_dir_all(&build_dir).unwrap();
+        fs::write(build_dir.join("output.js"), "var x = 1;\n").unwrap();
+
+        let src_path = std::path::Path::new(&repo_path).join("src.rs");
+        fs::write(&src_path, "fn main() {}\n").unwrap();
+
+        let result = list_files(&repo_path, WORKDIR_SENTINEL).unwrap();
+        assert!(
+            result.files.contains(&"src.rs".to_string()),
+            "non-ignored files should be listed"
+        );
+        assert!(
+            !result.files.contains(&"debug.log".to_string()),
+            ".gitignore should exclude *.log files"
+        );
+        assert!(
+            !result.files.contains(&"build/output.js".to_string()),
+            ".gitignore should exclude build/ directory"
+        );
+    }
+
+    // ── list_files_with_oids tests ──────────────────────────────────────
+
+    #[test]
+    fn test_list_files_with_oids_returns_valid_oid_strings() {
+        let (_tmp, repo_path) = create_test_repo();
+
+        let result = list_files_with_oids(&repo_path, "main").unwrap();
+        assert_eq!(
+            result.files.len(),
+            1,
+            "test repo has one committed file on main"
+        );
+
+        let file = &result.files[0];
+        assert_eq!(file.path, "README.md");
+        // OIDs are 40-character hex strings
+        assert_eq!(
+            file.oid.len(),
+            40,
+            "OID should be 40 characters, got: {}",
+            file.oid
+        );
+        assert!(
+            file.oid.chars().all(|c| c.is_ascii_hexdigit()),
+            "OID should be valid hex string, got: {}",
+            file.oid
+        );
+    }
+
+    #[test]
+    fn test_list_files_with_oids_multiple_files() {
+        let (_tmp, repo_path) = create_test_repo();
+        let repo = git2::Repository::open(&repo_path).unwrap();
+        let sig = repo.signature().unwrap();
+
+        let main_commit = repo
+            .revparse_single("main")
+            .unwrap()
+            .peel_to_commit()
+            .unwrap();
+        repo.branch("multi-files", &main_commit, false).unwrap();
+        repo.set_head("refs/heads/multi-files").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
+            .unwrap();
+
+        // Add multiple files
+        fs::write(
+            std::path::Path::new(&repo_path).join("a.txt"),
+            "file a\n",
+        )
+        .unwrap();
+        fs::write(
+            std::path::Path::new(&repo_path).join("b.txt"),
+            "file b\n",
+        )
+        .unwrap();
+
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("a.txt")).unwrap();
+        index.add_path(std::path::Path::new("b.txt")).unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        repo.commit(
+            Some("refs/heads/multi-files"),
+            &sig,
+            &sig,
+            "add multiple files",
+            &tree,
+            &[&main_commit],
+        )
+        .unwrap();
+
+        let result = list_files_with_oids(&repo_path, "multi-files").unwrap();
+        let mut paths: Vec<&str> = result.files.iter().map(|f| f.path.as_str()).collect();
+        paths.sort();
+        assert_eq!(paths, vec!["README.md", "a.txt", "b.txt"]);
+
+        // All OIDs should be valid 40-char hex
+        for file in &result.files {
+            assert_eq!(file.oid.len(), 40, "OID for {} should be 40 chars", file.path);
+            assert!(
+                file.oid.chars().all(|c| c.is_ascii_hexdigit()),
+                "OID for {} should be valid hex",
+                file.path
+            );
+        }
+
+        // Different file contents should have different OIDs
+        let oid_a = result.files.iter().find(|f| f.path == "a.txt").unwrap();
+        let oid_b = result.files.iter().find(|f| f.path == "b.txt").unwrap();
+        assert_ne!(
+            oid_a.oid, oid_b.oid,
+            "files with different content should have different OIDs"
+        );
+    }
+
+    // ── resolve_ref tests ───────────────────────────────────────────────
+
+    #[test]
+    fn test_resolve_ref_valid_branch_resolves_to_oid() {
+        let (_tmp, repo_path) = create_test_repo();
+
+        let result = resolve_ref(&repo_path, "main").unwrap();
+        assert_eq!(
+            result.oid.len(),
+            40,
+            "resolved OID should be 40 characters, got: {}",
+            result.oid
+        );
+        assert!(
+            result.oid.chars().all(|c| c.is_ascii_hexdigit()),
+            "resolved OID should be valid hex, got: {}",
+            result.oid
+        );
+    }
+
+    #[test]
+    fn test_resolve_ref_invalid_ref_returns_error() {
+        let (_tmp, repo_path) = create_test_repo();
+
+        let result = resolve_ref(&repo_path, "nonexistent-branch");
+        assert!(
+            result.is_err(),
+            "resolving a nonexistent ref should return an error"
+        );
+        let err_msg = result.unwrap_err();
+        assert!(
+            err_msg.contains("Failed to resolve"),
+            "error should mention resolution failure, got: {}",
+            err_msg
+        );
+    }
+
+    #[test]
+    fn test_resolve_ref_head_resolves_correctly() {
+        let (_tmp, repo_path) = create_test_repo();
+
+        // HEAD should resolve to the same OID as main (since HEAD points to main)
+        let head_result = resolve_ref(&repo_path, "HEAD").unwrap();
+        let main_result = resolve_ref(&repo_path, "main").unwrap();
+
+        assert_eq!(
+            head_result.oid, main_result.oid,
+            "HEAD and main should resolve to the same OID"
+        );
+        assert_eq!(head_result.oid.len(), 40);
+        assert!(head_result.oid.chars().all(|c| c.is_ascii_hexdigit()));
+    }
 }
