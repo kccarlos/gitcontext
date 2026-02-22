@@ -353,3 +353,34 @@ Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-11.md
   - AbortSignal is checked between batches, not during individual item processing
   - Both utilities preserve result ordering: mapWithConcurrency via index tracking, createConcurrencyLimiter via Promise.all ordering
 ---
+
+## 2026-02-22 - debounce-util-tests: Frontend: debounce utility tests
+Thread: claude session
+Run: 20260222-104122-$ (iteration 12)
+Run log: /workspace/.ralph/runs/run-20260222-104122-$-iter-12.log
+Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-12.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 71b5c5f test(desktop): add comprehensive Vitest tests for debounce utility
+- Post-commit status: clean
+- Verification:
+  - Command: `npm --workspace apps/desktop run test` -> PASS (157 tests, 6 new)
+  - Command: `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml` -> PASS (44 tests)
+  - Command: `cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml -- -D warnings` -> PASS
+  - Command: `npm run web:build` -> PASS
+- Files changed:
+  - apps/desktop/src/utils/debounce.test.ts (new, 6 tests)
+- What was implemented:
+  - 6 comprehensive Vitest tests for the debounce utility function:
+    - Single invocation after burst: 5 rapid calls within delay only invoke once after timer expires
+    - Correct arguments: final call's arguments ('third') are used, not earlier calls
+    - Timer reset: rapid calls at 80ms intervals reset the 100ms timer, delaying execution
+    - Delay expiration: function fires exactly at the delay boundary (299ms no fire, 300ms fires)
+    - Returned function callable: two independent debounce cycles both invoke correctly
+    - Multiple arguments: complex argument types (number, string, object) passed correctly
+  - All tests use vi.useFakeTimers() for deterministic timing control
+  - vi.useRealTimers() in afterEach for cleanup
+- **Learnings for future iterations:**
+  - vi.restoreAllTimers() is not a valid Vitest API; use vi.useRealTimers() instead for fake timer cleanup
+  - The desktop debounce does not have a cancel() method (unlike the web version); tests only cover the core debounce behavior
+---
