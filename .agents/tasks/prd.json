@@ -349,11 +349,13 @@
         "All tests pass with `npm --workspace apps/desktop run test`"
       ],
       "attempts": 1,
-      "status": "in_progress",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "startedAt": "2026-02-22T13:13:56.868643+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-22T13:13:56.868668+00:00"
+      "completedAt": "2026-02-22T13:24:53.650886+00:00",
+      "updatedAt": "2026-02-22T13:24:53.650886+00:00",
+      "skipped": false,
+      "notes": "Completion + verification gate passed."
     },
     {
       "id": "right-panel-tabs-tests",
@@ -366,7 +368,13 @@
         "At least 5 tests covering: tab rendering, badge count, tab switching, active styling, children rendering",
         "Tab IDs 'files' and 'settings' verified",
         "All tests pass with `npm --workspace apps/desktop run test`"
-      ]
+      ],
+      "attempts": 1,
+      "status": "in_progress",
+      "passes": false,
+      "startedAt": "2026-02-22T13:24:56.019225+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-22T13:24:56.019274+00:00"
     },
     {
       "id": "token-counts-context-tests",
