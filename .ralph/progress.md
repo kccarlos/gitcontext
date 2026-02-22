@@ -257,3 +257,32 @@ Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-8.md
   - The hook uses mapWithConcurrency which processes in batches; progress callbacks fire at batch boundaries
   - Cancellation test uses unmount() which triggers the effect cleanup (abortController.abort())
 ---
+
+## 2026-02-22 - diff-util-tests: Frontend: diff utility tests
+Thread: claude session
+Run: 20260222-104122-$ (iteration 9)
+Run log: /workspace/.ralph/runs/run-20260222-104122-$-iter-9.log
+Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-9.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 177218b test(desktop): add comprehensive Vitest tests for diff utilities
+- Post-commit status: clean
+- Verification:
+  - Command: `npm --workspace apps/desktop run test` -> PASS (129 tests, 25 new)
+  - Command: `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml` -> PASS (44 tests)
+  - Command: `cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml -- -D warnings` -> PASS
+  - Command: `npm run web:build` -> PASS
+- Files changed:
+  - apps/desktop/src/utils/diff.test.ts (new, 25 tests)
+- What was implemented:
+  - 25 comprehensive Vitest tests for createUnifiedDiffForPath (13 tests) and buildUnifiedDiffForStatus (12 tests)
+  - createUnifiedDiffForPath tests: modified file diff, added file (all additions), removed file (all deletions), unchanged (identical content → no hunks), CRLF normalization, stable CRLF-both-sides diff, context=0 (only changed lines), context=3 (3 lines around change), context=999 (full file), empty files, no trailing newline, output always ends with newline
+  - buildUnifiedDiffForStatus tests: modify, add, remove, unchanged text, unchanged binary (null), unchanged empty (null), binary modify (base/compare), binary add, binary remove, context option passthrough, notFound base side, CRLF through status wrapper
+  - Context lines verification: context=0 has no context lines in hunk, context=3 shows exactly 3 lines, context=999 shows all file lines
+  - CRLF normalization verified: \r\n → \n produces stable diffs, mixed line endings handled correctly
+- **Learnings for future iterations:**
+  - The `diff` library's createTwoFilesPatch produces no hunks (no @@ markers) when both inputs are identical after normalization
+  - ensureFinalNewline ensures output always ends with \n even when the diff library output doesn't
+  - buildUnifiedDiffForStatus returns `oldText || null` for unchanged status, so empty string returns null
+  - Binary detection is per-side: modify returns null if either side is binary
+---
