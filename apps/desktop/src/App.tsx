@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import { ChevronsDown, ChevronsUp, CheckSquare, Square, Sun, Moon, Folder, FolderGit2, ListChecks, Copy, ArrowLeftRight, Trash2 } from 'lucide-react'
 import { FileTreeView, PreviewModal, GitHubStarIconButton, BugIconButton } from '@gitcontext/ui'
-import { type FileDiffStatus, isBinaryPath, MAX_CONCURRENT_READS } from '@gitcontext/core'
+import { type FileDiffStatus, MAX_CONCURRENT_READS } from '@gitcontext/core'
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { useGitRepository } from './hooks/useGitRepository'
 import { useFileTree } from './hooks/useFileTree'
@@ -16,7 +16,7 @@ import { ContextFooter } from './components/ContextFooter'
 import { getModels } from './utils/models'
 import type { ModelInfo } from './types/models'
 import type { AppStatus } from './types/appStatus'
-import { buildUnifiedDiffForStatus } from './utils/diff'
+import { generateFileTreeText, buildHeader, buildFileSection } from './utils/copyOutput'
 import { countTokens } from './utils/tokenizer'
 import { TokenCountsProvider } from './context/TokenCountsContext'
 import { mapWithConcurrency } from './utils/concurrency'
@@ -694,79 +694,26 @@ function AppContent() {
       // Generate file tree if requested (only for selected files)
       let fileTreeText = ''
       if (includeFileTree && fileTree && selectedPaths.size > 0) {
-        const lines: string[] = ['```', '📦 Repository Structure', '']
-
-        // Helper to check if a directory contains any selected files
-        const hasSelectedFiles = (node: any): boolean => {
-          if (node.type === 'file') {
-            return selectedPaths.has(node.path)
-          }
-          if (node.children) {
-            return node.children.some((child: any) => hasSelectedFiles(child))
-          }
-          return false
-        }
-
-        const walk = (node: any, depth: number) => {
-          // Only include directories that contain selected files, or files that are selected
-          if (node.type === 'file' && !selectedPaths.has(node.path)) {
-            return
-          }
-          if (node.type === 'dir' && !hasSelectedFiles(node)) {
-            return
-          }
-
-          if (depth > 0) {
-            const indent = '  '.repeat(depth - 1)
-            const icon = node.type === 'dir' ? '📁' : '📄'
-            const status = node.status ? ` [${node.status.toUpperCase()}]` : ''
-            lines.push(`${indent}${icon} ${node.name}${status}`)
-          }
-
-          if (node.children) {
-            for (const child of node.children) {
-              walk(child, depth + 1)
-            }
-          }
-        }
-        walk(fileTree, 0)
-        lines.push('```', '')
-        fileTreeText = lines.join('\n')
+        fileTreeText = generateFileTreeText(fileTree, selectedPaths)
       }
 
       // Build header
-      const header = [
-        `# Git Diff Context: ${baseBranch} → ${compareBranch}`,
-        '',
-        `Repository: ${currentDir || 'Unknown'}`,
-        `Base: ${baseBranch}`,
-        `Compare: ${compareBranch}`,
-        `Files: ${paths.length}`,
-        '',
-      ]
+      const headerText = buildHeader({
+        baseBranch,
+        compareBranch,
+        currentDir: currentDir || '',
+        fileCount: paths.length,
+        userInstructions,
+        fileTreeText,
+      })
 
-      if (userInstructions.trim()) {
-        header.push('## Instructions', '', userInstructions.trim(), '')
-      }
-
-      if (fileTreeText) {
-        header.push('## File Tree', '', fileTreeText)
-      }
-
-      header.push('## Diffs', '')
-
-      const output = [header.join('\n')]
+      const output = [headerText]
 
       // Fetch file contents with bounded concurrency
       const results = await mapWithConcurrency(
         paths,
         async (path) => {
           const status = statusByPath.get(path) ?? 'unchanged'
-          const looksBinary = isBinaryPath(path)
-
-          if (looksBinary) {
-            return `## FILE: ${path} (${status.toUpperCase()})\n\n[Binary file]\n\n`
-          }
 
           const needBase = status !== 'add'
           const needCompare = status !== 'remove'
@@ -775,21 +722,7 @@ function AppContent() {
             needCompare ? gitClient.readFile(compareBranch, path) : Promise.resolve(undefined),
           ])
 
-          if (status === 'modify' || status === 'add' || status === 'remove') {
-            const isBinary = Boolean((baseRes as any)?.binary) || Boolean((compareRes as any)?.binary)
-            if (isBinary) {
-              return `## FILE: ${path} (${status.toUpperCase()})\n\n[Binary file]\n\n`
-            }
-            if (status === 'add' && ctx === Number.MAX_SAFE_INTEGER) {
-              return `## FILE: ${path} (ADD)\n\n\`\`\`\n${(compareRes as any)?.text ?? ''}\n\`\`\`\n\n`
-            }
-            const diffText = buildUnifiedDiffForStatus(status, path, baseRes as any, compareRes as any, { context: ctx })
-            return diffText ? `## FILE: ${path} (${status.toUpperCase()})\n\n\`\`\`diff\n${diffText}\n\`\`\`\n\n` : ''
-          } else {
-            const isBinary = Boolean((baseRes as any)?.binary)
-            const text = isBinary || (baseRes as any)?.notFound ? '' : (baseRes as any)?.text ?? ''
-            return text ? `## FILE: ${path} (UNCHANGED)\n\n\`\`\`\n${text}\n\`\`\`\n\n` : ''
-          }
+          return buildFileSection(path, status, baseRes, compareRes, ctx)
         },
         { limit: MAX_CONCURRENT_READS }
       )
