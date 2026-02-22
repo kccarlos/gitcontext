@@ -286,3 +286,40 @@ Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-9.md
   - buildUnifiedDiffForStatus returns `oldText || null` for unchanged status, so empty string returns null
   - Binary detection is per-side: modify returns null if either side is binary
 ---
+
+## 2026-02-22 - workspace-store-comprehensive: Frontend: workspaceStore comprehensive tests
+Thread: claude session
+Run: 20260222-104122-$ (iteration 10)
+Run log: /workspace/.ralph/runs/run-20260222-104122-$-iter-10.log
+Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-10.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: eafb12a test(desktop): add comprehensive Vitest tests for workspaceStore
+- Post-commit status: clean (only pre-existing .agents/tasks/prd.json modified)
+- Verification:
+  - Command: `npm --workspace apps/desktop run test` -> PASS (141 tests, 16 workspaceStore tests)
+  - Command: `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml` -> PASS (44 tests)
+  - Command: `cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml -- -D warnings` -> PASS
+  - Command: `npm run web:build` -> PASS
+- Files changed:
+  - apps/desktop/src/utils/workspaceStore.test.ts (expanded from 4 to 16 tests)
+- What was implemented:
+  - 12 new tests (16 total) for the workspaceStore covering all acceptance criteria:
+    - upsertWorkspace with existing ID updates rather than creates duplicate
+    - upsertWorkspace by path match prevents duplicates (no explicit ID needed)
+    - removeWorkspace with non-existent ID is a no-op (count/activeId unchanged)
+    - removeWorkspace clears activeWorkspaceId when removing the active workspace
+    - getWorkspaceSelectionRestore is case-sensitive (src/App.tsx != src/app.tsx)
+    - MAX_PERSISTED_SELECTIONS (5000) limit enforced (5100 paths truncated to 5000)
+    - listWorkspaceItems returns sorted by lastOpenedAt descending
+    - setActiveWorkspace/getWorkspaceById round-trips (set, clear with '', restore)
+    - corrupt localStorage data handled gracefully (8 variants all return empty store)
+    - workspace session settings merge with defaults (missing keys filled in)
+    - findWorkspaceByPath matches exact paths only (no substring, trailing slash normalized)
+    - save/load round-trip preserves all session data (branches, paths, settings, activeTab)
+- **Learnings for future iterations:**
+  - findWorkspaceByPath uses toPathLookupKey() which lowercases paths, so lookups are case-insensitive (Windows-compatible)
+  - getWorkspaceSelectionRestore uses normalizeSelection which does NOT lowercase, making it case-sensitive by design
+  - MAX_PERSISTED_SELECTIONS is not exported, but can be tested by passing >5000 paths and verifying truncation
+  - corrupt localStorage variants include invalid JSON, wrong types, empty fields — all handled gracefully by sanitize functions
+---
