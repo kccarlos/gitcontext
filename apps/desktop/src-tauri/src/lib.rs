@@ -1,6 +1,6 @@
+use std::sync::Mutex;
 #[cfg(debug_assertions)]
 use tauri::Manager;
-use std::sync::Mutex;
 
 mod git;
 mod watcher;
@@ -51,7 +51,11 @@ fn git_diff(path: String, base: String, compare: String) -> Result<git::DiffResu
 }
 
 #[tauri::command]
-fn read_file_blob(path: String, ref_name: String, file_path: String) -> Result<git::ReadFileResult, String> {
+fn read_file_blob(
+    path: String,
+    ref_name: String,
+    file_path: String,
+) -> Result<git::ReadFileResult, String> {
     git::read_file_blob(&path, &ref_name, &file_path)
 }
 
@@ -61,7 +65,10 @@ fn list_files(path: String, ref_name: String) -> Result<git::ListFilesResult, St
 }
 
 #[tauri::command]
-fn list_files_with_oids(path: String, ref_name: String) -> Result<git::ListFilesWithOidsResult, String> {
+fn list_files_with_oids(
+    path: String,
+    ref_name: String,
+) -> Result<git::ListFilesWithOidsResult, String> {
     git::list_files_with_oids(&path, &ref_name)
 }
 
