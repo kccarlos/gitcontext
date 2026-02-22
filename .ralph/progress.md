@@ -411,3 +411,27 @@ Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-13.md
   - The resolveSelectablePaths function uses a Set for deduplication natively via matched.add()
   - stripTrailingSlashes was already applied to repoRoot but not to the input line - this was the bug
 ---
+
+## [2026-02-22T13:10:00Z] - selected-files-panel-tests: Frontend: SelectedFilesPanel component tests
+Thread:
+Run: 20260222-104122-$ (iteration 14)
+Run log: /workspace/.ralph/runs/run-20260222-104122-$-iter-14.log
+Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-14.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 6f6a5e3 test(desktop): add comprehensive Vitest tests for SelectedFilesPanel
+- Post-commit status: clean
+- Verification:
+  - Command: npm --workspace apps/desktop run test -> PASS (184 tests, 13 files)
+  - Command: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml -> PASS (44 tests)
+  - Command: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml -- -D warnings -> PASS
+  - Command: npm run web:build -> PASS
+- Files changed:
+  - apps/desktop/src/components/SelectedFilesPanel.test.tsx (new)
+- 13 tests created covering: rendering with status icons, token sorting (high→low, low→high), name sorting (A→Z, Z→A), binary file indicators with disabled preview, remove/reveal/preview callbacks, empty state, refreshing/busy recalculating indicator, reveal button conditional rendering, locale-formatted token counts
+- TokenCountsContext properly mocked via vi.mock
+- **Learnings for future iterations:**
+  - Mocking context hooks via vi.mock of the module path is cleaner than wrapping with a provider for component tests
+  - The SelectedFilesPanel uses isBinaryPath from @gitcontext/core which checks file extension against a set of known binary extensions
+  - Default sort is tokens-desc; sort state is internal useState
+---
