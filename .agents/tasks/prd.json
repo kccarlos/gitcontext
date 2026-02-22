@@ -264,11 +264,13 @@
         "All tests pass with `npm --workspace apps/desktop run test`"
       ],
       "attempts": 1,
-      "status": "in_progress",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "startedAt": "2026-02-22T12:32:46.691635+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-22T12:32:46.691662+00:00"
+      "completedAt": "2026-02-22T12:41:35.538484+00:00",
+      "updatedAt": "2026-02-22T12:41:35.538484+00:00",
+      "skipped": false,
+      "notes": "Completion + verification gate passed."
     },
     {
       "id": "debounce-util-tests",
@@ -281,7 +283,13 @@
         "At least 4 tests covering: single invocation after burst, correct arguments, timer reset, delay expiration",
         "Uses vi.useFakeTimers for reliable timing",
         "All tests pass with `npm --workspace apps/desktop run test`"
-      ]
+      ],
+      "attempts": 1,
+      "status": "in_progress",
+      "passes": false,
+      "startedAt": "2026-02-22T12:41:37.905594+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-22T12:41:37.905674+00:00"
     },
     {
       "id": "clipboard-batch-select-comprehensive",
