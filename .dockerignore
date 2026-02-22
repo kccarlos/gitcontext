@@ -1,0 +1,42 @@
+# Dependencies (large, rebuilt in container)
+node_modules/
+*/node_modules/
+
+# Build outputs
+apps/web/dist/
+apps/web/dist-ssr/
+apps/desktop/dist/
+apps/desktop/src-tauri/target/
+dist/
+dist-all/
+build/
+web/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+*.suo
+*.sw?
+
+# Logs
+*.log
+npm-debug.log*
+
+# Local env (secrets — passed via docker-compose environment)
+.env
+.env.*
+!.env.example
+
+# Git history (not needed in build context)
+.git/
+
+# Test outputs
+coverage/
+.nyc_output/
+apps/web/test-results/
+
+# Misc
+.husky/
+.eslintcache
+*.tsbuildinfo

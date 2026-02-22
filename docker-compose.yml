@@ -1,0 +1,72 @@
+services:
+  # ── dev ────────────────────────────────────────────────────────────────────
+  # Lean environment for: frontend build, cargo check/clippy/test,
+  # and running the Claude Code agent loop.
+  # Cannot produce macOS .app bundles — do that on the host.
+  dev:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: dev
+    working_dir: /workspace
+    stdin_open: true   # keep stdin open for interactive shells
+    tty: true
+    volumes:
+      - ./:/workspace
+      # Persistent Cargo caches — avoids re-downloading crates on every run
+      - cargo_registry:/root/.cargo/registry
+      - cargo_git:/root/.cargo/git
+      # Persistent npm cache
+      - npm_cache:/root/.npm
+      # Mount host ~/.claude dir and ~/.claude.json — Claude Code needs both.
+      # The dir holds plugins/backups; the json file holds auth tokens and config.
+      - ~/.claude:/root/.claude
+      - ~/.claude.json:/root/.claude.json
+    environment:
+      # Auth is provided by ~/.claude.json (mounted from host).
+      # Do not set ANTHROPIC_API_KEY here — it conflicts with the stored OAuth token.
+      # Uncomment only if you switch to API key auth and remove the ~/.claude.json mount.
+      # - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL:-}
+      - GIT_USER_NAME=${GIT_USER_NAME:-Claude Loop}
+      - GIT_USER_EMAIL=${GIT_USER_EMAIL:-claude-loop@local}
+      - NPM_CONFIG_UPDATE_NOTIFIER=false
+      # Use CLI git for network ops if SSH keys are needed
+      - CARGO_NET_GIT_FETCH_WITH_CLI=true
+      # Allow claude --dangerously-skip-permissions to run as root inside Docker
+      - CLAUDE_CODE_BUBBLEWRAP=1
+
+  # ── linux-bundle ───────────────────────────────────────────────────────────
+  # Same as dev but adds WebKit2GTK + GTK so `tauri build` can produce Linux
+  # AppImage / .deb / .rpm artifacts inside the container (useful for CI).
+  linux-bundle:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: linux-bundle
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./:/workspace
+      - cargo_registry:/root/.cargo/registry
+      - cargo_git:/root/.cargo/git
+      - npm_cache:/root/.npm
+      - ~/.claude:/root/.claude
+    environment:
+      # Auth is provided by ~/.claude.json (mounted from host).
+      # Do not set ANTHROPIC_API_KEY here — it conflicts with the stored OAuth token.
+      # Uncomment only if you switch to API key auth and remove the ~/.claude.json mount.
+      # - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL:-}
+      - GIT_USER_NAME=${GIT_USER_NAME:-Claude Loop}
+      - GIT_USER_EMAIL=${GIT_USER_EMAIL:-claude-loop@local}
+      - NPM_CONFIG_UPDATE_NOTIFIER=false
+      - CARGO_NET_GIT_FETCH_WITH_CLI=true
+      # Allow claude --dangerously-skip-permissions to run as root inside Docker
+      - CLAUDE_CODE_BUBBLEWRAP=1
+
+volumes:
+  cargo_registry:
+  cargo_git:
+  npm_cache:
