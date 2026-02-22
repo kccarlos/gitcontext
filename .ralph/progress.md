@@ -597,3 +597,30 @@ Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-19.md
   - The `add` status with unlimited context (Number.MAX_SAFE_INTEGER) produces a plain code block instead of a diff block - this is a special case worth testing.
   - File content in code blocks retains its trailing newline, so expect `\n\`\`\`` patterns rather than exact end-of-content matches.
 ---
+
+## [2026-02-22 14:19] - models-util-tests: Frontend: models utility tests
+Thread:
+Run: 20260222-104122-$ (iteration 20)
+Run log: /workspace/.ralph/runs/run-20260222-104122-$-iter-20.log
+Run summary: /workspace/.ralph/runs/run-20260222-104122-$-iter-20.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: f4976ab test(desktop): add comprehensive Vitest tests for models utility
+- Post-commit status: clean (only .agents/tasks/prd.json modified — not our file)
+- Verification:
+  - Command: npm --workspace apps/desktop run test -> PASS (265 tests, 19 files)
+  - Command: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml -> PASS (44 tests)
+  - Command: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml -- -D warnings -> PASS
+  - Command: npm run web:build -> PASS
+- Files changed:
+  - apps/desktop/src/utils/models.test.ts (new, 257 lines)
+- What was implemented:
+  - Created 13 tests in two describe blocks for the models utility
+  - getModels tests (8): API fetch returns array, required fields present, unique IDs, positive context_length, non-empty list, cache hit for fresh data, refetch on stale cache, null on API failure
+  - Model selection persistence tests (5): save to gc.selectedModel, restore from localStorage, invalid model ID graceful fallback, empty localStorage handling, ModelInfo type compliance
+- **Learnings for future iterations:**
+  - getModels() uses fetch to OpenRouter API — must mock global fetch for testing
+  - Model selection persistence is in App.tsx (not in models.ts), so persistence tests verify the localStorage pattern directly
+  - localStorage caching uses two keys: gc.models.cache and gc.models.fetchedAt with a 24-hour TTL
+  - The cache code falls through to refetch when JSON.parse fails on corrupt data
+---
