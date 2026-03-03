@@ -53,6 +53,21 @@ pub struct ResolveRefResult {
     pub oid: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommitInfo {
+    pub oid: String,
+    pub message_headline: String,
+    pub author_name: String,
+    pub author_email: String,
+    pub timestamp: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ListCommitsResult {
+    pub commits: Vec<CommitInfo>,
+}
+
 /// Open a git repository and return branch information
 pub fn open_repo(path: &str) -> Result<LoadRepoResult, String> {
     let repo = Repository::open(path).map_err(|e| format!("Failed to open repository: {}", e))?;
@@ -458,6 +473,65 @@ pub fn read_file_blob(
             not_found: None,
         })
     }
+}
+
+/// List commits reachable from a given ref, with optional limit
+pub fn list_commits(
+    path: &str,
+    ref_name: &str,
+    max_count: Option<u32>,
+) -> Result<ListCommitsResult, String> {
+    let repo = Repository::open(path).map_err(|e| format!("Failed to open repository: {}", e))?;
+
+    let obj = repo
+        .revparse_single(ref_name)
+        .map_err(|e| format!("Failed to resolve ref '{}': {}", ref_name, e))?;
+    let commit = obj
+        .peel_to_commit()
+        .map_err(|e| format!("Failed to peel to commit: {}", e))?;
+
+    let mut revwalk = repo
+        .revwalk()
+        .map_err(|e| format!("Failed to create revwalk: {}", e))?;
+
+    revwalk
+        .set_sorting(git2::Sort::TIME)
+        .map_err(|e| format!("Failed to set sorting: {}", e))?;
+
+    revwalk
+        .push(commit.id())
+        .map_err(|e| format!("Failed to push starting commit: {}", e))?;
+
+    let limit = max_count.unwrap_or(200) as usize;
+    let mut commits = Vec::with_capacity(limit.min(64));
+
+    for oid_result in revwalk {
+        if commits.len() >= limit {
+            break;
+        }
+        let oid = oid_result.map_err(|e| format!("Revwalk error: {}", e))?;
+        let c = repo
+            .find_commit(oid)
+            .map_err(|e| format!("Failed to find commit {}: {}", oid, e))?;
+
+        let message = c.message().unwrap_or("");
+        let headline = message.lines().next().unwrap_or("").to_string();
+
+        let author = c.author();
+        let author_name = author.name().unwrap_or("Unknown").to_string();
+        let author_email = author.email().unwrap_or("").to_string();
+        let timestamp = author.when().seconds();
+
+        commits.push(CommitInfo {
+            oid: oid.to_string(),
+            message_headline: headline,
+            author_name,
+            author_email,
+            timestamp,
+        });
+    }
+
+    Ok(ListCommitsResult { commits })
 }
 
 #[cfg(test)]
@@ -1379,5 +1453,184 @@ mod tests {
         );
         assert_eq!(head_result.oid.len(), 40);
         assert!(head_result.oid.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn test_list_commits_returns_commits_for_branch() {
+        let (_tmp, repo_path) = create_test_repo();
+
+        let result = list_commits(&repo_path, "main", Some(10)).unwrap();
+        assert!(
+            !result.commits.is_empty(),
+            "main should return at least one commit"
+        );
+
+        let first_commit = &result.commits[0];
+        assert_eq!(
+            first_commit.oid.len(),
+            40,
+            "commit OID should be 40 hex characters, got: {}",
+            first_commit.oid
+        );
+        assert!(
+            first_commit.oid.chars().all(|c| c.is_ascii_hexdigit()),
+            "commit OID should contain only hex characters, got: {}",
+            first_commit.oid
+        );
+        assert!(
+            !first_commit.message_headline.trim().is_empty(),
+            "message_headline should not be empty"
+        );
+        assert!(
+            !first_commit.author_name.trim().is_empty(),
+            "author_name should not be empty"
+        );
+    }
+
+    #[test]
+    fn test_list_commits_respects_max_count() {
+        let (_tmp, repo_path) = create_test_repo();
+        let repo = git2::Repository::open(&repo_path).unwrap();
+        let sig = repo.signature().unwrap();
+
+        let mut parent_oid = repo
+            .revparse_single("main")
+            .unwrap()
+            .peel_to_commit()
+            .unwrap()
+            .id();
+
+        for i in 1..=3 {
+            let file_name = format!("max_count_{}.txt", i);
+            let file_path = std::path::Path::new(&repo_path).join(&file_name);
+            fs::write(&file_path, format!("content for commit {}\n", i)).unwrap();
+
+            let mut index = repo.index().unwrap();
+            index.add_path(std::path::Path::new(&file_name)).unwrap();
+            index.write().unwrap();
+            let tree_id = index.write_tree().unwrap();
+            let tree = repo.find_tree(tree_id).unwrap();
+            let parent = repo.find_commit(parent_oid).unwrap();
+
+            parent_oid = repo
+                .commit(
+                    Some("refs/heads/main"),
+                    &sig,
+                    &sig,
+                    &format!("max count commit {}", i),
+                    &tree,
+                    &[&parent],
+                )
+                .unwrap();
+        }
+
+        let result = list_commits(&repo_path, "main", Some(2)).unwrap();
+        assert_eq!(
+            result.commits.len(),
+            2,
+            "list_commits should respect max_count=2"
+        );
+    }
+
+    #[test]
+    fn test_list_commits_returns_chronological_order() {
+        let (_tmp, repo_path) = create_test_repo();
+        let repo = git2::Repository::open(&repo_path).unwrap();
+
+        let main_commit = repo
+            .revparse_single("main")
+            .unwrap()
+            .peel_to_commit()
+            .unwrap();
+        repo.branch("chrono-order", &main_commit, false).unwrap();
+        repo.set_head("refs/heads/chrono-order").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
+            .unwrap();
+
+        let mut parent_oid = main_commit.id();
+        let commits = vec![
+            ("first chronological commit", 2_500_000_001),
+            ("second chronological commit", 2_500_000_002),
+            ("third chronological commit", 2_500_000_003),
+        ];
+
+        for (i, (message, timestamp)) in commits.iter().enumerate() {
+            let sig =
+                git2::Signature::new("Test", "test@test.com", &git2::Time::new(*timestamp, 0))
+                    .unwrap();
+            let file_name = format!("chrono_{}.txt", i + 1);
+            let file_path = std::path::Path::new(&repo_path).join(&file_name);
+            fs::write(&file_path, format!("{}\n", message)).unwrap();
+
+            let mut index = repo.index().unwrap();
+            index.add_path(std::path::Path::new(&file_name)).unwrap();
+            index.write().unwrap();
+            let tree_id = index.write_tree().unwrap();
+            let tree = repo.find_tree(tree_id).unwrap();
+            let parent = repo.find_commit(parent_oid).unwrap();
+
+            parent_oid = repo
+                .commit(
+                    Some("refs/heads/chrono-order"),
+                    &sig,
+                    &sig,
+                    message,
+                    &tree,
+                    &[&parent],
+                )
+                .unwrap();
+        }
+
+        let result = list_commits(&repo_path, "chrono-order", Some(3)).unwrap();
+        assert_eq!(
+            result.commits.len(),
+            3,
+            "chrono-order should return the three newest commits"
+        );
+        assert_eq!(
+            result.commits[0].message_headline, "third chronological commit",
+            "newest commit should appear first"
+        );
+        assert_eq!(
+            result.commits[1].message_headline, "second chronological commit",
+            "second newest commit should appear second"
+        );
+        assert_eq!(
+            result.commits[2].message_headline, "first chronological commit",
+            "oldest of the created commits should appear last"
+        );
+        assert!(
+            result.commits[0].timestamp >= result.commits[1].timestamp
+                && result.commits[1].timestamp >= result.commits[2].timestamp,
+            "commit timestamps should be in descending order"
+        );
+    }
+
+    #[test]
+    fn test_list_commits_invalid_ref_returns_error() {
+        let (_tmp, repo_path) = create_test_repo();
+
+        let result = list_commits(&repo_path, "nonexistent-ref", Some(10));
+        assert!(
+            result.is_err(),
+            "listing commits for a nonexistent ref should return an error"
+        );
+        let err_msg = result.unwrap_err();
+        assert!(
+            err_msg.contains("Failed to resolve"),
+            "error should mention resolution failure, got: {}",
+            err_msg
+        );
+    }
+
+    #[test]
+    fn test_list_commits_default_limit_applies() {
+        let (_tmp, repo_path) = create_test_repo();
+
+        let result = list_commits(&repo_path, "main", None).unwrap();
+        assert!(
+            !result.commits.is_empty(),
+            "list_commits with max_count=None should return commits and not crash"
+        );
     }
 }

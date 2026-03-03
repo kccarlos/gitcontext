@@ -4,6 +4,7 @@ import type {
   LoadRepoResult,
   DiffResult,
   FileContent,
+  CommitInfo,
 } from '@gitcontext/core'
 
 /**
@@ -109,6 +110,18 @@ export class TauriGitService implements GitService {
     })
 
     return result
+  }
+
+  async listCommits(ref: string, maxCount?: number): Promise<{ commits: CommitInfo[] }> {
+    if (!this.repoPath) {
+      throw new Error('No repository loaded')
+    }
+
+    return invoke<{ commits: CommitInfo[] }>('list_commits', {
+      path: this.repoPath,
+      refName: ref,
+      maxCount: maxCount ?? null,
+    })
   }
 
   /**

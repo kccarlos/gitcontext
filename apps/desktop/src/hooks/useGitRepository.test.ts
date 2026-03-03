@@ -6,9 +6,10 @@ import { act, renderHook } from '@testing-library/react'
 const mocks = vi.hoisted(() => {
   const mockLoadRepo = vi.fn()
   const mockDispose = vi.fn().mockResolvedValue(undefined)
+  const mockListCommits = vi.fn().mockResolvedValue({ commits: [] })
   const mockUnlisten = vi.fn()
   const eventListeners = new Map<string, Array<(event: { payload: any }) => void>>()
-  return { mockLoadRepo, mockDispose, mockUnlisten, eventListeners }
+  return { mockLoadRepo, mockDispose, mockListCommits, mockUnlisten, eventListeners }
 })
 
 // ── Module mocks ─────────────────────────────────────────────────────────────
@@ -17,6 +18,7 @@ vi.mock('../services/TauriGitService', () => {
   const MockTauriGitService = class {
     loadRepo = mocks.mockLoadRepo
     dispose = mocks.mockDispose
+    listCommits = mocks.mockListCommits
   }
   return { TauriGitService: MockTauriGitService }
 })
@@ -57,6 +59,10 @@ describe('useGitRepository', () => {
     vi.clearAllMocks()
     vi.useFakeTimers()
     mocks.eventListeners.clear()
+
+    // Re-set default implementations after clearAllMocks
+    mocks.mockDispose.mockResolvedValue(undefined)
+    mocks.mockListCommits.mockResolvedValue({ commits: [] })
 
     // Stub localStorage
     localStore = new Map()

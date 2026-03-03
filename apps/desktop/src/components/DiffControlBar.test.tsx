@@ -8,6 +8,12 @@ describe('DiffControlBar', () => {
     branches: ['main', 'dev', 'feature/test'],
     baseBranch: 'main',
     compareBranch: 'dev',
+    basePinnedCommit: null,
+    comparePinnedCommit: null,
+    baseCommits: [],
+    compareCommits: [],
+    baseCommitsLoading: false,
+    compareCommitsLoading: false,
     workspaces: [
       { id: 'ws-1', name: 'Main Repo', path: '/tmp/main', folderName: 'main', updatedAt: '2026-01-01T00:00:00.000Z' },
       { id: 'ws-2', name: 'Docs', path: '/tmp/docs', folderName: 'docs', updatedAt: '2026-01-02T00:00:00.000Z' },
@@ -19,39 +25,31 @@ describe('DiffControlBar', () => {
     onDeleteWorkspace: vi.fn(),
     onBaseBranchChange: vi.fn(),
     onCompareBranchChange: vi.fn(),
+    onBasePinnedCommitChange: vi.fn(),
+    onComparePinnedCommitChange: vi.fn(),
     onFlip: vi.fn(),
     onRefresh: vi.fn(),
   }
 
-  it('renders base and compare branch selectors', () => {
+  it('renders base and compare branch triggers', () => {
     render(<DiffControlBar {...defaultProps} />)
 
-    expect(screen.getByLabelText(/base/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/compare/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /main \(latest\)/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /dev \(latest\)/i })).toBeInTheDocument()
   })
 
-  it('displays correct branch values in selectors', () => {
+  it('displays correct branch labels in triggers', () => {
     render(<DiffControlBar {...defaultProps} />)
 
-    const baseSelect = screen.getByLabelText(/base/i) as HTMLSelectElement
-    const compareSelect = screen.getByLabelText(/compare/i) as HTMLSelectElement
-
-    expect(baseSelect.value).toBe('main')
-    expect(compareSelect.value).toBe('dev')
+    expect(screen.getByRole('button', { name: /main \(latest\)/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /dev \(latest\)/i })).toBeInTheDocument()
   })
 
-  it('renders all branch options in both selectors', () => {
+  it('renders branch name text for both commit picker triggers', () => {
     render(<DiffControlBar {...defaultProps} />)
 
-    const baseSelect = screen.getByLabelText(/base/i)
-    const compareSelect = screen.getByLabelText(/compare/i)
-    const baseOptions = Array.from(baseSelect.querySelectorAll('option'))
-    const compareOptions = Array.from(compareSelect.querySelectorAll('option'))
-
-    expect(baseOptions).toHaveLength(3)
-    expect(compareOptions).toHaveLength(3)
-    expect(baseOptions.map(o => o.value)).toEqual(['main', 'dev', 'feature/test'])
-    expect(compareOptions.map(o => o.value)).toEqual(['main', 'dev', 'feature/test'])
+    expect(screen.getByRole('button', { name: /main \(latest\)/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /dev \(latest\)/i })).toBeInTheDocument()
   })
 
   it('renders workspace selector and controls', () => {
@@ -107,34 +105,20 @@ describe('DiffControlBar', () => {
 
     render(<DiffControlBar {...props} />)
 
-    // __WORKDIR__ appears in both selects, so we expect to find it twice
-    const workdirOptions = screen.getAllByText('My Working Directory')
-    expect(workdirOptions).toHaveLength(2)
-    expect(workdirOptions[0]).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /main \(latest\)/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /my working directory/i })).toBeInTheDocument()
   })
 
-  it('calls onBaseBranchChange when base branch is changed', async () => {
-    const user = userEvent.setup()
-    const onBaseBranchChange = vi.fn()
+  it('renders updated base branch name in trigger', () => {
+    render(<DiffControlBar {...defaultProps} baseBranch="feature/test" />)
 
-    render(<DiffControlBar {...defaultProps} onBaseBranchChange={onBaseBranchChange} />)
-
-    const baseSelect = screen.getByLabelText(/base/i)
-    await user.selectOptions(baseSelect, 'feature/test')
-
-    expect(onBaseBranchChange).toHaveBeenCalledWith('feature/test')
+    expect(screen.getByRole('button', { name: /feature\/test \(latest\)/i })).toBeInTheDocument()
   })
 
-  it('calls onCompareBranchChange when compare branch is changed', async () => {
-    const user = userEvent.setup()
-    const onCompareBranchChange = vi.fn()
+  it('renders updated compare branch name in trigger', () => {
+    render(<DiffControlBar {...defaultProps} compareBranch="feature/test" />)
 
-    render(<DiffControlBar {...defaultProps} onCompareBranchChange={onCompareBranchChange} />)
-
-    const compareSelect = screen.getByLabelText(/compare/i)
-    await user.selectOptions(compareSelect, 'feature/test')
-
-    expect(onCompareBranchChange).toHaveBeenCalledWith('feature/test')
+    expect(screen.getByRole('button', { name: /feature\/test \(latest\)/i })).toBeInTheDocument()
   })
 
   it('renders flip button', () => {
@@ -179,16 +163,16 @@ describe('DiffControlBar', () => {
     render(<DiffControlBar {...defaultProps} disabled={true} />)
 
     const workspaceSelect = screen.getByLabelText(/workspace/i)
-    const baseSelect = screen.getByLabelText(/base/i)
-    const compareSelect = screen.getByLabelText(/compare/i)
+    const baseTrigger = screen.getByRole('button', { name: /main \(latest\)/i })
+    const compareTrigger = screen.getByRole('button', { name: /dev \(latest\)/i })
     const saveButton = screen.getByRole('button', { name: /save current workspace/i })
     const deleteButton = screen.getByRole('button', { name: /delete selected workspace/i })
     const flipButton = screen.getByRole('button', { name: /swap/i })
     const refreshButton = screen.getByRole('button', { name: /refresh/i })
 
     expect(workspaceSelect).toBeDisabled()
-    expect(baseSelect).toBeDisabled()
-    expect(compareSelect).toBeDisabled()
+    expect(baseTrigger).toBeDisabled()
+    expect(compareTrigger).toBeDisabled()
     expect(saveButton).toBeDisabled()
     expect(deleteButton).toBeDisabled()
     expect(flipButton).toBeDisabled()
@@ -221,7 +205,7 @@ describe('DiffControlBar', () => {
 
     expect(container.querySelector('.gc-diff-bar')).toBeInTheDocument()
     expect(container.querySelector('.diff-bar-workspace-controls')).toBeInTheDocument()
-    expect(container.querySelector('.diff-bar-branch-selector')).toBeInTheDocument()
+    expect(container.querySelectorAll('.commit-picker-wrapper')).toHaveLength(2)
     // Arrow removed - swap button is sufficient visual indicator
   })
 
@@ -333,7 +317,7 @@ describe('DiffControlBar', () => {
     expect(workspaceSelect).toHaveAttribute('title', '/tmp/main')
   })
 
-  it('__WORKDIR__ displays as My Working Directory in base branch selector', () => {
+  it('__WORKDIR__ displays as My Working Directory in base branch trigger', () => {
     render(
       <DiffControlBar
         {...defaultProps}
@@ -342,19 +326,15 @@ describe('DiffControlBar', () => {
       />,
     )
 
-    const baseSelect = screen.getByLabelText(/base/i)
-    const options = Array.from(baseSelect.querySelectorAll('option'))
-    const workdirOption = options.find(o => o.value === '__WORKDIR__')
-    expect(workdirOption).toBeTruthy()
-    expect(workdirOption!.textContent).toBe('My Working Directory')
+    expect(screen.getByRole('button', { name: /my working directory/i })).toBeInTheDocument()
   })
 
   it('all controls are enabled when disabled prop is false', () => {
     render(<DiffControlBar {...defaultProps} selectedWorkspaceId="ws-1" disabled={false} />)
 
     expect(screen.getByLabelText(/workspace/i)).not.toBeDisabled()
-    expect(screen.getByLabelText(/base/i)).not.toBeDisabled()
-    expect(screen.getByLabelText(/compare/i)).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: /main \(latest\)/i })).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: /dev \(latest\)/i })).not.toBeDisabled()
     expect(screen.getByRole('button', { name: /save current workspace/i })).not.toBeDisabled()
     expect(screen.getByRole('button', { name: /delete selected workspace/i })).not.toBeDisabled()
     expect(screen.getByRole('button', { name: /swap/i })).not.toBeDisabled()

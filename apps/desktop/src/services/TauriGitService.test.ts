@@ -205,6 +205,47 @@ describe('TauriGitService', () => {
     })
   })
 
+  describe('listCommits', () => {
+    it('calls invoke("list_commits") with ref and maxCount', async () => {
+      mockedInvoke.mockResolvedValueOnce({ branches: ['main'], defaultBranch: 'main' })
+      await service.loadRepo('/tmp/repo', {})
+      mockedInvoke.mockClear()
+
+      const commitsResult = { commits: [] }
+      mockedInvoke.mockResolvedValueOnce(commitsResult)
+
+      const result = await service.listCommits('main', 50)
+
+      expect(mockedInvoke).toHaveBeenCalledWith('list_commits', {
+        path: '/tmp/repo',
+        refName: 'main',
+        maxCount: 50,
+      })
+      expect(result).toEqual(commitsResult)
+    })
+
+    it('passes null maxCount when not provided', async () => {
+      mockedInvoke.mockResolvedValueOnce({ branches: ['main'], defaultBranch: 'main' })
+      await service.loadRepo('/tmp/repo', {})
+      mockedInvoke.mockClear()
+
+      const commitsResult = { commits: [] }
+      mockedInvoke.mockResolvedValueOnce(commitsResult)
+
+      await service.listCommits('dev')
+
+      expect(mockedInvoke).toHaveBeenCalledWith('list_commits', {
+        path: '/tmp/repo',
+        refName: 'dev',
+        maxCount: null,
+      })
+    })
+
+    it('throws when no repository is loaded', async () => {
+      await expect(service.listCommits('main')).rejects.toThrow('No repository loaded')
+    })
+  })
+
   describe('dispose', () => {
     it('calls invoke("close_repo") and clears repo path', async () => {
       mockedInvoke.mockResolvedValueOnce({ branches: ['main'], defaultBranch: 'main' })
