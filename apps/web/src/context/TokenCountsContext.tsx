@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo, useState } from 'react'
+import React, { createContext, useCallback, useContext, useMemo, useState } from 'react'
 import type { GitEngine } from '../platform/types'
 import type { FileDiffStatus } from '../hooks/useFileTree'
 import { useTokenCounts } from '../hooks/useTokenCounts'
@@ -36,6 +36,16 @@ export function TokenCountsProvider({
 }: ProviderProps) {
   const [progress, setProgress] = useState<ProgressState>({ completed: 0, total: 0, percent: 0 })
 
+  // Stable identity: onBatch is a dependency of the counting effect, so a new
+  // function per render would restart counting on every progress update.
+  const onBatch = useCallback((done: number, totalFiles: number) => {
+    const pct =
+      totalFiles <= 0
+        ? 100
+        : Math.max(0, Math.min(100, Math.round((done / totalFiles) * 100)))
+    setProgress({ completed: done, total: totalFiles, percent: pct })
+  }, [])
+
   const { counts, total, busy } = useTokenCounts({
     gitClient,
     baseRef,
@@ -44,13 +54,7 @@ export function TokenCountsProvider({
     statusByPath,
     diffContextLines,
     includeBinaryPaths,
-    onBatch: (done, totalFiles) => {
-      const pct =
-        totalFiles <= 0
-          ? 100
-          : Math.max(0, Math.min(100, Math.round((done / totalFiles) * 100)))
-      setProgress({ completed: done, total: totalFiles, percent: pct })
-    },
+    onBatch,
   })
 
   const value = useMemo(() => ({ counts, total, busy, progress }), [counts, total, busy, progress])
