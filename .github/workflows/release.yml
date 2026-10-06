@@ -1,148 +1,393 @@
-name: Release and Deploy
+# Release: every push to main that semantic-release turns into a version.
+#
+#   release   semantic-release: the next version from Conventional Commits,
+#             the tag, CHANGELOG.md, and a DRAFT GitHub Release.
+#   desktop   builds the desktop app at that tag with the version stamped
+#             in, on macOS (universal, Developer ID signed, app and DMG
+#             notarized and stapled), Windows and Linux; uploads the
+#             installers to the draft.
+#   publish   publishes the draft once every platform has uploaded.
+#   homebrew  renders packaging/homebrew/gitcontext.rb for the new version
+#             and pushes it to kccarlos/homebrew-tap. Uses the `homebrew`
+#             environment's HOMEBREW_TAP_TOKEN (Contents read/write on that
+#             one repository); without it the job leaves a notice.
+#   summary   one table of results; fails the run when anything failed.
+#
+# workflow_dispatch builds and signs the desktop apps (version 0.0.0) as
+# workflow artifacts without releasing anything: a way to check signing.
+#
+# The web app deploys separately (pages.yml), so a failed release never
+# takes the site down.
+#
+# Signing secrets live in the `release` environment:
+#   DEVELOPER_ID_P12_BASE64, DEVELOPER_ID_P12_PASSWORD  Developer ID Application identity
+#   ASC_API_KEY_P8_BASE64, ASC_API_KEY_ID, ASC_API_ISSUER_ID  App Store Connect API key (notarization)
+# and the repository variable APPLE_TEAM_ID.
+name: Release
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
-  pages: write
-  id-token: write
+  contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  build-desktop:
-    name: Build Desktop on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: './apps/desktop/src-tauri -> target'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Linux dependencies
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-
-      - name: Build Tauri desktop app
-        uses: tauri-apps/tauri-action@v0
-        with:
-          projectPath: apps/desktop
-          tauriScript: npm run tauri --workspace=gitcontext-desktop
-
-      - name: Upload desktop installer artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist-${{ matrix.os }}
-          path: apps/desktop/src-tauri/target/release/bundle/
-          retention-days: 1
-
   release:
-    name: Create GitHub Release
-    needs: build-desktop
+    name: Version and draft release
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
     outputs:
-      version: ${{ steps.get_version.outputs.version }}
-
+      published: ${{ steps.tag.outputs.published }}
+      version: ${{ steps.tag.outputs.version }}
+      tag: ${{ steps.tag.outputs.tag }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GH_TOKEN }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Download all desktop build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: dist-all
-
-      - name: Display downloaded artifacts structure
-        run: ls -R dist-all
-
-      - name: Run semantic-release
-        run: npx semantic-release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-          HUSKY: 0
-
-      - name: Get the new version number
-        id: get_version
-        run: |
-          NEW_VERSION=$(node -p "require('./package.json').version")
-          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-
-  deploy-pages:
-    name: Deploy to GitHub Pages
-    needs: release
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-      - name: Checkout main branch
-        uses: actions/checkout@v4
-        with:
-          ref: main
-          fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci
+      - run: npm ci
 
-      - name: Build web application
-        run: npm --workspace apps/web run build
+      - name: semantic-release
+        run: npx semantic-release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          HUSKY: 0
 
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
+      # semantic-release tags its CHANGELOG commit, which is now HEAD; no
+      # tag there means this push did not warrant a release.
+      - name: The new tag
+        id: tag
+        run: |
+          tag="$(git tag --points-at HEAD --list 'v*' | head -n1)"
+          if [ -z "$tag" ]; then
+            echo "No release for this push."
+            echo "published=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          {
+            echo "published=true"
+            echo "tag=$tag"
+            echo "version=${tag#v}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Released $tag (draft until the installers are uploaded)"
 
-      - name: Upload web artifact for deployment
-        uses: actions/upload-pages-artifact@v3
+  desktop:
+    name: Desktop (${{ matrix.name }})
+    needs: release
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.release.outputs.published == 'true') }}
+    runs-on: ${{ matrix.os }}
+    environment: release
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            os: macos-latest
+            args: --target universal-apple-darwin
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+            bundle: apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle
+          - name: Windows
+            os: windows-latest
+            args: ""
+            rust-targets: ""
+            bundle: apps/desktop/src-tauri/target/release/bundle
+          - name: Linux
+            os: ubuntu-22.04
+            args: ""
+            rust-targets: ""
+            bundle: apps/desktop/src-tauri/target/release/bundle
+    env:
+      VERSION: ${{ needs.release.outputs.version || '0.0.0' }}
+      TAG: ${{ needs.release.outputs.tag }}
+      PUBLISHED: ${{ needs.release.outputs.published == 'true' }}
+      BUNDLE: ${{ matrix.bundle }}
+      APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
         with:
-          path: apps/web/dist
+          ref: ${{ needs.release.outputs.tag || github.sha }}
 
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './apps/desktop/src-tauri -> target'
+
+      - run: npm ci
+
+      - name: Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Stamp the version
+        run: |
+          node -e '
+            const fs = require("fs");
+            const p = "apps/desktop/src-tauri/tauri.conf.json";
+            const c = JSON.parse(fs.readFileSync(p, "utf8"));
+            c.version = process.env.VERSION;
+            fs.writeFileSync(p, JSON.stringify(c, null, 2) + "\n");
+          '
+          echo "Building GitContext $VERSION"
+
+      # Tauri signs with APPLE_SIGNING_IDENTITY from the keychain search list
+      # and notarizes the app with the App Store Connect API key.
+      - name: Developer ID identity and notary key
+        if: runner.os == 'macOS'
+        env:
+          DEVELOPER_ID_P12_BASE64: ${{ secrets.DEVELOPER_ID_P12_BASE64 }}
+          DEVELOPER_ID_P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+          ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+        run: |
+          printf '%s' "$APPLE_TEAM_ID" | grep -Eq '^[A-Z0-9]{10}$' \
+            || { echo "::error::Set the repository variable APPLE_TEAM_ID to the 10-character Apple team ID"; exit 1; }
+          if [ -z "$DEVELOPER_ID_P12_BASE64" ] || [ -z "$DEVELOPER_ID_P12_PASSWORD" ]; then
+            echo "::error::Set DEVELOPER_ID_P12_BASE64 and DEVELOPER_ID_P12_PASSWORD in the release environment"; exit 1
+          fi
+          if [ -z "$ASC_API_KEY_P8_BASE64" ] || [ -z "$ASC_API_KEY_ID" ] || [ -z "$ASC_API_ISSUER_ID" ]; then
+            echo "::error::Set ASC_API_KEY_P8_BASE64, ASC_API_KEY_ID and ASC_API_ISSUER_ID in the release environment"; exit 1
+          fi
+
+          keychain="$RUNNER_TEMP/gitcontext-signing.keychain-db"
+          keychain_password="$(openssl rand -hex 24)"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          (umask 077 && printf '%s' "$DEVELOPER_ID_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/developer-id.p12")
+          security import "$RUNNER_TEMP/developer-id.p12" -k "$keychain" -P "$DEVELOPER_ID_P12_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security >/dev/null
+          rm -f "$RUNNER_TEMP/developer-id.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" >/dev/null
+          # Prepend the signing keychain, keep the existing ones (word splitting intended).
+          # shellcheck disable=SC2046
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+
+          identity="$(security find-identity -v -p codesigning "$keychain" \
+            | sed -n 's/.*"\(Developer ID Application: .*\)"$/\1/p' | head -n1)"
+          case "$identity" in
+            *"($APPLE_TEAM_ID)") echo "Signing as: $identity" ;;
+            "") echo "::error::The .p12 holds no Developer ID Application identity"; exit 1 ;;
+            *) echo "::error::The Developer ID identity is not team $APPLE_TEAM_ID's"; exit 1 ;;
+          esac
+
+          key="$RUNNER_TEMP/AuthKey_$ASC_API_KEY_ID.p8"
+          (umask 077 && printf '%s' "$ASC_API_KEY_P8_BASE64" | base64 --decode > "$key")
+          {
+            echo "SIGNING_KEYCHAIN=$keychain"
+            echo "APPLE_SIGNING_IDENTITY=$identity"
+            echo "APPLE_API_KEY=$ASC_API_KEY_ID"
+            echo "APPLE_API_ISSUER=$ASC_API_ISSUER_ID"
+            echo "APPLE_API_KEY_PATH=$key"
+          } >> "$GITHUB_ENV"
+
+      - name: Build
+        run: npm run tauri --workspace=gitcontext-desktop -- build ${{ matrix.args }}
+
+      # Tauri notarizes and staples the app; the DMG around it is signed,
+      # notarized and stapled here so Gatekeeper accepts the download too.
+      - name: Check the app, notarize the DMG
+        if: runner.os == 'macOS'
+        run: |
+          app="$BUNDLE/macos/GitContext.app"
+          dmg_name="GitContext_${VERSION}_universal.dmg"
+          dmg="$BUNDLE/dmg/$dmg_name"
+          test -f "$dmg" || { echo "::error::$dmg was not built"; ls -R "$BUNDLE"; exit 1; }
+
+          codesign --verify --deep --strict --verbose=2 "$app"
+          codesign -dv "$app" 2>&1 | grep -q "^TeamIdentifier=$APPLE_TEAM_ID\$" \
+            || { echo "::error::The app is not signed by team $APPLE_TEAM_ID"; exit 1; }
+          xcrun stapler validate "$app"
+          spctl --assess --type execute --verbose=2 "$app"
+          archs="$(lipo -archs "$app/Contents/MacOS/gitcontext-desktop")"
+          case "$archs" in *x86_64*arm64*|*arm64*x86_64*) echo "Architectures: $archs" ;; *) echo "::error::Not universal: $archs"; exit 1 ;; esac
+          # Only system libraries: a Homebrew dylib would not exist on users' Macs.
+          if otool -L "$app/Contents/MacOS/gitcontext-desktop" | tail -n +2 | grep -v -E '^\s*(/System/|/usr/lib/)'; then
+            echo "::error::The binary links a library outside the OS"; exit 1
+          fi
+
+          codesign --force --sign "$APPLE_SIGNING_IDENTITY" --timestamp "$dmg"
+          xcrun notarytool submit "$dmg" --key "$APPLE_API_KEY_PATH" --key-id "$APPLE_API_KEY" \
+            --issuer "$APPLE_API_ISSUER" --wait --timeout 30m
+          xcrun stapler staple "$dmg"
+          spctl --assess --type open --context context:primary-signature --verbose=2 "$dmg"
+          (cd "$BUNDLE/dmg" && shasum -a 256 "$dmg_name" > "$dmg_name.sha256" && cat "$dmg_name.sha256")
+
+      - name: Collect the installers
+        run: |
+          mkdir -p dist
+          find "$BUNDLE" -maxdepth 2 -type f \( -name '*.dmg' -o -name '*.dmg.sha256' -o -name '*.msi' \
+            -o -name '*-setup.exe' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' \) -exec cp {} dist/ \;
+          ls -l dist
+          test -n "$(ls dist)" || { echo "::error::No installers found under $BUNDLE"; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.name }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload to the draft release
+        if: env.PUBLISHED == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" dist/* --clobber --repo "$GITHUB_REPOSITORY"
+
+      - name: Remove the identity and the key
+        if: always() && runner.os == 'macOS'
+        run: |
+          if [ -n "${SIGNING_KEYCHAIN:-}" ]; then security delete-keychain "$SIGNING_KEYCHAIN" || true; fi
+          rm -f "$RUNNER_TEMP"/AuthKey_*.p8 "$RUNNER_TEMP/developer-id.p12"
+
+  publish:
+    name: Publish the release
+    needs: [release, desktop]
+    if: needs.release.outputs.published == 'true' && needs.desktop.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release.outputs.tag }}
+        run: gh release edit "$TAG" --draft=false --latest --repo "$GITHUB_REPOSITORY"
+
+  homebrew:
+    name: Homebrew tap
+    needs: [release, publish]
+    if: needs.publish.result == 'success'
+    runs-on: ubuntu-latest
+    environment: homebrew
+    permissions:
+      contents: read
+    outputs:
+      state: ${{ steps.push.outputs.state }}
+    env:
+      VERSION: ${{ needs.release.outputs.version }}
+      TAG: ${{ needs.release.outputs.tag }}
+    steps:
+      # A secret cannot appear in a job's `if:`; this step stands in.
+      - name: The tap token
+        id: token
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -z "$HOMEBREW_TAP_TOKEN" ]; then
+            echo "::notice title=Homebrew tap not updated::HOMEBREW_TAP_TOKEN is not set in the homebrew environment. Render the cask by hand with packaging/homebrew/render-cask.sh."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.token.outputs.configured == 'true'
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+          persist-credentials: false
+
+      - name: The published checksum
+        if: steps.token.outputs.configured == 'true'
+        id: sha
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          name="GitContext_${VERSION}_universal.dmg"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$name.sha256" --dir "$RUNNER_TEMP"
+          read -r sha file < "$RUNNER_TEMP/$name.sha256"
+          [ "${file#\*}" = "$name" ] || { echo "::error::The checksum file is for $file, not $name"; exit 1; }
+          echo "sha256=$sha" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        if: steps.token.outputs.configured == 'true'
+        with:
+          repository: kccarlos/homebrew-tap
+          ref: main
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update and push the cask
+        id: push
+        env:
+          CONFIGURED: ${{ steps.token.outputs.configured }}
+          SHA256: ${{ steps.sha.outputs.sha256 }}
+        run: |
+          if [ "$CONFIGURED" != "true" ]; then
+            echo "state=no token" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          packaging/homebrew/render-cask.sh "$VERSION" "$SHA256" homebrew-tap/Casks/gitcontext.rb
+          cd homebrew-tap
+          git add Casks/gitcontext.rb
+          if git diff --cached --quiet; then
+            echo "state=already current" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          git diff --cached
+          git -c user.name=kccarlos \
+              -c user.email=110118511+kccarlos@users.noreply.github.com \
+              commit --quiet -m "gitcontext $VERSION"
+          git push origin HEAD:main
+          echo "state=updated" >> "$GITHUB_OUTPUT"
+
+  summary:
+    name: Release summary
+    needs: [release, desktop, publish, homebrew]
+    if: always() && needs.release.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          TAG: ${{ needs.release.outputs.tag }}
+          DESKTOP: ${{ needs.desktop.result }}
+          PUBLISH: ${{ needs.publish.result }}
+          HOMEBREW: ${{ needs.homebrew.result }}
+          HOMEBREW_STATE: ${{ needs.homebrew.outputs.state }}
+        run: |
+          {
+            echo "## GitContext $TAG"
+            echo
+            echo "| Job | Result |"
+            echo "| --- | --- |"
+            echo "| Desktop builds (macOS signed + notarized, Windows, Linux) | $DESKTOP |"
+            echo "| Publish release | $PUBLISH |"
+            echo "| Homebrew tap | $HOMEBREW${HOMEBREW_STATE:+ ($HOMEBREW_STATE)} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          status=0
+          if [ "$DESKTOP" != "success" ] || [ "$PUBLISH" != "success" ]; then
+            echo "::error title=$TAG is still a draft::A desktop build failed, so the release was not published. Fix it and re-run the failed jobs; the draft and its tag are kept."
+            status=1
+          fi
+          if [ "$HOMEBREW" = "failure" ] || [ "$HOMEBREW" = "cancelled" ]; then
+            echo "::error title=Homebrew tap $HOMEBREW::The release is published but the cask was not updated. Re-run the homebrew job."
+            status=1
+          fi
+          exit "$status"
