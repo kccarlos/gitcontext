@@ -23,7 +23,7 @@
     "shortDescription": "Package Git diffs and code for LLM context",
     "longDescription": "GitContext helps you package local file diffs and code into a single, clean prompt for AI chatbots.",
     "macOS": {
-      "minimumSystemVersion": "10.13"
+      "minimumSystemVersion": "10.15"
     }
   },
   "app": {

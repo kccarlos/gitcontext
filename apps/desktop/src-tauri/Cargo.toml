@@ -19,7 +19,8 @@ tauri-plugin-fs = "2.0"
 tauri-plugin-clipboard-manager = "2.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-git2 = "0.19"
+# Local repositories only: no https/ssh, so no OpenSSL or libssh2 to link.
+git2 = { version = "0.19", default-features = false }
 ignore = "0.4"
 notify = "6.1"
 notify-debouncer-full = "0.3"
