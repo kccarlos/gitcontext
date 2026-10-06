@@ -38,7 +38,7 @@ jobs:
 
       - name: Smoke test the build under /gitcontext/
         run: |
-          npx --workspace apps/web playwright install --with-deps chromium
+          npm --workspace apps/web exec -- playwright install --with-deps chromium
           npm --workspace apps/web run test:pages
 
       - uses: actions/configure-pages@v5

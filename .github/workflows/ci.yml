@@ -30,7 +30,7 @@ jobs:
         run: npm --workspace apps/web run build
       - name: Smoke test the Pages build under /gitcontext/
         run: |
-          npx --workspace apps/web playwright install --with-deps chromium
+          npm --workspace apps/web exec -- playwright install --with-deps chromium
           npm --workspace apps/web run test:pages
       - name: Upload web artifact
         uses: actions/upload-artifact@v4
