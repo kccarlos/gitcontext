@@ -13,8 +13,13 @@
 #             one repository); without it the job leaves a notice.
 #   summary   one table of results; fails the run when anything failed.
 #
-# workflow_dispatch builds and signs the desktop apps (version 0.0.0) as
-# workflow artifacts without releasing anything: a way to check signing.
+# workflow_dispatch, run by hand:
+#   tag empty      builds and signs the desktop apps (version 0.0.0) as
+#                  workflow artifacts and releases nothing: a signing check.
+#   tag v2.4.0     finishes that existing DRAFT release with this workflow:
+#                  builds at the tag, uploads, publishes, updates the tap.
+#                  For a release whose run failed after the draft was made
+#                  (a re-run would replay the old workflow file).
 #
 # The web app deploys separately (pages.yml), so a failed release never
 # takes the site down.
@@ -29,6 +34,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing draft release to finish (e.g. v2.4.0). Empty: build and sign only."
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -40,7 +50,6 @@ concurrency:
 jobs:
   release:
     name: Version and draft release
-    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -52,17 +61,21 @@ jobs:
       tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
+        if: github.event_name == 'push'
         with:
           fetch-depth: 0
 
       - uses: actions/setup-node@v4
+        if: github.event_name == 'push'
         with:
           node-version: 20
           cache: npm
 
-      - run: npm ci
+      - if: github.event_name == 'push'
+        run: npm ci
 
       - name: semantic-release
+        if: github.event_name == 'push'
         run: npx semantic-release
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -72,7 +85,28 @@ jobs:
       # tag there means this push did not warrant a release.
       - name: The new tag
         id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ -z "$INPUT_TAG" ]; then
+              echo "Build and sign only; nothing is released."
+              echo "published=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            [[ "$INPUT_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::tag must look like v1.2.3"; exit 1; }
+            draft="$(gh release view "$INPUT_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" \
+              || { echo "::error::No release $INPUT_TAG"; exit 1; }
+            [ "$draft" = "true" ] || { echo "::error::$INPUT_TAG is already published; only a draft can be finished"; exit 1; }
+            {
+              echo "published=true"
+              echo "tag=$INPUT_TAG"
+              echo "version=${INPUT_TAG#v}"
+            } >> "$GITHUB_OUTPUT"
+            echo "Finishing the draft release $INPUT_TAG"
+            exit 0
+          fi
           tag="$(git tag --points-at HEAD --list 'v*' | head -n1)"
           if [ -z "$tag" ]; then
             echo "No release for this push."
@@ -89,7 +123,7 @@ jobs:
   desktop:
     name: Desktop (${{ matrix.name }})
     needs: release
-    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.release.outputs.published == 'true') }}
+    if: github.event_name == 'workflow_dispatch' || needs.release.outputs.published == 'true'
     runs-on: ${{ matrix.os }}
     environment: release
     permissions:
@@ -232,7 +266,8 @@ jobs:
           archs="$(lipo -archs "$app/Contents/MacOS/gitcontext-desktop")"
           case "$archs" in *x86_64*arm64*|*arm64*x86_64*) echo "Architectures: $archs" ;; *) echo "::error::Not universal: $archs"; exit 1 ;; esac
           # Only system libraries: a Homebrew dylib would not exist on users' Macs.
-          if otool -L "$app/Contents/MacOS/gitcontext-desktop" | tail -n +2 | grep -v -E '^\s*(/System/|/usr/lib/)'; then
+          # Library lines are indented; unindented lines are file/architecture headers.
+          if otool -L "$app/Contents/MacOS/gitcontext-desktop" | grep -E '^[[:space:]]' | grep -v -E '^[[:space:]]*(/System/|/usr/lib/)'; then
             echo "::error::The binary links a library outside the OS"; exit 1
           fi
 

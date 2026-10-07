@@ -16,20 +16,20 @@
 </p>
 
 <p align="center">
-  <a href="https://kccarlos.github.io/gitcontext/"><strong>Try it in your browser</strong></a> ·
-  <a href="#install">Install</a> ·
+  <a href="#install"><strong>Install the desktop app</strong></a> ·
+  <a href="https://kccarlos.github.io/gitcontext/">Try it in your browser</a> ·
   <a href="#how-it-works">How it works</a>
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/01-diff-overview.png" alt="GitContext comparing two branches: file tree with added, modified and removed files, prompt template, model picker and token usage" width="900">
+  <img src="docs/screenshots/01-desktop-overview.png" alt="GitContext desktop app comparing two branches: file tree with added, modified and removed files, selected files with per-file token counts, and the total against the model's context window" width="900">
 </p>
 
 ---
 
 **GitContext** turns the part of a repository you care about into one clean prompt for ChatGPT, Claude or any other LLM. Pick two branches, tick the files, and copy a single block with the file tree, the diffs and your instructions, with a live token count against the model's context window.
 
-Everything runs on your machine. There is no server and no upload: the desktop app reads Git through native Rust (`libgit2`), and the web app runs Git in your browser with `isomorphic-git`.
+Everything runs on your machine. There is no server and no upload: the desktop app reads Git through native Rust (`libgit2`). A web version runs Git in your browser with `isomorphic-git` if you want to try it before installing.
 
 It is similar to Repomix or GitIngest, with a few differences:
 
@@ -40,6 +40,8 @@ It is similar to Repomix or GitIngest, with a few differences:
 - **Private by construction**: local files only, no network calls for your code
 
 ## Install
+
+The **desktop app is the recommended way** to use GitContext: native Git through `libgit2`, direct access to your folders, saved workspaces, and no browser limits on large repositories.
 
 ### macOS (Homebrew)
 
@@ -59,23 +61,21 @@ The cask installs the same signed and notarized universal DMG (Apple silicon and
 
 All from the [latest release](https://github.com/kccarlos/gitcontext/releases/latest).
 
-### Web app
+### Try it in the browser
 
-Open **[kccarlos.github.io/gitcontext](https://kccarlos.github.io/gitcontext/)** in Chrome or Edge (it needs the File System Access API). Nothing to install, and your code still never leaves the browser.
+The web version at **[kccarlos.github.io/gitcontext](https://kccarlos.github.io/gitcontext/)** is a quick way to try GitContext without installing anything. Your code still never leaves the browser. It needs Chrome or Edge (File System Access API), and it is slower and less robust on large repositories than the desktop app, which is the one to use day to day.
 
 ---
 
 ## Screenshots
 
-These show the web app. The desktop app has the same core workflow with a native folder picker, saved workspaces and a tabbed side panel.
-
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/02-file-preview.png" alt="Side-by-side diff preview of a modified file"><br><sub><b>Diff preview</b>: unified or side-by-side, before you include a file.</sub></td>
-    <td width="50%"><img src="docs/screenshots/04-dark-mode.png" alt="Main view in dark mode"><br><sub><b>Dark mode</b>, following the system or set by hand.</sub></td>
+    <td width="50%"><img src="docs/screenshots/02-desktop-diff-preview.png" alt="Side-by-side diff preview of a modified file in the desktop app"><br><sub><b>Diff preview</b>: unified or side-by-side, with word-level highlights, before you include a file.</sub></td>
+    <td width="50%"><img src="docs/screenshots/03-desktop-dark.png" alt="Desktop app in dark mode"><br><sub><b>Dark mode</b>, following the system or set by hand.</sub></td>
   </tr>
   <tr>
-    <td colspan="2"><img src="docs/screenshots/03-output.png" alt="Selected files with per-file token counts and the Copy All Selected button"><br><sub><b>Selected files</b> with per-file token counts, sorted by size, then one click to copy the whole prompt.</sub></td>
+    <td colspan="2"><img src="docs/screenshots/04-desktop-output.png" alt="Settings tab with target model, prompt template, output options and token totals"><br><sub><b>Settings</b>: target model and its context window, prompt templates, file tree and binary options, then one click to copy the whole prompt.</sub></td>
   </tr>
 </table>
 

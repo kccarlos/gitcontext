@@ -152,6 +152,9 @@ export default function PreviewModal({ open, onClose, path, status, baseLabel, c
                   light: { codeFoldGutterBackground: 'transparent' },
                   dark: { codeFoldGutterBackground: 'transparent' },
                 } as any,
+                // The library's inline-flex + padding turns each Prism token inside a
+                // changed word into a flex item, splitting words ("c on st").
+                wordDiff: { display: 'inline', padding: 0 },
               }}
             />
           )}
