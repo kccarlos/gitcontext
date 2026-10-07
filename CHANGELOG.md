@@ -1,3 +1,20 @@
+# [2.4.0](https://github.com/kccarlos/gitcontext/compare/v2.3.0...v2.4.0) (2026-10-07)
+
+
+### Bug Fixes
+
+* **desktop:** commit dropdown ui issue ([4f692a1](https://github.com/kccarlos/gitcontext/commit/4f692a1b6d8c098aa9cf33973c241966ffaafc37))
+* **desktop:** stop linking Homebrew OpenSSL into the macOS app ([fa898c0](https://github.com/kccarlos/gitcontext/commit/fa898c0d9cad59bdd724b6a1633f47e36c790179))
+* **web:** serve from kccarlos.github.io/gitcontext and stop token-count restart loop ([01ddfe9](https://github.com/kccarlos/gitcontext/commit/01ddfe94628aeba48455d74736592490027ef5b8))
+
+
+### Features
+
+* **desktop:** add batch file selection from clipboard in file tree ([0e3f482](https://github.com/kccarlos/gitcontext/commit/0e3f4824fd3e73dac4719eedc860f9c80d6e2c34))
+* **desktop:** add remove-test-files selection action with trash icon ([9ece301](https://github.com/kccarlos/gitcontext/commit/9ece3013cfa11564ce2cbdb8b5910fdfecbba4ec))
+* **desktop:** add saved workspace switching with branch/settings/file selection restore ([4f288c0](https://github.com/kccarlos/gitcontext/commit/4f288c099a7ee214cc07c27a035efacdb28d25cc))
+* **desktop:** compare by commit ([d1282b8](https://github.com/kccarlos/gitcontext/commit/d1282b81323643de9d94f1b21626ca04d3347c9c))
+
 # [2.3.0](https://github.com/kccarlos/gitcontext/compare/v2.2.0...v2.3.0) (2026-02-22)
 
 
