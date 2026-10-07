@@ -1,3 +1,10 @@
+## [2.4.1](https://github.com/kccarlos/gitcontext/compare/v2.4.0...v2.4.1) (2026-10-07)
+
+
+### Bug Fixes
+
+* **ui:** stop word-level diff highlights from splitting words ([5537fb6](https://github.com/kccarlos/gitcontext/commit/5537fb65bdd7a48ae95c653e58b19d6c1c268e02))
+
 # [2.4.0](https://github.com/kccarlos/gitcontext/compare/v2.3.0...v2.4.0) (2026-10-07)
 
 
