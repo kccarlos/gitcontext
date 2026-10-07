@@ -49,6 +49,14 @@ export type FileDiff = DiffFile
  */
 export type FileDiffStatus = 'modify' | 'add' | 'remove' | 'unchanged'
 
+export type CommitInfo = {
+  oid: string
+  messageHeadline: string
+  authorName: string
+  authorEmail: string
+  timestamp: number
+}
+
 /**
  * File tree node for UI display
  */
@@ -120,8 +128,7 @@ export interface GitService {
    */
   resolveRef(ref: string): Promise<{ oid: string }>
 
-  /**
-   * Dispose of resources
-   */
+  listCommits(ref: string, maxCount?: number): Promise<{ commits: CommitInfo[] }>
+
   dispose(): void
 }

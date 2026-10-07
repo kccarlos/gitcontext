@@ -47,14 +47,7 @@
       [
         "@semantic-release/github",
         {
-          "assets": [
-            "dist-all/**/*.dmg",
-            "dist-all/**/*.exe",
-            "dist-all/**/*.AppImage",
-            "dist-all/**/*.msi",
-            "dist-all/**/*.deb",
-            "dist-all/**/*.rpm"
-          ]
+          "draftRelease": true
         }
       ],
       [

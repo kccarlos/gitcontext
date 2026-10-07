@@ -12,6 +12,7 @@ import { TopProgressBar } from './components/TopProgressBar'
 import { ErrorBanner } from './components/ErrorBanner'
 import { DiffControlBar } from './components/DiffControlBar'
 import { RightPanelTabs, type TabId } from './components/RightPanelTabs'
+import { LandingExternalLinks } from './components/LandingExternalLinks'
 import { ContextFooter } from './components/ContextFooter'
 import { getModels } from './utils/models'
 import type { ModelInfo } from './types/models'
@@ -92,6 +93,16 @@ function AppContent() {
     setBaseBranch,
     compareBranch,
     setCompareBranch,
+    basePinnedCommit,
+    setBasePinnedCommit,
+    comparePinnedCommit,
+    setComparePinnedCommit,
+    baseCommits,
+    compareCommits,
+    baseCommitsLoading,
+    compareCommitsLoading,
+    effectiveBaseRef,
+    effectiveCompareRef,
     loadRepoFromHandle,
     selectNewRepo,
     refreshRepo,
@@ -310,18 +321,20 @@ function AppContent() {
   // Flip base and compare branches
   const flipBranches = useCallback(() => {
     if (baseBranch && compareBranch) {
-      const temp = baseBranch
+      const tempBranch = baseBranch
+      const tempCommit = basePinnedCommit
       setBaseBranch(compareBranch)
-      setCompareBranch(temp)
+      setBasePinnedCommit(comparePinnedCommit)
+      setCompareBranch(tempBranch)
+      setComparePinnedCommit(tempCommit)
     }
-  }, [baseBranch, compareBranch, setBaseBranch, setCompareBranch])
+  }, [baseBranch, compareBranch, basePinnedCommit, comparePinnedCommit, setBaseBranch, setCompareBranch, setBasePinnedCommit, setComparePinnedCommit])
 
-  // Compute diff when branches change or file watcher triggers
   useEffect(() => {
-    if (repoStatus.state === 'ready' && baseBranch && compareBranch) {
-      computeDiffAndTree(gitClient, baseBranch, compareBranch)
+    if (repoStatus.state === 'ready' && effectiveBaseRef && effectiveCompareRef) {
+      computeDiffAndTree(gitClient, effectiveBaseRef, effectiveCompareRef)
     }
-  }, [repoStatus, baseBranch, compareBranch, gitClient, computeDiffAndTree, diffTrigger])
+  }, [repoStatus, effectiveBaseRef, effectiveCompareRef, gitClient, computeDiffAndTree, diffTrigger])
 
   // Keep selected workspace in sync when a repository is opened directly.
   useEffect(() => {
@@ -643,7 +656,7 @@ function AppContent() {
 
   // Preview file
   const previewFile = useCallback(async (path: string, status: FileDiffStatus) => {
-    if (!gitClient || !baseBranch || !compareBranch) return
+    if (!gitClient || !effectiveBaseRef || !effectiveCompareRef) return
     setPreviewPath(path)
     setPreviewStatus(status)
     setPreviewOpen(true)
@@ -652,15 +665,15 @@ function AppContent() {
       const needBase = status !== 'add'
       const needCompare = status !== 'remove'
       const [baseRes, compareRes] = await Promise.all([
-        needBase ? gitClient.readFile(baseBranch, path) : Promise.resolve(undefined),
-        needCompare ? gitClient.readFile(compareBranch, path) : Promise.resolve(undefined),
+        needBase ? gitClient.readFile(effectiveBaseRef, path) : Promise.resolve(undefined),
+        needCompare ? gitClient.readFile(effectiveCompareRef, path) : Promise.resolve(undefined),
       ])
       setPreviewData({ base: baseRes as any, compare: compareRes as any })
     } catch (err) {
       logError('preview', err)
       setPreviewData({ base: { binary: false, text: null, notFound: true }, compare: { binary: false, text: null, notFound: true } })
     }
-  }, [gitClient, baseBranch, compareBranch])
+  }, [gitClient, effectiveBaseRef, effectiveCompareRef])
 
   const renderPreview = () => {
     if (!previewOpen || !previewPath) return null
@@ -669,8 +682,8 @@ function AppContent() {
         open={previewOpen}
         path={previewPath}
         status={previewStatus}
-        baseLabel={baseBranch}
-        compareLabel={compareBranch}
+        baseLabel={basePinnedCommit ? `${baseBranch} (${basePinnedCommit.slice(0, 7)})` : baseBranch}
+        compareLabel={comparePinnedCommit ? `${compareBranch} (${comparePinnedCommit.slice(0, 7)})` : compareBranch}
         base={previewData?.base}
         compare={previewData?.compare}
         onClose={() => {
@@ -684,23 +697,24 @@ function AppContent() {
 
   // Copy all selected files
   const copyAllSelected = useCallback(async () => {
-    if (!gitClient || !baseBranch || !compareBranch || selectedPaths.size === 0) return
+    if (!gitClient || !effectiveBaseRef || !effectiveCompareRef || selectedPaths.size === 0) return
     setCopyFlash('⏳ Copying...')
     try {
       const paths = Array.from(selectedPaths)
       const MAX_CTX = 999
       const ctx = diffContextLines >= MAX_CTX ? Number.MAX_SAFE_INTEGER : diffContextLines
 
-      // Generate file tree if requested (only for selected files)
       let fileTreeText = ''
       if (includeFileTree && fileTree && selectedPaths.size > 0) {
         fileTreeText = generateFileTreeText(fileTree, selectedPaths)
       }
 
-      // Build header
+      const baseLabel = basePinnedCommit ? `${baseBranch} (${basePinnedCommit.slice(0, 7)})` : baseBranch
+      const compareLabel = comparePinnedCommit ? `${compareBranch} (${comparePinnedCommit.slice(0, 7)})` : compareBranch
+
       const headerText = buildHeader({
-        baseBranch,
-        compareBranch,
+        baseBranch: baseLabel,
+        compareBranch: compareLabel,
         currentDir: currentDir || '',
         fileCount: paths.length,
         userInstructions,
@@ -709,7 +723,6 @@ function AppContent() {
 
       const output = [headerText]
 
-      // Fetch file contents with bounded concurrency
       const results = await mapWithConcurrency(
         paths,
         async (path) => {
@@ -718,8 +731,8 @@ function AppContent() {
           const needBase = status !== 'add'
           const needCompare = status !== 'remove'
           const [baseRes, compareRes] = await Promise.all([
-            needBase ? gitClient.readFile(baseBranch, path) : Promise.resolve(undefined),
-            needCompare ? gitClient.readFile(compareBranch, path) : Promise.resolve(undefined),
+            needBase ? gitClient.readFile(effectiveBaseRef, path) : Promise.resolve(undefined),
+            needCompare ? gitClient.readFile(effectiveCompareRef, path) : Promise.resolve(undefined),
           ])
 
           return buildFileSection(path, status, baseRes, compareRes, ctx)
@@ -737,7 +750,7 @@ function AppContent() {
       setCopyFlash('❌ Failed to copy')
       setTimeout(() => setCopyFlash(null), 2000)
     }
-  }, [gitClient, baseBranch, compareBranch, selectedPaths, diffContextLines, statusByPath, userInstructions, fileTree, includeFileTree, showChangedOnly, currentDir])
+  }, [gitClient, effectiveBaseRef, effectiveCompareRef, baseBranch, compareBranch, basePinnedCommit, comparePinnedCommit, selectedPaths, diffContextLines, statusByPath, userInstructions, fileTree, includeFileTree, showChangedOnly, currentDir])
 
   const handleBatchSelectFromClipboard = useCallback(async () => {
     if (!currentDir || !fileTree) return
@@ -842,8 +855,8 @@ function AppContent() {
   return (
     <TokenCountsProvider
       gitClient={gitClient}
-      baseRef={baseBranch}
-      compareRef={compareBranch}
+      baseRef={effectiveBaseRef}
+      compareRef={effectiveCompareRef}
       selectedPaths={selectedPaths}
       statusByPath={statusByPath}
       diffContextLines={diffContextLines}
@@ -922,6 +935,8 @@ function AppContent() {
                 </li>
               </ul>
 
+              <LandingExternalLinks />
+
               <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'var(--surface-2)', borderRadius: '8px' }}>
                 <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.9 }}>
                   <strong>Powered by Rust + Tauri</strong> — Native performance with blazing-fast Git operations via the git2 crate.
@@ -936,8 +951,16 @@ function AppContent() {
             branches={branches}
             baseBranch={baseBranch}
             compareBranch={compareBranch}
+            basePinnedCommit={basePinnedCommit}
+            comparePinnedCommit={comparePinnedCommit}
+            baseCommits={baseCommits}
+            compareCommits={compareCommits}
+            baseCommitsLoading={baseCommitsLoading}
+            compareCommitsLoading={compareCommitsLoading}
             onBaseBranchChange={setBaseBranch}
             onCompareBranchChange={setCompareBranch}
+            onBasePinnedCommitChange={setBasePinnedCommit}
+            onComparePinnedCommitChange={setComparePinnedCommit}
             onFlip={flipBranches}
             onRefresh={handleRefreshWorkspace}
             disabled={isLoading}

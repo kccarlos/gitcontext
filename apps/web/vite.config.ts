@@ -8,8 +8,10 @@ import { dirname, resolve } from 'node:path'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 // https://vite.dev/config/
-export default defineConfig({
-  base: '/',
+export default defineConfig(({ command, isPreview }) => ({
+  // Production builds are served from GitHub Pages at kccarlos.github.io/gitcontext/;
+  // `vite preview` serves that same path. The dev server (and the e2e tests) stay at the root.
+  base: command === 'build' || isPreview ? '/gitcontext/' : '/',
   plugins: [
     react(),
     wasm(),
@@ -63,4 +65,4 @@ export default defineConfig({
       platform: 'browser',
     },
   },
-})
+}))

@@ -1,0 +1,61 @@
+# The web app on GitHub Pages: https://kccarlos.github.io/gitcontext/
+#
+# Independent of the desktop release on purpose: a signing or packaging
+# failure never takes the site down. The build is smoke-tested under the
+# /gitcontext/ base path before it is deployed.
+name: Deploy Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Unit tests
+        run: npm --workspace apps/web run test:unit
+
+      - name: Build
+        run: npm --workspace apps/web run build
+
+      - name: Smoke test the build under /gitcontext/
+        run: |
+          npm --workspace apps/web exec -- playwright install --with-deps chromium
+          npm --workspace apps/web run test:pages
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

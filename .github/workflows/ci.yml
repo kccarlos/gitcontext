@@ -22,8 +22,16 @@ jobs:
       - name: Lint
         run: npm -ws run lint --if-present
         continue-on-error: true
+      - name: Web unit tests
+        run: npm --workspace apps/web run test:unit
+      - name: Desktop frontend tests
+        run: npm --workspace apps/desktop run test
       - name: Build web
         run: npm --workspace apps/web run build
+      - name: Smoke test the Pages build under /gitcontext/
+        run: |
+          npm --workspace apps/web exec -- playwright install --with-deps chromium
+          npm --workspace apps/web run test:pages
       - name: Upload web artifact
         uses: actions/upload-artifact@v4
         with:
@@ -36,7 +44,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
+        include:
+          # Unsigned here; release.yml signs and notarizes the macOS build.
+          - os: macos-latest
+            args: --target universal-apple-darwin
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+            bundle: apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/
+          - os: windows-latest
+            args: ""
+            rust-targets: ""
+            bundle: apps/desktop/src-tauri/target/release/bundle/
+          - os: ubuntu-22.04
+            args: ""
+            rust-targets: ""
+            bundle: apps/desktop/src-tauri/target/release/bundle/
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -47,6 +68,8 @@ jobs:
           cache: 'npm'
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
@@ -54,19 +77,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Install Linux dependencies
-        if: matrix.os == 'ubuntu-latest'
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - name: Build Tauri desktop app
-        uses: tauri-apps/tauri-action@v0
-        with:
-          projectPath: apps/desktop
-          tauriScript: npm run tauri --workspace=gitcontext-desktop
+        shell: bash
+        run: npm run tauri --workspace=gitcontext-desktop -- build ${{ matrix.args }}
       - name: Upload desktop artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: desktop-${{ matrix.os }}
-          path: apps/desktop/src-tauri/target/release/bundle/
+          path: ${{ matrix.bundle }}
           retention-days: 7

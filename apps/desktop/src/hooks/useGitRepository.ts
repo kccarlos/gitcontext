@@ -3,6 +3,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { TauriGitService } from '../services/TauriGitService'
 import type { AppStatus } from '../types/appStatus'
+import type { CommitInfo } from '@gitcontext/core'
 
 // Debounce helper
 function debounce<T extends (...args: any[]) => any>(
@@ -42,6 +43,17 @@ export function useGitRepository(setAppStatus?: (s: AppStatus) => void) {
   const [compareBranch, setCompareBranch] = useState<string>('')
   const [diffTrigger, setDiffTrigger] = useState(0) // Trigger diff refresh
   const loadRequestIdRef = useRef(0)
+
+  // Commit-pinning state: null = branch tip, string = specific commit OID
+  const [basePinnedCommit, setBasePinnedCommit] = useState<string | null>(null)
+  const [comparePinnedCommit, setComparePinnedCommit] = useState<string | null>(null)
+  const [baseCommits, setBaseCommits] = useState<CommitInfo[]>([])
+  const [compareCommits, setCompareCommits] = useState<CommitInfo[]>([])
+  const [baseCommitsLoading, setBaseCommitsLoading] = useState(false)
+  const [compareCommitsLoading, setCompareCommitsLoading] = useState(false)
+
+  const effectiveBaseRef = basePinnedCommit ?? baseBranch
+  const effectiveCompareRef = comparePinnedCommit ?? compareBranch
 
   // Persist branch selection in localStorage
   useEffect(() => {
@@ -161,16 +173,70 @@ export function useGitRepository(setAppStatus?: (s: AppStatus) => void) {
 
   const resetRepo = useCallback(() => {
     loadRequestIdRef.current += 1
-    // Note: dispose() clears the repo path but the service instance remains
-    // valid and can be reused. This is by design for the singleton pattern.
     gitClient.dispose()
     setRepoStatus({ state: 'idle' })
     setCurrentDir(null)
     setBranches([])
     setBaseBranch('')
     setCompareBranch('')
+    setBasePinnedCommit(null)
+    setComparePinnedCommit(null)
+    setBaseCommits([])
+    setCompareCommits([])
     setAppStatus?.({ state: 'IDLE' })
   }, [gitClient, setAppStatus])
+
+  const handleBaseBranchChange = useCallback((branch: string) => {
+    setBaseBranch(branch)
+    setBasePinnedCommit(null)
+  }, [])
+
+  const handleCompareBranchChange = useCallback((branch: string) => {
+    setCompareBranch(branch)
+    setComparePinnedCommit(null)
+  }, [])
+
+  useEffect(() => {
+    if (repoStatus.state !== 'ready' || !baseBranch || baseBranch === '__WORKDIR__') {
+      setBaseCommits([])
+      return
+    }
+    let cancelled = false
+    setBaseCommitsLoading(true)
+    gitClient.listCommits(baseBranch, 100).then((result) => {
+      if (!cancelled) {
+        setBaseCommits(result.commits)
+        setBaseCommitsLoading(false)
+      }
+    }).catch(() => {
+      if (!cancelled) {
+        setBaseCommits([])
+        setBaseCommitsLoading(false)
+      }
+    })
+    return () => { cancelled = true }
+  }, [baseBranch, repoStatus.state, gitClient])
+
+  useEffect(() => {
+    if (repoStatus.state !== 'ready' || !compareBranch || compareBranch === '__WORKDIR__') {
+      setCompareCommits([])
+      return
+    }
+    let cancelled = false
+    setCompareCommitsLoading(true)
+    gitClient.listCommits(compareBranch, 100).then((result) => {
+      if (!cancelled) {
+        setCompareCommits(result.commits)
+        setCompareCommitsLoading(false)
+      }
+    }).catch(() => {
+      if (!cancelled) {
+        setCompareCommits([])
+        setCompareCommitsLoading(false)
+      }
+    })
+    return () => { cancelled = true }
+  }, [compareBranch, repoStatus.state, gitClient])
 
   // Listen for working directory file changes
   useEffect(() => {
@@ -231,13 +297,23 @@ export function useGitRepository(setAppStatus?: (s: AppStatus) => void) {
     gitClient,
     branches,
     baseBranch,
-    setBaseBranch,
+    setBaseBranch: handleBaseBranchChange,
     compareBranch,
-    setCompareBranch,
+    setCompareBranch: handleCompareBranchChange,
+    basePinnedCommit,
+    setBasePinnedCommit,
+    comparePinnedCommit,
+    setComparePinnedCommit,
+    baseCommits,
+    compareCommits,
+    baseCommitsLoading,
+    compareCommitsLoading,
+    effectiveBaseRef,
+    effectiveCompareRef,
     loadRepoFromHandle,
     selectNewRepo,
     refreshRepo,
     resetRepo,
-    diffTrigger, // For triggering diff refresh on file changes
+    diffTrigger,
   }
 }

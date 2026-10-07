@@ -78,6 +78,15 @@ fn resolve_ref(path: String, ref_name: String) -> Result<git::ResolveRefResult, 
 }
 
 #[tauri::command]
+fn list_commits(
+    path: String,
+    ref_name: String,
+    max_count: Option<u32>,
+) -> Result<git::ListCommitsResult, String> {
+    git::list_commits(&path, &ref_name, max_count)
+}
+
+#[tauri::command]
 fn close_repo() -> Result<(), String> {
     if let Ok(mut watcher) = WATCHER.lock() {
         if let Some(old_watcher) = watcher.take() {
@@ -102,6 +111,7 @@ pub fn run() {
             list_files,
             list_files_with_oids,
             resolve_ref,
+            list_commits,
             close_repo
         ])
         .setup(|_app| {

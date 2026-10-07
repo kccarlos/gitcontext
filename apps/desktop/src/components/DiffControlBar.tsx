@@ -1,12 +1,22 @@
 import { ArrowLeftRight, RefreshCw, Save, Trash2 } from 'lucide-react'
 import type { WorkspaceListItem } from '../utils/workspaceStore'
+import type { CommitInfo } from '@gitcontext/core'
+import { CommitPickerPopover } from './CommitPickerPopover'
 
 type DiffControlBarProps = {
   branches: string[]
   baseBranch: string
   compareBranch: string
+  basePinnedCommit: string | null
+  comparePinnedCommit: string | null
+  baseCommits: CommitInfo[]
+  compareCommits: CommitInfo[]
+  baseCommitsLoading: boolean
+  compareCommitsLoading: boolean
   onBaseBranchChange: (branch: string) => void
   onCompareBranchChange: (branch: string) => void
+  onBasePinnedCommitChange: (oid: string | null) => void
+  onComparePinnedCommitChange: (oid: string | null) => void
   onFlip: () => void
   onRefresh: () => void
   disabled?: boolean
@@ -22,8 +32,16 @@ export function DiffControlBar({
   branches,
   baseBranch,
   compareBranch,
+  basePinnedCommit,
+  comparePinnedCommit,
+  baseCommits,
+  compareCommits,
+  baseCommitsLoading,
+  compareCommitsLoading,
   onBaseBranchChange,
   onCompareBranchChange,
+  onBasePinnedCommitChange,
+  onComparePinnedCommitChange,
   onFlip,
   onRefresh,
   disabled = false,
@@ -34,8 +52,6 @@ export function DiffControlBar({
   onSaveWorkspace,
   onDeleteWorkspace,
 }: DiffControlBarProps) {
-  const formatBranchLabel = (branch: string) =>
-    branch === '__WORKDIR__' ? 'My Working Directory' : branch
   const selectedWorkspace =
     selectedWorkspaceId !== ''
       ? workspaces.find((workspace) => workspace.id === selectedWorkspaceId) ?? null
@@ -89,48 +105,40 @@ export function DiffControlBar({
           <Trash2 size={16} />
         </button>
       </div>
-      <div className="diff-bar-branch-selector">
-        <label htmlFor="base-branch-select" className="diff-bar-label">Base</label>
-        <select
-          id="base-branch-select"
-          value={baseBranch}
-          onChange={(e) => onBaseBranchChange(e.target.value)}
-          className="gc-select diff-bar-select"
-          disabled={disabled}
-        >
-          {branches.map((branch) => (
-            <option key={branch} value={branch}>
-              {formatBranchLabel(branch)}
-            </option>
-          ))}
-        </select>
-      </div>
+
+      <CommitPickerPopover
+        branches={branches}
+        selectedBranch={baseBranch}
+        pinnedCommit={basePinnedCommit}
+        commits={baseCommits}
+        loading={baseCommitsLoading}
+        disabled={disabled}
+        label="Base"
+        onBranchChange={onBaseBranchChange}
+        onCommitSelect={onBasePinnedCommitChange}
+      />
 
       <button
         onClick={onFlip}
         className="btn btn-ghost btn-icon"
         title="Swap branches"
         disabled={disabled || !baseBranch || !compareBranch}
+        style={{ alignSelf: 'flex-end', marginBottom: 'var(--space-1)' }}
       >
         <ArrowLeftRight size={18} />
       </button>
 
-      <div className="diff-bar-branch-selector">
-        <label htmlFor="compare-branch-select" className="diff-bar-label">Compare</label>
-        <select
-          id="compare-branch-select"
-          value={compareBranch}
-          onChange={(e) => onCompareBranchChange(e.target.value)}
-          className="gc-select diff-bar-select"
-          disabled={disabled}
-        >
-          {branches.map((branch) => (
-            <option key={branch} value={branch}>
-              {formatBranchLabel(branch)}
-            </option>
-          ))}
-        </select>
-      </div>
+      <CommitPickerPopover
+        branches={branches}
+        selectedBranch={compareBranch}
+        pinnedCommit={comparePinnedCommit}
+        commits={compareCommits}
+        loading={compareCommitsLoading}
+        disabled={disabled}
+        label="Compare"
+        onBranchChange={onCompareBranchChange}
+        onCommitSelect={onComparePinnedCommitChange}
+      />
 
       <div className="ml-auto" />
 
@@ -139,6 +147,7 @@ export function DiffControlBar({
         disabled={disabled}
         className="btn btn-ghost"
         title="Refresh repository"
+        style={{ alignSelf: 'flex-end', marginBottom: 'var(--space-1)' }}
       >
         <RefreshCw size={16} /> Refresh
       </button>
