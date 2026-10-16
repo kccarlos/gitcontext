@@ -9,7 +9,7 @@
 #   publish   publishes the draft once every platform has uploaded.
 #   homebrew  renders packaging/homebrew/gitcontext.rb for the new version
 #             and pushes it to kccarlos/homebrew-tap. Uses the `homebrew`
-#             tap token from 1Password (GITHUB_PAT_HOMEBREW); without
+#             tap token from 1Password (homebrew-tap-token); without
 #             OP_SERVICE_ACCOUNT_TOKEN in that environment the job leaves a notice.
 #   summary   one table of results; fails the run when anything failed.
 #
@@ -24,13 +24,13 @@
 # The web app deploys separately (pages.yml), so a failed release never
 # takes the site down.
 #
-# Secrets come from 1Password (vault Developer) through
+# Secrets come from 1Password (vault github) through
 # 1password/load-secrets-action. The only GitHub secret is
 # OP_SERVICE_ACCOUNT_TOKEN, set in both the `release` and `homebrew`
 # environments. The items:
 #   apple-developer-id-application  p12_base64, password   Developer ID Application identity
 #   app-store-connect-api-key       key_id, issuer_id, p8_base64  App Store Connect API key (notarization)
-#   GITHUB_PAT_HOMEBREW             credential   Contents read/write on kccarlos/homebrew-tap
+#   homebrew-tap-token              credential   Contents read/write on kccarlos/homebrew-tap
 # and the repository variable APPLE_TEAM_ID.
 name: Release
 
@@ -206,11 +206,11 @@ jobs:
           export-env: false
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          DEVELOPER_ID_P12_BASE64: op://Developer/apple-developer-id-application/p12_base64
-          DEVELOPER_ID_P12_PASSWORD: op://Developer/apple-developer-id-application/password
-          ASC_API_KEY_P8_BASE64: op://Developer/app-store-connect-api-key/p8_base64
-          ASC_API_KEY_ID: op://Developer/app-store-connect-api-key/key_id
-          ASC_API_ISSUER_ID: op://Developer/app-store-connect-api-key/issuer_id
+          DEVELOPER_ID_P12_BASE64: op://github/apple-developer-id-application/p12_base64
+          DEVELOPER_ID_P12_PASSWORD: op://github/apple-developer-id-application/password
+          ASC_API_KEY_P8_BASE64: op://github/app-store-connect-api-key/p8_base64
+          ASC_API_KEY_ID: op://github/app-store-connect-api-key/key_id
+          ASC_API_ISSUER_ID: op://github/app-store-connect-api-key/issuer_id
 
       # Tauri signs with APPLE_SIGNING_IDENTITY from the keychain search list
       # and notarizes the app with the App Store Connect API key.
@@ -373,7 +373,7 @@ jobs:
           export-env: false
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          HOMEBREW_TAP_TOKEN: op://Developer/GITHUB_PAT_HOMEBREW/credential
+          HOMEBREW_TAP_TOKEN: op://github/homebrew-tap-token/credential
 
       - uses: actions/checkout@v4
         if: steps.token.outputs.configured == 'true'
