@@ -9,8 +9,8 @@
 #   publish   publishes the draft once every platform has uploaded.
 #   homebrew  renders packaging/homebrew/gitcontext.rb for the new version
 #             and pushes it to kccarlos/homebrew-tap. Uses the `homebrew`
-#             environment's HOMEBREW_TAP_TOKEN (Contents read/write on that
-#             one repository); without it the job leaves a notice.
+#             tap token from 1Password (GITHUB_PAT_HOMEBREW); without
+#             OP_SERVICE_ACCOUNT_TOKEN in that environment the job leaves a notice.
 #   summary   one table of results; fails the run when anything failed.
 #
 # workflow_dispatch, run by hand:
@@ -24,9 +24,13 @@
 # The web app deploys separately (pages.yml), so a failed release never
 # takes the site down.
 #
-# Signing secrets live in the `release` environment:
-#   DEVELOPER_ID_P12_BASE64, DEVELOPER_ID_P12_PASSWORD  Developer ID Application identity
-#   ASC_API_KEY_P8_BASE64, ASC_API_KEY_ID, ASC_API_ISSUER_ID  App Store Connect API key (notarization)
+# Secrets come from 1Password (vault Developer) through
+# 1password/load-secrets-action. The only GitHub secret is
+# OP_SERVICE_ACCOUNT_TOKEN, set in both the `release` and `homebrew`
+# environments. The items:
+#   apple-developer-id-application  p12_base64, password   Developer ID Application identity
+#   app-store-connect-api-key       key_id, issuer_id, p8_base64  App Store Connect API key (notarization)
+#   GITHUB_PAT_HOMEBREW             credential   Contents read/write on kccarlos/homebrew-tap
 # and the repository variable APPLE_TEAM_ID.
 name: Release
 
@@ -193,24 +197,39 @@ jobs:
           '
           echo "Building GitContext $VERSION"
 
+      # Step outputs, not job env, so only the next step sees the values.
+      - name: Signing secrets from 1Password
+        id: op
+        if: runner.os == 'macOS'
+        uses: 1password/load-secrets-action@v5
+        with:
+          export-env: false
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          DEVELOPER_ID_P12_BASE64: op://Developer/apple-developer-id-application/p12_base64
+          DEVELOPER_ID_P12_PASSWORD: op://Developer/apple-developer-id-application/password
+          ASC_API_KEY_P8_BASE64: op://Developer/app-store-connect-api-key/p8_base64
+          ASC_API_KEY_ID: op://Developer/app-store-connect-api-key/key_id
+          ASC_API_ISSUER_ID: op://Developer/app-store-connect-api-key/issuer_id
+
       # Tauri signs with APPLE_SIGNING_IDENTITY from the keychain search list
       # and notarizes the app with the App Store Connect API key.
       - name: Developer ID identity and notary key
         if: runner.os == 'macOS'
         env:
-          DEVELOPER_ID_P12_BASE64: ${{ secrets.DEVELOPER_ID_P12_BASE64 }}
-          DEVELOPER_ID_P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
-          ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
-          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
-          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          DEVELOPER_ID_P12_BASE64: ${{ steps.op.outputs.DEVELOPER_ID_P12_BASE64 }}
+          DEVELOPER_ID_P12_PASSWORD: ${{ steps.op.outputs.DEVELOPER_ID_P12_PASSWORD }}
+          ASC_API_KEY_P8_BASE64: ${{ steps.op.outputs.ASC_API_KEY_P8_BASE64 }}
+          ASC_API_KEY_ID: ${{ steps.op.outputs.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ steps.op.outputs.ASC_API_ISSUER_ID }}
         run: |
           printf '%s' "$APPLE_TEAM_ID" | grep -Eq '^[A-Z0-9]{10}$' \
             || { echo "::error::Set the repository variable APPLE_TEAM_ID to the 10-character Apple team ID"; exit 1; }
           if [ -z "$DEVELOPER_ID_P12_BASE64" ] || [ -z "$DEVELOPER_ID_P12_PASSWORD" ]; then
-            echo "::error::Set DEVELOPER_ID_P12_BASE64 and DEVELOPER_ID_P12_PASSWORD in the release environment"; exit 1
+            echo "::error::1Password item apple-developer-id-application needs the fields p12_base64 and password"; exit 1
           fi
           if [ -z "$ASC_API_KEY_P8_BASE64" ] || [ -z "$ASC_API_KEY_ID" ] || [ -z "$ASC_API_ISSUER_ID" ]; then
-            echo "::error::Set ASC_API_KEY_P8_BASE64, ASC_API_KEY_ID and ASC_API_ISSUER_ID in the release environment"; exit 1
+            echo "::error::1Password item app-store-connect-api-key needs the fields p8_base64, key_id and issuer_id"; exit 1
           fi
 
           keychain="$RUNNER_TEMP/gitcontext-signing.keychain-db"
@@ -334,17 +353,27 @@ jobs:
       TAG: ${{ needs.release.outputs.tag }}
     steps:
       # A secret cannot appear in a job's `if:`; this step stands in.
-      - name: The tap token
+      - name: The 1Password token
         id: token
         env:
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
-          if [ -z "$HOMEBREW_TAP_TOKEN" ]; then
-            echo "::notice title=Homebrew tap not updated::HOMEBREW_TAP_TOKEN is not set in the homebrew environment. Render the cask by hand with packaging/homebrew/render-cask.sh."
+          if [ -z "$OP_SERVICE_ACCOUNT_TOKEN" ]; then
+            echo "::notice title=Homebrew tap not updated::OP_SERVICE_ACCOUNT_TOKEN is not set in the homebrew environment. Render the cask by hand with packaging/homebrew/render-cask.sh."
             echo "configured=false" >> "$GITHUB_OUTPUT"
           else
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: The tap token from 1Password
+        id: op
+        if: steps.token.outputs.configured == 'true'
+        uses: 1password/load-secrets-action@v5
+        with:
+          export-env: false
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          HOMEBREW_TAP_TOKEN: op://Developer/GITHUB_PAT_HOMEBREW/credential
 
       - uses: actions/checkout@v4
         if: steps.token.outputs.configured == 'true'
@@ -369,7 +398,7 @@ jobs:
         with:
           repository: kccarlos/homebrew-tap
           ref: main
-          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          token: ${{ steps.op.outputs.HOMEBREW_TAP_TOKEN }}
           path: homebrew-tap
 
       - name: Update and push the cask
